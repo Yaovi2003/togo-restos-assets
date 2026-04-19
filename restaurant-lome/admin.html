@@ -1,0 +1,2215 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin — Plateforme Restaurants</title>
+
+    <!--
+    ================================================================
+    ÉTAPE 3 : INTERFACE ADMIN — PLATEFORME RESTAURANTS TOGO
+    Auteur : Jo D. Digital
+    ================================================================
+
+    CE QUE CE FICHIER FAIT :
+    ─────────────────────────────────────────────────────────────────
+    1.  PAGE DE CONNEXION
+        → Email + mot de passe via Supabase Auth
+        → Après connexion : l'admin ne voit QUE son restaurant (RLS)
+
+    2.  DASHBOARD
+        → Statistiques : vues totales, likes totaux, visiteurs du jour
+        → Infos du restaurant (nom, adresse, horaires, WhatsApp, couleur)
+        → Liste de tous ses plats
+
+    3.  AJOUTER / MODIFIER UN PLAT
+        → Formulaire : nom, catégorie, prix (FCFA), description, image
+        → Compression d'image côté navigateur (canvas → WebP, max 200 Ko)
+        → Upload de l'image vers GitHub via API (méthode Footpulse)
+        → Sauvegarde de l'URL dans Supabase
+        → Toggle disponible / épuisé en un clic
+
+    4.  SUPPRIMER UN PLAT
+        → Confirmation avant suppression
+        → Supprime dans Supabase (la photo reste sur GitHub)
+
+    5.  GESTION PUB LOCALE
+        → Upload d'une bannière partenaire avec date d'expiration
+        → Lien de redirection configurable
+
+    6.  MODIFIER LES INFOS DU RESTAURANT
+        → Nom, description, adresse, WhatsApp, horaires, couleur de marque
+
+    CONFIGURATION REQUISE :
+    ─────────────────────────────────────────────────────────────────
+    Section CONFIG ci-dessous → remplacer les 4 valeurs :
+    - SUPABASE_URL      → Supabase > Settings > API
+    - SUPABASE_KEY      → Supabase > Settings > API
+    - GITHUB_TOKEN      → GitHub > Settings > Developer Settings > PAT (classic)
+                          Permissions nécessaires : repo (read/write contents)
+    - GITHUB_REPO       → "ton-username/ton-repo" (repo où sont stockées les images)
+    - GITHUB_BRANCH     → "main" (ou "master" selon ton repo)
+    - GITHUB_IMG_PATH   → "assets/uploads" (dossier dans le repo)
+
+    ================================================================
+    -->
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=IBM+Plex+Mono:wght@400;500&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+
+    <style>
+        /* ============================================================
+           VARIABLES & RESET
+        ============================================================ */
+        :root {
+            --gold: #c5a059;
+            --gold-dim: rgba(197,160,89,0.1);
+            --gold-border: rgba(197,160,89,0.25);
+            --bg: #0a0a0a;
+            --surface: #141414;
+            --surface2: #1c1c1c;
+            --surface3: #222222;
+            --border: rgba(255,255,255,0.07);
+            --border2: rgba(255,255,255,0.12);
+            --text: #f0ece4;
+            --text-dim: #7a7570;
+            --text-muted: #4a4642;
+            --success: #2ecc71;
+            --danger: #e74c3c;
+            --warning: #f39c12;
+            --radius: 12px;
+            --radius-lg: 18px;
+            --mono: 'IBM Plex Mono', monospace;
+        }
+
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'DM Sans', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        button { cursor: pointer; font-family: inherit; }
+        input, select, textarea { font-family: inherit; }
+        a { text-decoration: none; color: inherit; }
+
+        /* ============================================================
+           TOAST NOTIFICATIONS (coins haut-droit)
+        ============================================================ */
+        #toast-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            pointer-events: none;
+        }
+
+        .toast {
+            background: var(--surface2);
+            border: 1px solid var(--border2);
+            border-radius: var(--radius);
+            padding: 14px 20px;
+            font-size: 0.88rem;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            min-width: 260px;
+            max-width: 360px;
+            animation: slideIn 0.3s ease forwards;
+            pointer-events: all;
+        }
+
+        .toast.success { border-left: 3px solid var(--success); }
+        .toast.error   { border-left: 3px solid var(--danger);  }
+        .toast.info    { border-left: 3px solid var(--gold);    }
+
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateX(20px); }
+            to   { opacity: 1; transform: translateX(0); }
+        }
+
+        /* ============================================================
+           PAGE LOGIN
+        ============================================================ */
+        #login-page {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            background:
+                radial-gradient(ellipse 60% 40% at 50% 0%, rgba(197,160,89,0.06) 0%, transparent 70%),
+                var(--bg);
+        }
+
+        .login-card {
+            width: 100%;
+            max-width: 420px;
+            background: var(--surface);
+            border: 1px solid var(--border2);
+            border-radius: var(--radius-lg);
+            padding: 48px 40px;
+        }
+
+        .login-brand {
+            text-align: center;
+            margin-bottom: 36px;
+        }
+
+        .login-brand .logo-mark {
+            width: 52px;
+            height: 52px;
+            background: var(--gold-dim);
+            border: 1px solid var(--gold-border);
+            border-radius: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.4rem;
+            margin: 0 auto 16px;
+        }
+
+        .login-brand h1 {
+            font-family: 'Syne', sans-serif;
+            font-size: 1.4rem;
+            font-weight: 800;
+            letter-spacing: -0.02em;
+        }
+
+        .login-brand p {
+            color: var(--text-dim);
+            font-size: 0.85rem;
+            margin-top: 6px;
+        }
+
+        /* ============================================================
+           COMPOSANTS FORMULAIRE RÉUTILISABLES
+        ============================================================ */
+        .field-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            margin-bottom: 16px;
+        }
+
+        .field-label {
+            font-size: 0.78rem;
+            font-weight: 600;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+        }
+
+        .field-input {
+            background: var(--surface2);
+            border: 1.5px solid var(--border2);
+            color: var(--text);
+            padding: 12px 14px;
+            border-radius: var(--radius);
+            font-size: 0.92rem;
+            outline: none;
+            transition: border-color 0.2s;
+            width: 100%;
+        }
+
+        .field-input:focus { border-color: var(--gold); }
+
+        textarea.field-input {
+            resize: vertical;
+            min-height: 90px;
+            line-height: 1.5;
+        }
+
+        select.field-input { appearance: none; }
+
+        .field-hint {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            margin-top: 2px;
+        }
+
+        /* Boutons principaux */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 12px 22px;
+            border-radius: var(--radius);
+            font-size: 0.9rem;
+            font-weight: 600;
+            border: none;
+            transition: all 0.2s;
+            white-space: nowrap;
+        }
+
+        .btn:active { transform: scale(0.97); }
+
+        .btn-primary {
+            background: var(--gold);
+            color: #000;
+        }
+
+        .btn-primary:hover { background: #d4ae6a; }
+
+        .btn-ghost {
+            background: var(--surface2);
+            color: var(--text);
+            border: 1px solid var(--border2);
+        }
+
+        .btn-ghost:hover { border-color: var(--gold); color: var(--gold); }
+
+        .btn-danger {
+            background: rgba(231,76,60,0.12);
+            color: var(--danger);
+            border: 1px solid rgba(231,76,60,0.2);
+        }
+
+        .btn-danger:hover { background: rgba(231,76,60,0.2); }
+
+        .btn-success {
+            background: rgba(46,204,113,0.12);
+            color: var(--success);
+            border: 1px solid rgba(46,204,113,0.2);
+        }
+
+        .btn-sm {
+            padding: 7px 14px;
+            font-size: 0.8rem;
+        }
+
+        .btn-full { width: 100%; }
+
+        .btn:disabled {
+            opacity: 0.5;
+            pointer-events: none;
+        }
+
+        /* Spinner dans les boutons */
+        .btn-spinner {
+            width: 16px;
+            height: 16px;
+            border: 2px solid rgba(0,0,0,0.2);
+            border-top-color: #000;
+            border-radius: 50%;
+            animation: spin 0.7s linear infinite;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* ============================================================
+           LAYOUT PRINCIPAL (sidebar + contenu)
+        ============================================================ */
+        #app-layout {
+            display: none;
+            min-height: 100vh;
+        }
+
+        #app-layout.visible { display: flex; }
+
+        /* SIDEBAR */
+        .sidebar {
+            width: 240px;
+            flex-shrink: 0;
+            background: var(--surface);
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            position: fixed;
+            top: 0;
+            left: 0;
+            bottom: 0;
+            z-index: 100;
+        }
+
+        .sidebar-brand {
+            padding: 24px 20px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .sidebar-brand h2 {
+            font-family: 'Syne', sans-serif;
+            font-size: 1rem;
+            font-weight: 800;
+            letter-spacing: -0.01em;
+        }
+
+        .sidebar-brand p {
+            font-size: 0.72rem;
+            color: var(--text-dim);
+            margin-top: 3px;
+            font-family: var(--mono);
+        }
+
+        .sidebar-nav {
+            flex: 1;
+            padding: 16px 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .nav-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 12px;
+            border-radius: 10px;
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: var(--text-dim);
+            cursor: pointer;
+            transition: all 0.15s;
+            border: none;
+            background: none;
+            width: 100%;
+            text-align: left;
+        }
+
+        .nav-item:hover { background: var(--surface2); color: var(--text); }
+
+        .nav-item.active {
+            background: var(--gold-dim);
+            color: var(--gold);
+            border: 1px solid var(--gold-border);
+        }
+
+        .nav-icon { font-size: 1rem; flex-shrink: 0; }
+
+        .sidebar-footer {
+            padding: 16px 10px;
+            border-top: 1px solid var(--border);
+        }
+
+        /* CONTENU PRINCIPAL */
+        .main-content {
+            margin-left: 240px;
+            flex: 1;
+            padding: 32px;
+            max-width: 960px;
+        }
+
+        /* ============================================================
+           EN-TÊTE DE SECTION
+        ============================================================ */
+        .section-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 28px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .section-title {
+            font-family: 'Syne', sans-serif;
+            font-size: 1.5rem;
+            font-weight: 800;
+            letter-spacing: -0.02em;
+        }
+
+        .section-subtitle {
+            font-size: 0.85rem;
+            color: var(--text-dim);
+            margin-top: 4px;
+        }
+
+        /* ============================================================
+           CARDS STATISTIQUES (Dashboard)
+        ============================================================ */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 16px;
+            margin-bottom: 32px;
+        }
+
+        .stat-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 22px;
+            transition: border-color 0.2s;
+        }
+
+        .stat-card:hover { border-color: var(--gold-border); }
+
+        .stat-label {
+            font-size: 0.72rem;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--text-dim);
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+
+        .stat-value {
+            font-family: 'Syne', sans-serif;
+            font-size: 2.2rem;
+            font-weight: 800;
+            letter-spacing: -0.03em;
+            color: var(--gold);
+            line-height: 1;
+        }
+
+        .stat-unit {
+            font-family: var(--mono);
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            margin-top: 6px;
+        }
+
+        /* ============================================================
+           TABLE DES PLATS
+        ============================================================ */
+        .menu-table-wrap {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            overflow: hidden;
+        }
+
+        .menu-table-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 20px 24px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .menu-table-title {
+            font-family: 'Syne', sans-serif;
+            font-size: 1rem;
+            font-weight: 700;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        thead th {
+            text-align: left;
+            font-size: 0.7rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.07em;
+            color: var(--text-muted);
+            padding: 12px 24px;
+            border-bottom: 1px solid var(--border);
+            background: var(--surface2);
+        }
+
+        tbody tr {
+            border-bottom: 1px solid var(--border);
+            transition: background 0.15s;
+        }
+
+        tbody tr:last-child { border-bottom: none; }
+        tbody tr:hover { background: var(--surface2); }
+
+        tbody td {
+            padding: 14px 24px;
+            font-size: 0.875rem;
+            vertical-align: middle;
+        }
+
+        .dish-thumb {
+            width: 44px;
+            height: 44px;
+            border-radius: 8px;
+            object-fit: cover;
+            background: var(--surface3);
+        }
+
+        .dish-name-cell {
+            font-weight: 600;
+            max-width: 200px;
+        }
+
+        .dish-name-cell small {
+            display: block;
+            font-weight: 400;
+            font-size: 0.75rem;
+            color: var(--text-dim);
+            margin-top: 2px;
+        }
+
+        .price-mono {
+            font-family: var(--mono);
+            font-size: 0.85rem;
+            color: var(--gold);
+            font-weight: 500;
+        }
+
+        /* Badge de disponibilité */
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 4px 10px;
+            border-radius: 50px;
+            font-size: 0.72rem;
+            font-weight: 600;
+        }
+
+        .badge-dot {
+            width: 5px;
+            height: 5px;
+            border-radius: 50%;
+            background: currentColor;
+        }
+
+        .badge.available {
+            background: rgba(46,204,113,0.12);
+            color: var(--success);
+        }
+
+        .badge.unavailable {
+            background: rgba(231,76,60,0.1);
+            color: var(--danger);
+        }
+
+        .actions-cell {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        /* ============================================================
+           MODAL GÉNÉRIQUE (Ajouter / Modifier plat)
+        ============================================================ */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.75);
+            z-index: 500;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.25s;
+        }
+
+        .modal-overlay.visible {
+            opacity: 1;
+            pointer-events: all;
+        }
+
+        .modal-box {
+            background: var(--surface);
+            border: 1px solid var(--border2);
+            border-radius: var(--radius-lg);
+            width: 100%;
+            max-width: 560px;
+            max-height: 90vh;
+            overflow-y: auto;
+            padding: 32px;
+            transform: translateY(16px);
+            transition: transform 0.3s cubic-bezier(0.34,1.56,0.64,1);
+        }
+
+        .modal-overlay.visible .modal-box {
+            transform: translateY(0);
+        }
+
+        .modal-head {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            margin-bottom: 28px;
+        }
+
+        .modal-title {
+            font-family: 'Syne', sans-serif;
+            font-size: 1.2rem;
+            font-weight: 800;
+        }
+
+        .modal-close {
+            width: 32px;
+            height: 32px;
+            background: var(--surface2);
+            border: 1px solid var(--border2);
+            border-radius: 8px;
+            color: var(--text-dim);
+            font-size: 1rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        /* ============================================================
+           UPLOAD D'IMAGE — Zone Drag & Drop
+        ============================================================ */
+        .img-upload-zone {
+            border: 2px dashed var(--border2);
+            border-radius: var(--radius);
+            padding: 28px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .img-upload-zone:hover,
+        .img-upload-zone.dragover {
+            border-color: var(--gold);
+            background: var(--gold-dim);
+        }
+
+        .img-upload-zone input[type="file"] {
+            position: absolute;
+            inset: 0;
+            opacity: 0;
+            cursor: pointer;
+        }
+
+        .img-upload-icon {
+            font-size: 2rem;
+            margin-bottom: 10px;
+        }
+
+        .img-upload-text {
+            font-size: 0.85rem;
+            color: var(--text-dim);
+            line-height: 1.5;
+        }
+
+        .img-upload-text strong {
+            color: var(--gold);
+        }
+
+        /* Prévisualisation de l'image sélectionnée */
+        #img-preview-wrap {
+            display: none;
+            position: relative;
+        }
+
+        #img-preview {
+            width: 100%;
+            height: 160px;
+            object-fit: cover;
+            border-radius: var(--radius);
+            display: block;
+        }
+
+        .img-preview-info {
+            margin-top: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .img-preview-info span {
+            font-family: var(--mono);
+            font-size: 0.75rem;
+            color: var(--text-dim);
+        }
+
+        /* Barre de progression de l'upload */
+        #upload-progress-wrap {
+            display: none;
+            margin-top: 10px;
+        }
+
+        .progress-bar-bg {
+            height: 4px;
+            background: var(--surface3);
+            border-radius: 2px;
+            overflow: hidden;
+        }
+
+        .progress-bar-fill {
+            height: 100%;
+            background: var(--gold);
+            border-radius: 2px;
+            transition: width 0.3s ease;
+            width: 0%;
+        }
+
+        .progress-label {
+            font-family: var(--mono);
+            font-size: 0.72rem;
+            color: var(--text-dim);
+            margin-top: 4px;
+        }
+
+        /* ============================================================
+           SECTION INFOS DU RESTAURANT
+        ============================================================ */
+        .info-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 28px;
+            margin-bottom: 24px;
+        }
+
+        .info-card-title {
+            font-family: 'Syne', sans-serif;
+            font-size: 1rem;
+            font-weight: 700;
+            margin-bottom: 20px;
+            padding-bottom: 14px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .form-grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+
+        .color-picker-wrap {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        input[type="color"] {
+            width: 44px;
+            height: 44px;
+            border: 1.5px solid var(--border2);
+            border-radius: 8px;
+            background: none;
+            padding: 2px;
+            cursor: pointer;
+        }
+
+        /* ============================================================
+           SECTION PUB LOCALE
+        ============================================================ */
+        .ad-preview-wrap {
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 16px;
+            margin-top: 16px;
+        }
+
+        .ad-preview-wrap img {
+            width: 100%;
+            height: 80px;
+            object-fit: cover;
+            border-radius: 8px;
+            display: block;
+        }
+
+        /* ============================================================
+           ÉTAT VIDE
+        ============================================================ */
+        .empty-placeholder {
+            text-align: center;
+            padding: 60px 20px;
+            color: var(--text-dim);
+        }
+
+        .empty-placeholder .icon { font-size: 2.5rem; margin-bottom: 14px; }
+
+        .empty-placeholder p {
+            font-size: 0.9rem;
+            max-width: 280px;
+            margin: 0 auto;
+        }
+
+        /* ============================================================
+           DIALOG DE CONFIRMATION (suppression)
+        ============================================================ */
+        .confirm-dialog {
+            background: var(--surface);
+            border: 1px solid rgba(231,76,60,0.3);
+            border-radius: var(--radius-lg);
+            padding: 28px;
+            max-width: 380px;
+            width: 100%;
+        }
+
+        .confirm-dialog h3 {
+            font-family: 'Syne', sans-serif;
+            font-size: 1.1rem;
+            font-weight: 800;
+            margin-bottom: 10px;
+        }
+
+        .confirm-dialog p {
+            font-size: 0.875rem;
+            color: var(--text-dim);
+            margin-bottom: 24px;
+            line-height: 1.5;
+        }
+
+        .confirm-actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        /* ============================================================
+           TOGGLE SWITCH
+        ============================================================ */
+        .toggle-wrap {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .toggle {
+            position: relative;
+            width: 44px;
+            height: 24px;
+            flex-shrink: 0;
+        }
+
+        .toggle input { display: none; }
+
+        .toggle-track {
+            position: absolute;
+            inset: 0;
+            background: var(--surface3);
+            border-radius: 12px;
+            cursor: pointer;
+            transition: background 0.2s;
+            border: 1px solid var(--border2);
+        }
+
+        .toggle input:checked + .toggle-track { background: var(--success); border-color: var(--success); }
+
+        .toggle-track::after {
+            content: '';
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: #fff;
+            transition: transform 0.2s;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+        }
+
+        .toggle input:checked + .toggle-track::after {
+            transform: translateX(20px);
+        }
+
+        /* ============================================================
+           RESPONSIVE (tablette)
+        ============================================================ */
+        @media (max-width: 768px) {
+            .sidebar { display: none; }
+            .main-content { margin-left: 0; padding: 20px 16px; }
+            .stats-grid { grid-template-columns: 1fr 1fr; }
+            .form-grid-2 { grid-template-columns: 1fr; }
+        }
+
+        /* ============================================================
+           ANIMATIONS
+        ============================================================ */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(8px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+
+        .panel { animation: fadeIn 0.3s ease; }
+
+        /* Loading skeleton */
+        .skeleton {
+            background: linear-gradient(90deg, var(--surface2) 25%, var(--surface3) 50%, var(--surface2) 75%);
+            background-size: 200% 100%;
+            animation: shimmer 1.5s infinite;
+            border-radius: 6px;
+        }
+
+        @keyframes shimmer {
+            0%   { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
+    </style>
+</head>
+<body>
+
+<!-- ============================================================
+     TOAST CONTAINER
+============================================================ -->
+<div id="toast-container"></div>
+
+
+<!-- ============================================================
+     PAGE DE CONNEXION
+============================================================ -->
+<div id="login-page">
+    <div class="login-card">
+        <div class="login-brand">
+            <div class="logo-mark">🍽️</div>
+            <h1>Espace Admin</h1>
+            <p>Plateforme Restaurants Togo</p>
+        </div>
+
+        <div class="field-group">
+            <label class="field-label">Adresse e-mail</label>
+            <input type="email" class="field-input" id="login-email" placeholder="admin@restaurant.tg" autocomplete="email">
+        </div>
+
+        <div class="field-group">
+            <label class="field-label">Mot de passe</label>
+            <input type="password" class="field-input" id="login-password" placeholder="••••••••" autocomplete="current-password">
+        </div>
+
+        <button class="btn btn-primary btn-full" id="login-btn" style="margin-top:8px;">
+            Se connecter
+        </button>
+
+        <p style="text-align:center; margin-top:20px; font-size:0.8rem; color:var(--text-muted);">
+            Problème de connexion ? Contactez Jo D. Digital
+        </p>
+    </div>
+</div>
+
+
+<!-- ============================================================
+     APPLICATION PRINCIPALE (après connexion)
+============================================================ -->
+<div id="app-layout">
+
+    <!-- SIDEBAR -->
+    <aside class="sidebar">
+        <div class="sidebar-brand">
+            <h2 id="sidebar-resto-name">Chargement...</h2>
+            <p id="sidebar-slug" style="color:var(--text-dim);">@...</p>
+        </div>
+
+        <nav class="sidebar-nav">
+            <button class="nav-item active" data-panel="dashboard">
+                <span class="nav-icon">📊</span> Tableau de bord
+            </button>
+            <button class="nav-item" data-panel="menu">
+                <span class="nav-icon">🍽️</span> Gestion des plats
+            </button>
+            <button class="nav-item" data-panel="restaurant">
+                <span class="nav-icon">🏪</span> Mon restaurant
+            </button>
+            <button class="nav-item" data-panel="ads">
+                <span class="nav-icon">📢</span> Pub locale
+            </button>
+        </nav>
+
+        <div class="sidebar-footer">
+            <button class="btn btn-ghost btn-full btn-sm" id="logout-btn">
+                ↩ Déconnexion
+            </button>
+        </div>
+    </aside>
+
+    <!-- CONTENU PRINCIPAL -->
+    <main class="main-content">
+
+        <!-- ─── DASHBOARD ─────────────────────────── -->
+        <div id="panel-dashboard" class="panel">
+            <div class="section-header">
+                <div>
+                    <h2 class="section-title">Tableau de bord</h2>
+                    <p class="section-subtitle">Performance de votre restaurant</p>
+                </div>
+            </div>
+
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-label">Vues totales</div>
+                    <div class="stat-value" id="stat-views">—</div>
+                    <div class="stat-unit">scans de QR code</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Likes totaux</div>
+                    <div class="stat-value" id="stat-likes">—</div>
+                    <div class="stat-unit">sur tous les plats</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Visiteurs aujourd'hui</div>
+                    <div class="stat-value" id="stat-today">—</div>
+                    <div class="stat-unit">depuis minuit</div>
+                </div>
+            </div>
+
+            <!-- Aperçu rapide des plats les plus likés -->
+            <div class="menu-table-wrap">
+                <div class="menu-table-header">
+                    <span class="menu-table-title">🏆 Plats les plus aimés</span>
+                </div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Plat</th>
+                            <th>Catégorie</th>
+                            <th>Prix</th>
+                            <th>Likes</th>
+                            <th>Statut</th>
+                        </tr>
+                    </thead>
+                    <tbody id="top-dishes-tbody">
+                        <tr><td colspan="5" style="text-align:center; padding:30px; color:var(--text-dim);">Chargement...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- ─── GESTION DES PLATS ─────────────────── -->
+        <div id="panel-menu" class="panel" style="display:none;">
+            <div class="section-header">
+                <div>
+                    <h2 class="section-title">Mes plats</h2>
+                    <p class="section-subtitle" id="menu-count-label">Chargement...</p>
+                </div>
+                <button class="btn btn-primary" id="open-add-dish-btn">
+                    + Ajouter un plat
+                </button>
+            </div>
+
+            <div class="menu-table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th width="60">Photo</th>
+                            <th>Plat</th>
+                            <th>Catégorie</th>
+                            <th>Prix</th>
+                            <th>Statut</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="menu-tbody">
+                        <tr><td colspan="6" style="text-align:center; padding:30px; color:var(--text-dim);">Chargement...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- ─── INFOS RESTAURANT ──────────────────── -->
+        <div id="panel-restaurant" class="panel" style="display:none;">
+            <div class="section-header">
+                <div>
+                    <h2 class="section-title">Mon restaurant</h2>
+                    <p class="section-subtitle">Informations affichées sur votre menu public</p>
+                </div>
+            </div>
+
+            <div class="info-card">
+                <h3 class="info-card-title">🏷️ Identité</h3>
+                <div class="form-grid-2">
+                    <div class="field-group">
+                        <label class="field-label">Nom du restaurant</label>
+                        <input type="text" class="field-input" id="r-name">
+                    </div>
+                    <div class="field-group">
+                        <label class="field-label">Adresse</label>
+                        <input type="text" class="field-input" id="r-address">
+                    </div>
+                </div>
+                <div class="field-group">
+                    <label class="field-label">Description (2-3 phrases)</label>
+                    <textarea class="field-input" id="r-description" rows="3"></textarea>
+                </div>
+            </div>
+
+            <div class="info-card">
+                <h3 class="info-card-title">📞 Contact & Horaires</h3>
+                <div class="form-grid-2">
+                    <div class="field-group">
+                        <label class="field-label">Numéro WhatsApp (commandes)</label>
+                        <input type="text" class="field-input" id="r-whatsapp" placeholder="22890010203">
+                        <p class="field-hint">Commencer par l'indicatif pays. Ex: 228 pour le Togo</p>
+                    </div>
+                    <div class="field-group">
+                        <label class="field-label">Téléphone</label>
+                        <input type="text" class="field-input" id="r-phone">
+                    </div>
+                </div>
+                <div class="field-group">
+                    <label class="field-label">Horaires d'ouverture</label>
+                    <input type="text" class="field-input" id="r-hours" placeholder="Lun-Sam : 11h00 – 23h00 · Dim : Fermé">
+                </div>
+            </div>
+
+            <div class="info-card">
+                <h3 class="info-card-title">🎨 Apparence</h3>
+                <div class="field-group">
+                    <label class="field-label">Couleur de marque</label>
+                    <div class="color-picker-wrap">
+                        <input type="color" id="r-theme-color" value="#c5a059">
+                        <input type="text" class="field-input" id="r-theme-color-hex" value="#c5a059" style="width:140px; font-family:var(--mono);">
+                        <p style="font-size:0.8rem; color:var(--text-dim);">Personnalise l'affichage du menu client</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="info-card">
+                <h3 class="info-card-title">🖼️ Images (Logo & Couverture)</h3>
+                <div class="form-grid-2">
+                    <div class="field-group">
+                        <label class="field-label">URL du Logo</label>
+                        <input type="url" class="field-input" id="r-logo-url" placeholder="https://...">
+                        <p class="field-hint">Uploader via le panneau Plats → copier l'URL générée ici</p>
+                    </div>
+                    <div class="field-group">
+                        <label class="field-label">URL de la couverture</label>
+                        <input type="url" class="field-input" id="r-cover-url" placeholder="https://...">
+                    </div>
+                </div>
+            </div>
+
+            <button class="btn btn-primary" id="save-resto-btn">
+                💾 Enregistrer les modifications
+            </button>
+        </div>
+
+        <!-- ─── PUB LOCALE ────────────────────────── -->
+        <div id="panel-ads" class="panel" style="display:none;">
+            <div class="section-header">
+                <div>
+                    <h2 class="section-title">Publicité locale</h2>
+                    <p class="section-subtitle">Vendez votre espace pub à vos partenaires</p>
+                </div>
+                <button class="btn btn-primary" id="open-add-ad-btn">+ Nouvelle pub</button>
+            </div>
+
+            <div style="background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-lg); padding:24px; margin-bottom:24px;">
+                <p style="font-size:0.85rem; color:var(--text-dim); line-height:1.6;">
+                    <strong style="color:var(--text);">Comment ça fonctionne :</strong><br>
+                    Vous vendez vous-même un espace bannière à un partenaire local (pharmacie, boutique, service...).
+                    La bannière s'affiche en haut de votre menu digital, visible par tous vos clients.
+                    Ceci est <strong style="color:var(--gold);">indépendant</strong> de Google Ads (géré par la plateforme).
+                </p>
+            </div>
+
+            <div id="ads-list">
+                <div class="empty-placeholder">
+                    <div class="icon">📢</div>
+                    <p>Aucune publicité locale configurée.</p>
+                </div>
+            </div>
+        </div>
+
+    </main>
+</div>
+
+
+<!-- ============================================================
+     MODAL : AJOUTER / MODIFIER UN PLAT
+============================================================ -->
+<div class="modal-overlay" id="dish-modal-overlay">
+    <div class="modal-box">
+        <div class="modal-head">
+            <h3 class="modal-title" id="dish-modal-title">Ajouter un plat</h3>
+            <button class="modal-close" id="close-dish-modal">✕</button>
+        </div>
+
+        <input type="hidden" id="dish-edit-id">
+
+        <div class="form-grid-2">
+            <div class="field-group">
+                <label class="field-label">Nom du plat *</label>
+                <input type="text" class="field-input" id="dish-name" placeholder="Fufu Sauce Graine">
+            </div>
+            <div class="field-group">
+                <label class="field-label">Catégorie *</label>
+                <select class="field-input" id="dish-category">
+                    <option value="">— Choisir —</option>
+                    <option value="Entrée">Entrée</option>
+                    <option value="Plat Principal">Plat Principal</option>
+                    <option value="Spécialité">Spécialité</option>
+                    <option value="Dessert">Dessert</option>
+                    <option value="Boisson">Boisson</option>
+                    <option value="Autre">Autre</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="form-grid-2">
+            <div class="field-group">
+                <label class="field-label">Prix (FCFA) *</label>
+                <input type="number" class="field-input" id="dish-price" placeholder="2500" min="0">
+            </div>
+            <div class="field-group">
+                <label class="field-label">Ordre d'affichage</label>
+                <input type="number" class="field-input" id="dish-order" placeholder="0" min="0">
+                <p class="field-hint">0 = premier affiché</p>
+            </div>
+        </div>
+
+        <div class="field-group">
+            <label class="field-label">Description (optionnel)</label>
+            <textarea class="field-input" id="dish-description" rows="2" placeholder="Ingrédients, goût, particularité..."></textarea>
+        </div>
+
+        <div class="field-group">
+            <label class="field-label">Photo du plat</label>
+
+            <!-- Zone d'upload si pas d'image existante -->
+            <div class="img-upload-zone" id="img-drop-zone">
+                <input type="file" id="dish-img-input" accept="image/*">
+                <div class="img-upload-icon">📷</div>
+                <p class="img-upload-text">
+                    <strong>Cliquer ou glisser une photo ici</strong><br>
+                    JPG, PNG, WebP · L'image sera compressée automatiquement
+                </p>
+            </div>
+
+            <!-- Prévisualisation -->
+            <div id="img-preview-wrap">
+                <img id="img-preview" src="" alt="Aperçu">
+                <div class="img-preview-info">
+                    <span id="img-file-info">—</span>
+                    <button class="btn btn-ghost btn-sm" id="change-img-btn">Changer</button>
+                </div>
+            </div>
+
+            <!-- Barre de progression upload -->
+            <div id="upload-progress-wrap">
+                <div class="progress-bar-bg">
+                    <div class="progress-bar-fill" id="progress-fill"></div>
+                </div>
+                <p class="progress-label" id="progress-label">Compression en cours...</p>
+            </div>
+
+            <!-- URL actuelle (mode édition) -->
+            <div id="current-img-url-wrap" style="margin-top:10px; display:none;">
+                <label class="field-label">Image actuelle</label>
+                <input type="url" class="field-input" id="current-img-url" readonly style="font-family:var(--mono); font-size:0.75rem;">
+                <p class="field-hint">Sélectionner une nouvelle image pour remplacer</p>
+            </div>
+        </div>
+
+        <div class="field-group">
+            <label class="field-label">Disponibilité</label>
+            <label class="toggle-wrap">
+                <div class="toggle">
+                    <input type="checkbox" id="dish-available" checked>
+                    <div class="toggle-track"></div>
+                </div>
+                <span id="dish-available-label" style="font-size:0.875rem;">Disponible (en stock)</span>
+            </label>
+        </div>
+
+        <div style="display:flex; gap:12px; margin-top:8px;">
+            <button class="btn btn-ghost" id="cancel-dish-btn" style="flex:1;">Annuler</button>
+            <button class="btn btn-primary" id="save-dish-btn" style="flex:2;">
+                💾 Enregistrer le plat
+            </button>
+        </div>
+    </div>
+</div>
+
+
+<!-- ============================================================
+     MODAL : CONFIRMATION SUPPRESSION
+============================================================ -->
+<div class="modal-overlay" id="delete-modal-overlay">
+    <div class="confirm-dialog">
+        <h3>🗑️ Supprimer ce plat ?</h3>
+        <p>Cette action est irréversible. Le plat <strong id="delete-dish-name"></strong> sera retiré définitivement de votre menu.</p>
+        <div class="confirm-actions">
+            <button class="btn btn-ghost" id="cancel-delete-btn" style="flex:1;">Annuler</button>
+            <button class="btn btn-danger" id="confirm-delete-btn" style="flex:1;">Supprimer</button>
+        </div>
+    </div>
+</div>
+
+
+<!-- ============================================================
+     MODAL : AJOUTER UNE PUB LOCALE
+============================================================ -->
+<div class="modal-overlay" id="ad-modal-overlay">
+    <div class="modal-box" style="max-width:480px;">
+        <div class="modal-head">
+            <h3 class="modal-title">📢 Nouvelle publicité locale</h3>
+            <button class="modal-close" id="close-ad-modal">✕</button>
+        </div>
+
+        <div class="field-group">
+            <label class="field-label">Libellé interne</label>
+            <input type="text" class="field-input" id="ad-label" placeholder="Pub BB Lomé - Décembre 2026">
+        </div>
+
+        <div class="field-group">
+            <label class="field-label">Photo de la bannière</label>
+            <div class="img-upload-zone" id="ad-drop-zone">
+                <input type="file" id="ad-img-input" accept="image/*">
+                <div class="img-upload-icon">🖼️</div>
+                <p class="img-upload-text">
+                    <strong>Bannière publicitaire</strong><br>
+                    Format recommandé : 800 × 200 px (ratio 4:1)
+                </p>
+            </div>
+            <div id="ad-img-preview-wrap" style="display:none; margin-top:10px;">
+                <div class="ad-preview-wrap">
+                    <img id="ad-img-preview" src="" alt="">
+                </div>
+            </div>
+        </div>
+
+        <div class="field-group">
+            <label class="field-label">Lien de redirection (optionnel)</label>
+            <input type="url" class="field-input" id="ad-link" placeholder="https://facebook.com/mon-partenaire">
+        </div>
+
+        <div class="field-group">
+            <label class="field-label">Date d'expiration (optionnel)</label>
+            <input type="date" class="field-input" id="ad-expires">
+            <p class="field-hint">La bannière disparaîtra automatiquement après cette date.</p>
+        </div>
+
+        <div style="display:flex; gap:12px; margin-top:8px;">
+            <button class="btn btn-ghost" id="cancel-ad-btn" style="flex:1;">Annuler</button>
+            <button class="btn btn-primary" id="save-ad-btn" style="flex:2;">
+                📢 Publier la bannière
+            </button>
+        </div>
+    </div>
+</div>
+
+
+<!-- ============================================================
+     JAVASCRIPT PRINCIPAL
+============================================================ -->
+<script>
+'use strict';
+
+// ================================================================
+// ████  CONFIGURATION — MODIFIER CES VALEURS  ████
+// ================================================================
+const CONFIG = {
+    // ── Supabase ──────────────────────────────────────────────
+    SUPABASE_URL  : 'https://qlkhzplfigyrbfizsnkp.supabase.co',      // ← Remplacer
+    SUPABASE_KEY  : 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFsa2h6cGxmaWd5cmJmaXpzbmtwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY1MzExNjIsImV4cCI6MjA5MjEwNzE2Mn0.UANwoNqn3wUlMmF7F6Wu-rj7_K4Ak3FIAl0IrFBVhPQ',                  // ← Remplacer
+
+    // ── GitHub (stockage des images) ──────────────────────────
+    // Créer un PAT sur : GitHub > Settings > Developer Settings
+    // > Personal access tokens > Generate new token (classic)
+    // Permission requise : repo (full control)
+    GITHUB_TOKEN  : 'ghp_XXXXXXXXXXXXXXXXXXXXXXXX',         // ← Remplacer
+    GITHUB_REPO   : 'Yaovi2003/togo-restos-assets',                // ← Remplacer (ex: joddigital/restos-togo)
+    GITHUB_BRANCH : 'main',                                 // ← 'main' ou 'master'
+    GITHUB_IMG_PATH : 'assets/uploads',                     // Dossier dans le repo
+
+    // ── Compression image ─────────────────────────────────────
+    MAX_IMG_WIDTH  : 800,    // pixels de large max
+    MAX_IMG_HEIGHT : 800,    // pixels de haut max
+    IMG_QUALITY    : 0.82,   // Qualité WebP (0–1). 0.82 = bon compromis taille/qualité
+    MAX_KB         : 200,    // Taille cible en Ko après compression
+};
+// ================================================================
+
+// ── Supabase init ──────────────────────────────────────────────
+const { createClient } = supabase;
+const db = createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_KEY);
+
+// ── État global ────────────────────────────────────────────────
+let currentUser       = null;
+let currentProfile    = null;
+let currentRestaurant = null;
+let allDishes         = [];
+let pendingImgFile    = null;   // Image sélectionnée en attente d'upload
+let pendingAdFile     = null;   // Bannière pub en attente
+let deletePendingId   = null;   // ID du plat à supprimer
+let activePanel       = 'dashboard';
+
+// ================================================================
+// SYSTÈME DE TOAST NOTIFICATIONS
+// ================================================================
+function toast(msg, type = 'info', duration = 4000) {
+    const icons = { success: '✅', error: '❌', info: 'ℹ️' };
+    const el = document.createElement('div');
+    el.className = `toast ${type}`;
+    el.innerHTML = `<span>${icons[type]}</span><span>${msg}</span>`;
+    document.getElementById('toast-container').appendChild(el);
+    setTimeout(() => el.remove(), duration);
+}
+
+// ================================================================
+// NAVIGATION ENTRE PANNEAUX
+// ================================================================
+function showPanel(panelId) {
+    document.querySelectorAll('.panel').forEach(p => p.style.display = 'none');
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+
+    const panel = document.getElementById(`panel-${panelId}`);
+    if (panel) panel.style.display = 'block';
+
+    const navBtn = document.querySelector(`[data-panel="${panelId}"]`);
+    if (navBtn) navBtn.classList.add('active');
+
+    activePanel = panelId;
+
+    // Charger les données spécifiques au panneau
+    if (panelId === 'dashboard') loadStats();
+    if (panelId === 'menu')      renderMenuTable();
+    if (panelId === 'restaurant') fillRestoForm();
+    if (panelId === 'ads')       loadAds();
+}
+
+document.querySelectorAll('.nav-item').forEach(btn => {
+    btn.addEventListener('click', () => showPanel(btn.dataset.panel));
+});
+
+// ================================================================
+// AUTHENTIFICATION — CONNEXION / DÉCONNEXION
+// ================================================================
+document.getElementById('login-btn').addEventListener('click', async () => {
+    const email = document.getElementById('login-email').value.trim();
+    const pwd   = document.getElementById('login-password').value;
+
+    if (!email || !pwd) { toast('Remplis tous les champs.', 'error'); return; }
+
+    const btn = document.getElementById('login-btn');
+    btn.disabled = true;
+    btn.innerHTML = '<div class="btn-spinner"></div> Connexion...';
+
+    try {
+        const { data, error } = await db.auth.signInWithPassword({ email, password: pwd });
+        if (error) throw error;
+        await initApp(data.user);
+    } catch (err) {
+        toast(err.message || 'Identifiants incorrects.', 'error');
+        btn.disabled = false;
+        btn.textContent = 'Se connecter';
+    }
+});
+
+// Touche Entrée dans les champs login
+['login-email', 'login-password'].forEach(id => {
+    document.getElementById(id).addEventListener('keydown', e => {
+        if (e.key === 'Enter') document.getElementById('login-btn').click();
+    });
+});
+
+document.getElementById('logout-btn').addEventListener('click', async () => {
+    await db.auth.signOut();
+    location.reload();
+});
+
+// ================================================================
+// INITIALISATION DE L'APP APRÈS CONNEXION
+// ================================================================
+async function initApp(user) {
+    currentUser = user;
+
+    // Récupère le profil et le restaurant lié
+    const { data: profile, error: profileErr } = await db
+        .from('profiles')
+        .select('*, restaurants(*)')
+        .eq('id', user.id)
+        .single();
+
+    if (profileErr || !profile?.restaurant_id) {
+        toast('Aucun restaurant lié à ce compte. Contactez Jo D. Digital.', 'error');
+        return;
+    }
+
+    currentProfile    = profile;
+    currentRestaurant = profile.restaurants;
+
+    // Met à jour la sidebar
+    document.getElementById('sidebar-resto-name').textContent = currentRestaurant.name;
+    document.getElementById('sidebar-slug').textContent       = `@${currentRestaurant.slug}`;
+
+    // Charge les plats une fois
+    await loadDishes();
+
+    // Affiche l'app
+    document.getElementById('login-page').style.display   = 'none';
+    document.getElementById('app-layout').classList.add('visible');
+
+    showPanel('dashboard');
+}
+
+// Vérifier si déjà connecté au chargement de la page
+(async () => {
+    const { data: { session } } = await db.auth.getSession();
+    if (session?.user) await initApp(session.user);
+})();
+
+// ================================================================
+// CHARGEMENT DES PLATS DEPUIS SUPABASE
+// ================================================================
+async function loadDishes() {
+    const { data, error } = await db
+        .from('menu_items')
+        .select('*')
+        .eq('restaurant_id', currentRestaurant.id)
+        .order('display_order', { ascending: true })
+        .order('category', { ascending: true });
+
+    if (!error) allDishes = data || [];
+}
+
+// ================================================================
+// STATS — DASHBOARD
+// ================================================================
+async function loadStats() {
+    const { data } = await db
+        .from('stats')
+        .select('*')
+        .eq('restaurant_id', currentRestaurant.id)
+        .single();
+
+    document.getElementById('stat-views').textContent = data?.views_count   ?? 0;
+    document.getElementById('stat-likes').textContent = data?.likes_count   ?? 0;
+    document.getElementById('stat-today').textContent = data?.visitors_today ?? 0;
+
+    // Top 5 plats par likes
+    const top = [...allDishes].sort((a, b) => (b.likes_count || 0) - (a.likes_count || 0)).slice(0, 5);
+    const tbody = document.getElementById('top-dishes-tbody');
+
+    if (top.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;padding:30px;color:var(--text-dim);">Aucun plat pour l'instant.</td></tr>`;
+        return;
+    }
+
+    tbody.innerHTML = top.map(d => `
+        <tr>
+            <td><strong>${d.name}</strong></td>
+            <td style="color:var(--text-dim); font-size:0.82rem;">${d.category}</td>
+            <td class="price-mono">${d.price.toLocaleString('fr-FR')} FCFA</td>
+            <td><span style="color:var(--gold); font-weight:700;">❤️ ${d.likes_count || 0}</span></td>
+            <td>${d.is_available
+                ? '<span class="badge available"><span class="badge-dot"></span>Dispo</span>'
+                : '<span class="badge unavailable"><span class="badge-dot"></span>Épuisé</span>'}</td>
+        </tr>
+    `).join('');
+}
+
+// ================================================================
+// TABLE DES PLATS — PANNEAU MENU
+// ================================================================
+function renderMenuTable() {
+    const label = document.getElementById('menu-count-label');
+    label.textContent = `${allDishes.length} plat${allDishes.length > 1 ? 's' : ''} au menu`;
+
+    const tbody = document.getElementById('menu-tbody');
+
+    if (allDishes.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6">
+            <div class="empty-placeholder">
+                <div class="icon">🍽️</div>
+                <p>Votre menu est vide. Ajoutez votre premier plat !</p>
+            </div>
+        </td></tr>`;
+        return;
+    }
+
+    tbody.innerHTML = allDishes.map(dish => `
+        <tr>
+            <td>
+                ${dish.image_url
+                    ? `<img class="dish-thumb" src="${dish.image_url}" alt="${dish.name}" loading="lazy">`
+                    : `<div class="dish-thumb" style="display:flex;align-items:center;justify-content:center;font-size:1.2rem;">🍽️</div>`}
+            </td>
+            <td>
+                <div class="dish-name-cell">
+                    ${dish.name}
+                    ${dish.description ? `<small>${dish.description.substring(0, 60)}${dish.description.length > 60 ? '…' : ''}</small>` : ''}
+                </div>
+            </td>
+            <td style="color:var(--text-dim); font-size:0.82rem;">${dish.category}</td>
+            <td class="price-mono">${dish.price.toLocaleString('fr-FR')} FCFA</td>
+            <td>
+                <label class="toggle-wrap" style="cursor:pointer;" title="Basculer disponibilité">
+                    <div class="toggle">
+                        <input type="checkbox" ${dish.is_available ? 'checked' : ''} onchange="toggleAvailability('${dish.id}', this.checked)">
+                        <div class="toggle-track"></div>
+                    </div>
+                    <span style="font-size:0.8rem; color:var(--text-dim);">${dish.is_available ? 'Dispo' : 'Épuisé'}</span>
+                </label>
+            </td>
+            <td>
+                <div class="actions-cell">
+                    <button class="btn btn-ghost btn-sm" onclick="openEditDish('${dish.id}')">✏️ Modifier</button>
+                    <button class="btn btn-danger btn-sm" onclick="openDeleteConfirm('${dish.id}', '${dish.name.replace(/'/g, "\\'")}')">🗑️</button>
+                </div>
+            </td>
+        </tr>
+    `).join('');
+}
+
+// ================================================================
+// TOGGLE DISPONIBILITÉ (inline dans le tableau)
+// ================================================================
+async function toggleAvailability(dishId, available) {
+    const { error } = await db
+        .from('menu_items')
+        .update({ is_available: available })
+        .eq('id', dishId);
+
+    if (error) {
+        toast('Erreur lors de la mise à jour.', 'error');
+        return;
+    }
+
+    // Met à jour le state local
+    const dish = allDishes.find(d => d.id === dishId);
+    if (dish) dish.is_available = available;
+
+    toast(`Plat marqué comme ${available ? 'disponible' : 'épuisé'}.`, 'success');
+    renderMenuTable();
+}
+
+// ================================================================
+// MODAL AJOUTER / MODIFIER UN PLAT
+// ================================================================
+function resetDishModal() {
+    document.getElementById('dish-edit-id').value  = '';
+    document.getElementById('dish-name').value     = '';
+    document.getElementById('dish-category').value = '';
+    document.getElementById('dish-price').value    = '';
+    document.getElementById('dish-order').value    = '0';
+    document.getElementById('dish-description').value = '';
+    document.getElementById('dish-available').checked  = true;
+    document.getElementById('dish-available-label').textContent = 'Disponible (en stock)';
+    document.getElementById('img-drop-zone').style.display     = 'block';
+    document.getElementById('img-preview-wrap').style.display  = 'none';
+    document.getElementById('upload-progress-wrap').style.display = 'none';
+    document.getElementById('current-img-url-wrap').style.display = 'none';
+    document.getElementById('current-img-url').value = '';
+    pendingImgFile = null;
+}
+
+function openAddDish() {
+    resetDishModal();
+    document.getElementById('dish-modal-title').textContent = '+ Ajouter un plat';
+    document.getElementById('dish-modal-overlay').classList.add('visible');
+}
+
+function openEditDish(dishId) {
+    const dish = allDishes.find(d => d.id === dishId);
+    if (!dish) return;
+
+    resetDishModal();
+    document.getElementById('dish-modal-title').textContent    = '✏️ Modifier le plat';
+    document.getElementById('dish-edit-id').value              = dish.id;
+    document.getElementById('dish-name').value                 = dish.name;
+    document.getElementById('dish-category').value             = dish.category;
+    document.getElementById('dish-price').value                = dish.price;
+    document.getElementById('dish-order').value                = dish.display_order || 0;
+    document.getElementById('dish-description').value          = dish.description || '';
+    document.getElementById('dish-available').checked          = dish.is_available;
+    document.getElementById('dish-available-label').textContent = dish.is_available ? 'Disponible' : 'Épuisé';
+
+    if (dish.image_url) {
+        document.getElementById('current-img-url').value          = dish.image_url;
+        document.getElementById('current-img-url-wrap').style.display = 'block';
+    }
+
+    document.getElementById('dish-modal-overlay').classList.add('visible');
+}
+
+function closeDishModal() {
+    document.getElementById('dish-modal-overlay').classList.remove('visible');
+    resetDishModal();
+}
+
+document.getElementById('open-add-dish-btn').addEventListener('click', openAddDish);
+document.getElementById('close-dish-modal').addEventListener('click', closeDishModal);
+document.getElementById('cancel-dish-btn').addEventListener('click', closeDishModal);
+
+// Toggle disponibilité dans le modal
+document.getElementById('dish-available').addEventListener('change', function() {
+    document.getElementById('dish-available-label').textContent =
+        this.checked ? 'Disponible (en stock)' : 'Épuisé';
+});
+
+// ================================================================
+// COMPRESSION D'IMAGE (côté navigateur — Canvas + WebP)
+// ================================================================
+
+/**
+ * Compresse une image avec le Canvas de la page.
+ * Réduit les dimensions si trop grandes.
+ * Convertit en WebP.
+ * @param {File} file — Fichier image original
+ * @returns {Promise<{blob: Blob, dataUrl: string, sizeKb: number}>}
+ */
+async function compressImage(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+
+        reader.onload = (e) => {
+            const img = new Image();
+            img.onload = () => {
+                // Calcul des nouvelles dimensions (proportions conservées)
+                let { width, height } = img;
+                const maxW = CONFIG.MAX_IMG_WIDTH;
+                const maxH = CONFIG.MAX_IMG_HEIGHT;
+
+                if (width > maxW || height > maxH) {
+                    const ratio = Math.min(maxW / width, maxH / height);
+                    width  = Math.round(width  * ratio);
+                    height = Math.round(height * ratio);
+                }
+
+                // Dessin sur canvas
+                const canvas  = document.createElement('canvas');
+                canvas.width  = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, width, height);
+
+                // Compression WebP
+                let quality = CONFIG.IMG_QUALITY;
+                let dataUrl = canvas.toDataURL('image/webp', quality);
+
+                // Réduction progressive si encore trop lourd
+                while (dataUrl.length * 0.75 / 1024 > CONFIG.MAX_KB && quality > 0.4) {
+                    quality -= 0.05;
+                    dataUrl = canvas.toDataURL('image/webp', quality);
+                }
+
+                // Conversion en Blob pour l'upload
+                canvas.toBlob(blob => {
+                    resolve({
+                        blob,
+                        dataUrl,
+                        sizeKb: Math.round(blob.size / 1024)
+                    });
+                }, 'image/webp', quality);
+            };
+
+            img.onerror = () => reject(new Error('Image invalide.'));
+            img.src = e.target.result;
+        };
+
+        reader.onerror = () => reject(new Error('Lecture du fichier impossible.'));
+        reader.readAsDataURL(file);
+    });
+}
+
+// Gestion du drag & drop et de la sélection de fichier (plat)
+function setupImgUploadZone(dropZoneId, inputId, onFile) {
+    const zone  = document.getElementById(dropZoneId);
+    const input = document.getElementById(inputId);
+
+    input.addEventListener('change', () => {
+        if (input.files[0]) onFile(input.files[0]);
+    });
+
+    zone.addEventListener('dragover', e => {
+        e.preventDefault();
+        zone.classList.add('dragover');
+    });
+
+    zone.addEventListener('dragleave', () => zone.classList.remove('dragover'));
+
+    zone.addEventListener('drop', e => {
+        e.preventDefault();
+        zone.classList.remove('dragover');
+        const f = e.dataTransfer.files[0];
+        if (f && f.type.startsWith('image/')) onFile(f);
+    });
+}
+
+setupImgUploadZone('img-drop-zone', 'dish-img-input', async (file) => {
+    // Compression immédiate à la sélection (feedback instantané)
+    try {
+        const compressed = await compressImage(file);
+        pendingImgFile = compressed;
+
+        // Afficher la prévisualisation
+        document.getElementById('img-drop-zone').style.display    = 'none';
+        document.getElementById('img-preview-wrap').style.display = 'block';
+        document.getElementById('img-preview').src                = compressed.dataUrl;
+        document.getElementById('img-file-info').textContent      = `✅ WebP · ${compressed.sizeKb} Ko`;
+    } catch (err) {
+        toast('Impossible de lire cette image.', 'error');
+    }
+});
+
+document.getElementById('change-img-btn').addEventListener('click', () => {
+    pendingImgFile = null;
+    document.getElementById('img-preview-wrap').style.display = 'none';
+    document.getElementById('img-drop-zone').style.display    = 'block';
+    document.getElementById('dish-img-input').value           = '';
+});
+
+// ================================================================
+// UPLOAD GITHUB — Envoi de l'image vers le repo
+// ================================================================
+
+/**
+ * Upload un Blob vers GitHub via l'API REST.
+ * L'image est stockée dans CONFIG.GITHUB_IMG_PATH/filename.webp
+ * et accessible via raw.githubusercontent.com ou Cloudflare Pages.
+ *
+ * @param {Blob} blob       — Blob WebP compressé
+ * @param {string} filename — Nom du fichier (sans extension, sera .webp)
+ * @returns {Promise<string>} URL publique de l'image
+ */
+async function uploadToGitHub(blob, filename) {
+    setProgress(20, 'Préparation de l\'image...');
+
+    // Convertir le Blob en Base64 (requis par l'API GitHub)
+    const arrayBuffer = await blob.arrayBuffer();
+    const bytes       = new Uint8Array(arrayBuffer);
+    const base64      = btoa(String.fromCharCode(...bytes));
+
+    const cleanName   = filename.replace(/[^a-z0-9\-_]/gi, '-').toLowerCase();
+    const timestamp   = Date.now();
+    const filePath    = `${CONFIG.GITHUB_IMG_PATH}/${cleanName}-${timestamp}.webp`;
+    const apiUrl      = `https://api.github.com/repos/${CONFIG.GITHUB_REPO}/contents/${filePath}`;
+
+    setProgress(50, 'Upload vers GitHub...');
+
+    const response = await fetch(apiUrl, {
+        method  : 'PUT',
+        headers : {
+            'Authorization' : `Bearer ${CONFIG.GITHUB_TOKEN}`,
+            'Content-Type'  : 'application/json',
+            'X-GitHub-Api-Version': '2022-11-28',
+        },
+        body: JSON.stringify({
+            message : `feat: upload image ${cleanName}`,
+            content : base64,
+            branch  : CONFIG.GITHUB_BRANCH,
+        }),
+    });
+
+    if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.message || 'Erreur GitHub API');
+    }
+
+    setProgress(90, 'Finalisation...');
+
+    // Construit l'URL publique de l'image
+    // Via raw.githubusercontent.com (toujours accessible)
+    const publicUrl = `https://raw.githubusercontent.com/${CONFIG.GITHUB_REPO}/${CONFIG.GITHUB_BRANCH}/${filePath}`;
+
+    setProgress(100, 'Upload réussi !');
+
+    return publicUrl;
+}
+
+function setProgress(percent, label) {
+    document.getElementById('upload-progress-wrap').style.display = 'block';
+    document.getElementById('progress-fill').style.width          = `${percent}%`;
+    document.getElementById('progress-label').textContent         = label;
+}
+
+// ================================================================
+// ENREGISTREMENT D'UN PLAT (Ajout ou Modification)
+// ================================================================
+document.getElementById('save-dish-btn').addEventListener('click', async () => {
+    const editId      = document.getElementById('dish-edit-id').value;
+    const name        = document.getElementById('dish-name').value.trim();
+    const category    = document.getElementById('dish-category').value;
+    const priceStr    = document.getElementById('dish-price').value;
+    const price       = parseInt(priceStr, 10);
+    const description = document.getElementById('dish-description').value.trim();
+    const order       = parseInt(document.getElementById('dish-order').value || '0', 10);
+    const available   = document.getElementById('dish-available').checked;
+
+    // Validation
+    if (!name)           { toast('Le nom du plat est obligatoire.', 'error'); return; }
+    if (!category)       { toast('Choisissez une catégorie.', 'error'); return; }
+    if (isNaN(price) || price < 0) { toast('Prix invalide.', 'error'); return; }
+
+    const btn = document.getElementById('save-dish-btn');
+    btn.disabled = true;
+    btn.innerHTML = '<div class="btn-spinner"></div> Enregistrement...';
+
+    try {
+        let imageUrl = editId ? document.getElementById('current-img-url').value : null;
+
+        // Upload de la nouvelle image si sélectionnée
+        if (pendingImgFile) {
+            imageUrl = await uploadToGitHub(pendingImgFile.blob, name);
+        }
+
+        const dishData = {
+            restaurant_id : currentRestaurant.id,
+            name,
+            category,
+            price,
+            description  : description || null,
+            display_order: order,
+            is_available : available,
+            image_url    : imageUrl || null,
+        };
+
+        let savedDish;
+
+        if (editId) {
+            // Mode édition
+            const { data, error } = await db
+                .from('menu_items')
+                .update(dishData)
+                .eq('id', editId)
+                .select()
+                .single();
+
+            if (error) throw error;
+            savedDish = data;
+
+            // Met à jour le state local
+            const idx = allDishes.findIndex(d => d.id === editId);
+            if (idx !== -1) allDishes[idx] = savedDish;
+
+            toast(`"${name}" mis à jour avec succès !`, 'success');
+        } else {
+            // Mode ajout
+            const { data, error } = await db
+                .from('menu_items')
+                .insert(dishData)
+                .select()
+                .single();
+
+            if (error) throw error;
+            savedDish = data;
+
+            allDishes.push(savedDish);
+            toast(`"${name}" ajouté au menu !`, 'success');
+        }
+
+        closeDishModal();
+        renderMenuTable();
+
+    } catch (err) {
+        console.error(err);
+        toast(err.message || 'Erreur lors de l\'enregistrement.', 'error');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '💾 Enregistrer le plat';
+        document.getElementById('upload-progress-wrap').style.display = 'none';
+    }
+});
+
+// ================================================================
+// SUPPRESSION D'UN PLAT
+// ================================================================
+function openDeleteConfirm(dishId, dishName) {
+    deletePendingId = dishId;
+    document.getElementById('delete-dish-name').textContent = dishName;
+    document.getElementById('delete-modal-overlay').classList.add('visible');
+}
+
+document.getElementById('cancel-delete-btn').addEventListener('click', () => {
+    deletePendingId = null;
+    document.getElementById('delete-modal-overlay').classList.remove('visible');
+});
+
+document.getElementById('confirm-delete-btn').addEventListener('click', async () => {
+    if (!deletePendingId) return;
+
+    const btn = document.getElementById('confirm-delete-btn');
+    btn.disabled = true;
+
+    try {
+        const { error } = await db
+            .from('menu_items')
+            .delete()
+            .eq('id', deletePendingId);
+
+        if (error) throw error;
+
+        allDishes = allDishes.filter(d => d.id !== deletePendingId);
+        toast('Plat supprimé.', 'success');
+        document.getElementById('delete-modal-overlay').classList.remove('visible');
+        renderMenuTable();
+
+    } catch (err) {
+        toast('Erreur lors de la suppression.', 'error');
+    } finally {
+        btn.disabled = false;
+        deletePendingId = null;
+    }
+});
+
+// ================================================================
+// INFOS RESTAURANT — FORMULAIRE
+// ================================================================
+function fillRestoForm() {
+    const r = currentRestaurant;
+    document.getElementById('r-name').value        = r.name        || '';
+    document.getElementById('r-address').value     = r.address     || '';
+    document.getElementById('r-description').value = r.description || '';
+    document.getElementById('r-whatsapp').value    = r.whatsapp    || '';
+    document.getElementById('r-phone').value       = r.phone       || '';
+    document.getElementById('r-hours').value       = r.opening_hours || '';
+    document.getElementById('r-theme-color').value    = r.theme_color || '#c5a059';
+    document.getElementById('r-theme-color-hex').value = r.theme_color || '#c5a059';
+    document.getElementById('r-logo-url').value    = r.logo_url    || '';
+    document.getElementById('r-cover-url').value   = r.cover_url   || '';
+}
+
+// Sync color picker ↔ hex input
+document.getElementById('r-theme-color').addEventListener('input', function() {
+    document.getElementById('r-theme-color-hex').value = this.value;
+});
+
+document.getElementById('r-theme-color-hex').addEventListener('input', function() {
+    if (/^#[0-9A-Fa-f]{6}$/.test(this.value)) {
+        document.getElementById('r-theme-color').value = this.value;
+    }
+});
+
+document.getElementById('save-resto-btn').addEventListener('click', async () => {
+    const btn = document.getElementById('save-resto-btn');
+    btn.disabled = true;
+    btn.innerHTML = '<div class="btn-spinner" style="border-top-color:var(--bg)"></div> Enregistrement...';
+
+    try {
+        const updates = {
+            name         : document.getElementById('r-name').value.trim(),
+            address      : document.getElementById('r-address').value.trim(),
+            description  : document.getElementById('r-description').value.trim(),
+            whatsapp     : document.getElementById('r-whatsapp').value.trim(),
+            phone        : document.getElementById('r-phone').value.trim(),
+            opening_hours: document.getElementById('r-hours').value.trim(),
+            theme_color  : document.getElementById('r-theme-color-hex').value.trim(),
+            logo_url     : document.getElementById('r-logo-url').value.trim() || null,
+            cover_url    : document.getElementById('r-cover-url').value.trim() || null,
+        };
+
+        const { data, error } = await db
+            .from('restaurants')
+            .update(updates)
+            .eq('id', currentRestaurant.id)
+            .select()
+            .single();
+
+        if (error) throw error;
+
+        currentRestaurant = data;
+        document.getElementById('sidebar-resto-name').textContent = data.name;
+        toast('Restaurant mis à jour !', 'success');
+
+    } catch (err) {
+        toast(err.message || 'Erreur lors de la sauvegarde.', 'error');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '💾 Enregistrer les modifications';
+    }
+});
+
+// ================================================================
+// PUB LOCALE — CHARGEMENT & SAUVEGARDE
+// ================================================================
+async function loadAds() {
+    const { data: ads, error } = await db
+        .from('local_ads')
+        .select('*')
+        .eq('restaurant_id', currentRestaurant.id)
+        .order('created_at', { ascending: false });
+
+    const container = document.getElementById('ads-list');
+
+    if (error || !ads || ads.length === 0) {
+        container.innerHTML = `
+            <div class="empty-placeholder">
+                <div class="icon">📢</div>
+                <p>Aucune publicité locale configurée.</p>
+            </div>`;
+        return;
+    }
+
+    container.innerHTML = ads.map(ad => {
+        const isExpired = ad.expires_at && new Date(ad.expires_at) < new Date();
+        return `
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:20px;margin-bottom:16px;">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+                <strong style="font-size:0.9rem;">${ad.label || 'Publicité sans nom'}</strong>
+                <div style="display:flex;gap:8px;align-items:center;">
+                    ${isExpired ? '<span class="badge unavailable">Expirée</span>' : (ad.is_active ? '<span class="badge available">Active</span>' : '<span class="badge unavailable">Inactive</span>')}
+                    <button class="btn btn-danger btn-sm" onclick="deleteAd('${ad.id}')">🗑️</button>
+                </div>
+            </div>
+            <img src="${ad.banner_url}" alt="Bannière" style="width:100%;height:80px;object-fit:cover;border-radius:8px;margin-bottom:10px;">
+            <div style="font-size:0.78rem;color:var(--text-dim);">
+                ${ad.redirect_url ? `🔗 ${ad.redirect_url}` : 'Pas de lien de redirection'}
+                ${ad.expires_at ? ` · Expire le ${new Date(ad.expires_at).toLocaleDateString('fr-FR')}` : ''}
+            </div>
+        </div>`;
+    }).join('');
+}
+
+async function deleteAd(adId) {
+    if (!confirm('Supprimer cette publicité ?')) return;
+    await db.from('local_ads').delete().eq('id', adId);
+    toast('Publicité supprimée.', 'success');
+    loadAds();
+}
+
+// Upload bannière pub
+setupImgUploadZone('ad-drop-zone', 'ad-img-input', async (file) => {
+    try {
+        const compressed = await compressImage(file);
+        pendingAdFile = compressed;
+        document.getElementById('ad-img-preview-wrap').style.display = 'block';
+        document.getElementById('ad-img-preview').src = compressed.dataUrl;
+    } catch (e) {
+        toast('Image invalide.', 'error');
+    }
+});
+
+document.getElementById('open-add-ad-btn').addEventListener('click', () => {
+    document.getElementById('ad-modal-overlay').classList.add('visible');
+});
+
+document.getElementById('close-ad-modal').addEventListener('click', () => {
+    document.getElementById('ad-modal-overlay').classList.remove('visible');
+});
+
+document.getElementById('cancel-ad-btn').addEventListener('click', () => {
+    document.getElementById('ad-modal-overlay').classList.remove('visible');
+});
+
+document.getElementById('save-ad-btn').addEventListener('click', async () => {
+    if (!pendingAdFile) { toast('Sélectionne une bannière.', 'error'); return; }
+
+    const btn = document.getElementById('save-ad-btn');
+    btn.disabled = true;
+
+    try {
+        const bannerUrl = await uploadToGitHub(pendingAdFile.blob, 'pub-' + currentRestaurant.slug);
+
+        const expires = document.getElementById('ad-expires').value;
+
+        const { error } = await db.from('local_ads').insert({
+            restaurant_id: currentRestaurant.id,
+            banner_url   : bannerUrl,
+            redirect_url : document.getElementById('ad-link').value.trim() || null,
+            label        : document.getElementById('ad-label').value.trim() || null,
+            expires_at   : expires ? new Date(expires).toISOString() : null,
+            is_active    : true,
+        });
+
+        if (error) throw error;
+
+        toast('Bannière publiée !', 'success');
+        document.getElementById('ad-modal-overlay').classList.remove('visible');
+        pendingAdFile = null;
+        loadAds();
+
+    } catch (err) {
+        toast(err.message || 'Erreur lors de l\'upload.', 'error');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '📢 Publier la bannière';
+    }
+});
+</script>
+
+</body>
+</html>
