@@ -1,0 +1,11 @@
+
+name               = "restaurant-lome"
+main               = "index.js"
+compatibility_date = "2026-04-17"
+
+[assets]
+directory = "."
+binding   = "ASSETS"
+
+[vars]
+SITE_NAME = "Restos Lomé"
