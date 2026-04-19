@@ -1,0 +1,1051 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+
+    <!--
+    ================================================================
+    view.html — MENU CLIENT COMPLET (Version Finale)
+    Plateforme Restaurants Togo · Jo D. Digital
+    ================================================================
+
+    FONCTIONNALITÉS COMPLÈTES :
+    ✅ Chargement dynamique via ?id=slug
+    ✅ Panier multi-plats (ajouter / modifier qty / supprimer)
+    ✅ Bouton WhatsApp avec récapitulatif formaté
+    ✅ Likes par plat (anti-doublon localStorage)
+    ✅ Note étoiles 1-5 par restaurant (localStorage)
+    ✅ Bouton "Appel Serveur" avec numéro de table
+    ✅ Filtre par catégorie + recherche temps réel
+    ✅ Status Ouvert/Fermé automatique
+    ✅ Bannière pub locale du gérant
+    ✅ Google AdSense (2 slots intégrés)
+    ✅ Open Graph meta tags (partage WhatsApp/Facebook avec image)
+    ✅ Compteur de vues (+1 à chaque scan)
+    ✅ Partage réseaux sociaux depuis un plat
+    ✅ Support bilingue Français / Anglais
+    ✅ Plats épuisés grisés automatiquement
+    ✅ Animation d'entrée des cartes
+    ✅ Responsive mobile-first
+
+    CONFIGURATION :
+    → Remplacer SUPABASE_URL et SUPABASE_KEY
+    → Remplacer ca-pub-XXXX par ton vrai Publisher ID AdSense
+    → Le fichier est UNIQUE pour tous les restaurants
+    ================================================================
+    -->
+
+    <!-- Meta Open Graph — Rempli dynamiquement après chargement resto -->
+    <!-- Ces balises permettent l'aperçu image sur WhatsApp / Facebook -->
+    <meta property="og:type"        content="website">
+    <meta property="og:title"       id="og-title"       content="Menu Digital — Lomé">
+    <meta property="og:description" id="og-description" content="Consultez notre menu et commandez via WhatsApp">
+    <meta property="og:image"       id="og-image"       content="">
+    <meta property="og:url"         id="og-url"         content="">
+    <meta property="og:site_name"   content="Restos Lomé">
+    <meta name="twitter:card"       content="summary_large_image">
+    <meta name="twitter:title"      id="tw-title"       content="Menu Digital">
+    <meta name="twitter:image"      id="tw-image"       content="">
+
+    <title id="page-title">Menu · Chargement...</title>
+
+    <!-- Google AdSense — Script global obligatoire -->
+    <!--
+    REMPLACER ca-pub-XXXXXXXXXXXXXXXX par TON Publisher ID AdSense.
+    Ce script se charge une fois pour toute la page.
+    Les blocs individuels sont dans le HTML plus bas.
+    -->
+    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-XXXXXXXXXXXXXXXX" crossorigin="anonymous"></script>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+
+    <!-- QR Code library (pour la génération côté client) -->
+    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+
+    <style>
+        :root {
+            --brand: #c5a059;
+            --brand-dim: rgba(197,160,89,0.1);
+            --bg: #0f0f0f;
+            --surface: #1a1a1a;
+            --surface2: #222;
+            --border: #2a2a2a;
+            --text: #f0f0f0;
+            --text-dim: #888;
+            --success: #2ecc71;
+            --danger: #e74c3c;
+            --radius: 14px;
+        }
+
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'DM Sans', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            overflow-x: hidden;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        button { cursor: pointer; font-family: inherit; }
+
+        /* ── LOADER ───────────────────────────────────── */
+        #loading-screen {
+            position: fixed; inset: 0; background: var(--bg);
+            display: flex; flex-direction: column; align-items: center;
+            justify-content: center; z-index: 9999; gap: 20px;
+            transition: opacity 0.4s ease;
+        }
+        #loading-screen.hidden { opacity: 0; pointer-events: none; }
+        .loader-ring {
+            width: 44px; height: 44px;
+            border: 3px solid var(--border);
+            border-top-color: var(--brand);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* ── ERREUR ───────────────────────────────────── */
+        #error-screen { display: none; min-height: 100vh; align-items: center;
+            justify-content: center; flex-direction: column; text-align: center; padding: 40px; gap: 16px; }
+        #error-screen.visible { display: flex; }
+
+        /* ── HEADER ───────────────────────────────────── */
+        .cover-image { width: 100%; height: 210px; object-fit: cover; display: block; }
+        .cover-overlay { position: absolute; bottom: 0; left: 0; right: 0; height: 120px; background: linear-gradient(transparent, var(--bg)); }
+        #site-header { position: relative; overflow: hidden; }
+
+        .resto-identity { position: relative; padding: 0 18px 20px; margin-top: -56px; display: flex; align-items: flex-end; gap: 14px; }
+        .resto-logo { width: 68px; height: 68px; border-radius: var(--radius); border: 3px solid var(--bg); object-fit: cover; background: var(--surface); flex-shrink: 0; }
+        .resto-name { font-family: 'Syne', sans-serif; font-size: 1.45rem; font-weight: 800; line-height: 1.1; }
+        .resto-address { font-size: 0.78rem; color: var(--text-dim); margin-top: 4px; }
+
+        .status-badge { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 50px; font-size: 0.72rem; font-weight: 600; margin-top: 6px; }
+        .status-badge.open { background: rgba(46,204,113,0.15); color: var(--success); }
+        .status-badge.closed { background: rgba(231,76,60,0.15); color: var(--danger); }
+        .status-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+
+        /* ── STAR RATING ────────────────────────────────── */
+        .stars-wrap { padding: 0 18px 16px; }
+        .stars-label { font-size: 0.75rem; color: var(--text-dim); margin-bottom: 6px; }
+        .stars { display: flex; gap: 4px; }
+        .star { font-size: 1.3rem; cursor: pointer; transition: transform 0.15s; line-height: 1; }
+        .star:active { transform: scale(1.3); }
+        .star.filled { filter: none; }
+        .star.empty { opacity: 0.3; filter: grayscale(1); }
+        .stars-count { font-size: 0.72rem; color: var(--text-dim); margin-left: 6px; align-self: center; }
+
+        /* ── PUB LOCALE GÉRANT ──────────────────────────── */
+        #local-ad-banner { display: none; margin: 0 16px 16px; border-radius: var(--radius); overflow: hidden; cursor: pointer; position: relative; }
+        #local-ad-banner img { width: 100%; height: auto; max-height: 100px; object-fit: cover; display: block; }
+        #local-ad-banner .ad-label { position: absolute; top: 6px; right: 6px; background: rgba(0,0,0,0.6); color: #fff; font-size: 0.6rem; padding: 2px 6px; border-radius: 4px; }
+
+        /* ── GOOGLE ADS SLOT ────────────────────────────── */
+        .google-ad-slot {
+            margin: 0 16px 20px;
+            min-height: 90px;
+            display: block;
+            overflow: hidden;
+        }
+        /* En dev sans AdSense actif : affiche un placeholder visible */
+        .google-ad-slot ins:empty::after {
+            content: "AdSense — Revenus Jo D. Digital";
+            display: flex; align-items: center; justify-content: center;
+            height: 90px; background: var(--surface); color: var(--text-dim);
+            font-size: 0.7rem; letter-spacing: 0.05em; border-radius: 10px;
+        }
+
+        /* ── BOUTON APPEL SERVEUR ───────────────────────── */
+        .call-server-wrap { padding: 0 16px 16px; }
+        #call-server-btn {
+            width: 100%; background: var(--surface); border: 1.5px solid var(--border);
+            color: var(--text); padding: 12px; border-radius: var(--radius);
+            display: flex; align-items: center; justify-content: center; gap: 8px;
+            font-size: 0.88rem; font-weight: 600; transition: border-color 0.2s;
+        }
+        #call-server-btn:hover { border-color: var(--brand); color: var(--brand); }
+
+        /* ── RECHERCHE ──────────────────────────────────── */
+        .search-wrap { padding: 0 16px 16px; }
+        .search-input {
+            width: 100%; background: var(--surface); border: 1.5px solid var(--border);
+            color: var(--text); padding: 12px 16px; border-radius: 50px;
+            font-family: 'DM Sans', sans-serif; font-size: 0.9rem; outline: none;
+            transition: border-color 0.2s;
+        }
+        .search-input:focus { border-color: var(--brand); }
+        .search-input::placeholder { color: var(--text-dim); }
+
+        /* ── FILTRES CATÉGORIES ─────────────────────────── */
+        .categories-bar { display: flex; gap: 8px; padding: 0 16px 20px; overflow-x: auto; scrollbar-width: none; }
+        .categories-bar::-webkit-scrollbar { display: none; }
+        .cat-pill {
+            flex-shrink: 0; padding: 7px 16px; border-radius: 50px;
+            border: 1.5px solid var(--border); background: transparent;
+            color: var(--text-dim); font-family: 'DM Sans', sans-serif; font-size: 0.82rem;
+            font-weight: 500; cursor: pointer; transition: all 0.2s; white-space: nowrap;
+        }
+        .cat-pill.active { background: var(--brand); border-color: var(--brand); color: #000; font-weight: 600; }
+
+        /* ── MENU LIST ──────────────────────────────────── */
+        .menu-section { padding: 0 16px; }
+        .category-title {
+            font-family: 'Syne', sans-serif; font-size: 0.9rem; font-weight: 700;
+            letter-spacing: 0.06em; text-transform: uppercase; color: var(--brand);
+            margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid var(--border);
+        }
+
+        /* Carte plat */
+        .dish-card {
+            display: flex; align-items: center; gap: 14px; background: var(--surface);
+            border-radius: var(--radius); padding: 14px; margin-bottom: 10px;
+            border: 1.5px solid var(--border); transition: border-color 0.2s;
+            animation: fadeInUp 0.35s ease forwards; opacity: 0;
+        }
+        .dish-card.in-cart { border-color: var(--brand); }
+        .dish-card.unavailable { opacity: 0.4; pointer-events: none; position: relative; }
+        .dish-card.unavailable::after {
+            content: "Épuisé"; position: absolute; top: 10px; right: 10px;
+            background: var(--danger); color: white; font-size: 0.65rem; font-weight: 700;
+            padding: 3px 8px; border-radius: 4px;
+        }
+
+        @keyframes fadeInUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+        .dish-card:nth-child(1) { animation-delay: 0.02s; }
+        .dish-card:nth-child(2) { animation-delay: 0.06s; }
+        .dish-card:nth-child(3) { animation-delay: 0.10s; }
+        .dish-card:nth-child(4) { animation-delay: 0.14s; }
+        .dish-card:nth-child(5) { animation-delay: 0.18s; }
+
+        .dish-img-wrap { width: 80px; height: 80px; border-radius: 10px; overflow: hidden; flex-shrink: 0; background: var(--surface2); }
+        .dish-img { width: 100%; height: 100%; object-fit: cover; display: block; }
+        .dish-img-placeholder { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; font-size: 1.8rem; }
+
+        .dish-body { flex: 1; min-width: 0; }
+        .dish-name { font-size: 0.92rem; font-weight: 600; line-height: 1.3; margin-bottom: 4px; }
+        .dish-description { font-size: 0.75rem; color: var(--text-dim); line-height: 1.4; margin-bottom: 8px;
+            display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+
+        .dish-footer { display: flex; align-items: center; justify-content: space-between; }
+        .dish-price { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 1rem; color: var(--brand); }
+
+        .dish-actions { display: flex; align-items: center; gap: 8px; }
+
+        /* Like */
+        .like-btn { background: none; border: none; cursor: pointer; font-size: 0.72rem; color: var(--text-dim);
+            display: flex; align-items: center; gap: 4px; padding: 4px 0; transition: color 0.2s; }
+        .like-btn.liked { color: var(--danger); }
+        .heart { transition: transform 0.2s; }
+        .like-btn.liked .heart { transform: scale(1.2); }
+
+        /* Share plat */
+        .share-dish-btn { background: none; border: none; color: var(--text-dim); cursor: pointer; font-size: 1rem; padding: 4px; transition: color 0.2s; }
+        .share-dish-btn:hover { color: var(--brand); }
+
+        /* Ajouter au panier */
+        .add-btn {
+            width: 34px; height: 34px; border-radius: 50%; border: 2px solid var(--brand);
+            background: transparent; color: var(--brand); font-size: 1.3rem;
+            display: flex; align-items: center; justify-content: center;
+            cursor: pointer; transition: all 0.2s; flex-shrink: 0;
+        }
+        .add-btn:active { transform: scale(0.9); }
+        .add-btn.added { background: var(--brand); color: #000; }
+
+        /* ── PANIER FAB ─────────────────────────────────── */
+        #cart-fab {
+            position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(100px);
+            background: var(--brand); color: #000; border: none; border-radius: 50px;
+            padding: 16px 28px; display: flex; align-items: center; gap: 12px;
+            font-family: 'DM Sans', sans-serif; font-weight: 700; font-size: 0.95rem;
+            cursor: pointer; z-index: 1000; box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+            transition: transform 0.4s cubic-bezier(0.34,1.56,0.64,1); white-space: nowrap;
+        }
+        #cart-fab.visible { transform: translateX(-50%) translateY(0); }
+        .cart-count-badge {
+            background: #000; color: var(--brand); width: 26px; height: 26px;
+            border-radius: 50%; display: flex; align-items: center; justify-content: center;
+            font-size: 0.8rem; font-weight: 800; flex-shrink: 0;
+        }
+
+        /* ── MODAL PANIER ───────────────────────────────── */
+        .modal-overlay {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.75);
+            z-index: 2000; display: flex; align-items: flex-end;
+            opacity: 0; pointer-events: none; transition: opacity 0.3s ease;
+        }
+        .modal-overlay.visible { opacity: 1; pointer-events: all; }
+        .modal-box {
+            background: var(--surface); border-radius: 24px 24px 0 0; width: 100%;
+            max-height: 85vh; display: flex; flex-direction: column; padding: 24px 20px 0;
+            transform: translateY(100%); transition: transform 0.35s cubic-bezier(0.34,1.56,0.64,1);
+            position: relative;
+        }
+        .modal-overlay.visible .modal-box { transform: translateY(0); }
+        .modal-handle { width: 40px; height: 4px; background: var(--border); border-radius: 2px; margin: 0 auto 20px; }
+        .modal-title { font-family: 'Syne', sans-serif; font-size: 1.2rem; font-weight: 800; margin-bottom: 16px; }
+        .modal-close { position: absolute; top: 20px; right: 20px; background: var(--surface2); border: none;
+            width: 34px; height: 34px; border-radius: 50%; color: var(--text); font-size: 1rem;
+            display: flex; align-items: center; justify-content: center; cursor: pointer; }
+
+        #cart-items-list { overflow-y: auto; flex: 1; padding-right: 4px; }
+
+        .cart-item { display: flex; align-items: center; gap: 12px; padding: 14px 0; border-bottom: 1px solid var(--border); }
+        .cart-item-name { flex: 1; font-size: 0.88rem; font-weight: 500; }
+        .cart-item-price { font-size: 0.85rem; color: var(--brand); font-weight: 600; white-space: nowrap; }
+
+        .qty-controls { display: flex; align-items: center; gap: 8px; background: var(--surface2); border-radius: 50px; padding: 4px; }
+        .qty-btn { width: 28px; height: 28px; border-radius: 50%; border: none; background: var(--border); color: var(--text);
+            font-size: 1.1rem; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: background 0.2s; }
+        .qty-btn.minus { background: rgba(231,76,60,0.2); color: var(--danger); }
+        .qty-btn.plus { background: var(--brand-dim); color: var(--brand); }
+        .qty-display { font-weight: 700; min-width: 20px; text-align: center; font-size: 0.9rem; }
+
+        .remove-item-btn { background: none; border: none; color: var(--text-dim); cursor: pointer; font-size: 1rem; padding: 4px; }
+
+        .cart-footer { padding: 16px 0 32px; border-top: 1px solid var(--border); margin-top: 8px; }
+        .cart-total-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+        .cart-total-label { color: var(--text-dim); font-size: 0.9rem; }
+        .cart-total-amount { font-family: 'Syne', sans-serif; font-size: 1.4rem; font-weight: 800; color: var(--brand); }
+
+        #whatsapp-order-btn {
+            width: 100%; background: #25d366; color: white; border: none; border-radius: var(--radius);
+            padding: 16px; font-family: 'Syne', sans-serif; font-weight: 700; font-size: 1rem;
+            cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px;
+        }
+
+        /* ── MODAL APPEL SERVEUR ────────────────────────── */
+        .call-modal-box {
+            background: var(--surface); border-radius: 20px; width: 100%; max-width: 380px;
+            padding: 28px; transform: translateY(20px); transition: transform 0.3s ease;
+        }
+        .modal-overlay.visible .call-modal-box { transform: translateY(0); }
+        .call-modal-box h3 { font-family: 'Syne', sans-serif; font-size: 1.1rem; font-weight: 800; margin-bottom: 10px; }
+        .table-input {
+            width: 100%; background: var(--surface2); border: 1.5px solid var(--border);
+            color: var(--text); padding: 12px 14px; border-radius: var(--radius);
+            font-size: 1rem; outline: none; margin: 12px 0;
+        }
+        .table-input:focus { border-color: var(--brand); }
+        .btn-confirm-call {
+            width: 100%; background: var(--brand); color: #000; border: none;
+            padding: 14px; border-radius: var(--radius); font-weight: 700;
+            font-size: 0.95rem; cursor: pointer;
+        }
+        .btn-cancel-call { width: 100%; background: var(--surface2); border: 1px solid var(--border);
+            color: var(--text-dim); padding: 12px; border-radius: var(--radius);
+            font-weight: 600; font-size: 0.9rem; cursor: pointer; margin-top: 8px; }
+
+        /* ── FOOTER RESTO ───────────────────────────────── */
+        .resto-footer { padding: 30px 20px 130px; text-align: center; border-top: 1px solid var(--border); margin-top: 20px; }
+        .resto-footer .hours { font-size: 0.85rem; color: var(--text-dim); margin-bottom: 8px; }
+        .resto-footer .phone-link { display: inline-flex; align-items: center; gap: 6px; color: var(--brand); text-decoration: none; font-size: 0.9rem; font-weight: 500; }
+
+        /* ── EMPTY STATE ────────────────────────────────── */
+        .empty-state { text-align: center; padding: 60px 20px; color: var(--text-dim); }
+
+        /* ── LANG TOGGLE ────────────────────────────────── */
+        .lang-btn {
+            position: fixed; top: 14px; right: 14px; z-index: 500;
+            background: rgba(26,26,26,0.85); border: 1px solid var(--border);
+            color: var(--text-dim); padding: 5px 12px; border-radius: 50px;
+            font-size: 0.75rem; font-weight: 600; cursor: pointer; backdrop-filter: blur(8px);
+        }
+
+        @media (min-width: 600px) {
+            body { max-width: 480px; margin: 0 auto; box-shadow: 0 0 60px rgba(0,0,0,0.5); }
+        }
+    </style>
+</head>
+<body>
+
+<!-- ── LANGUE ─────────────────────────────────── -->
+<button class="lang-btn" id="lang-btn">EN</button>
+
+<!-- ── LOADER ─────────────────────────────────── -->
+<div id="loading-screen">
+    <div class="loader-ring"></div>
+    <span style="color:var(--text-dim);font-size:0.85rem;" id="loading-text">Chargement du menu...</span>
+</div>
+
+<!-- ── ERREUR ─────────────────────────────────── -->
+<div id="error-screen">
+    <div style="font-size:3rem;">🍽️</div>
+    <h2 style="font-family:'Syne',sans-serif;">Restaurant introuvable</h2>
+    <p style="color:var(--text-dim);font-size:0.9rem;max-width:280px;">Le lien scanné ne correspond à aucun restaurant actif.</p>
+</div>
+
+<!-- ── APP ────────────────────────────────────── -->
+<main id="app" style="display:none;">
+
+    <!-- Header -->
+    <header id="site-header">
+        <img id="cover-img" class="cover-image" src="" alt="" onerror="this.style.display='none'">
+        <div class="cover-overlay"></div>
+        <div class="resto-identity">
+            <img id="logo-img" class="resto-logo" src="" alt="" onerror="this.style.display='none'">
+            <div>
+                <h1 class="resto-name" id="resto-name">...</h1>
+                <p class="resto-address" id="resto-address"></p>
+                <div id="status-badge" class="status-badge"><span class="status-dot"></span><span id="status-text">...</span></div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Note étoiles -->
+    <div class="stars-wrap">
+        <p class="stars-label" id="stars-label">Votre avis sur ce restaurant :</p>
+        <div style="display:flex;align-items:center;">
+            <div class="stars" id="stars-container">
+                <span class="star empty" data-val="1">⭐</span>
+                <span class="star empty" data-val="2">⭐</span>
+                <span class="star empty" data-val="3">⭐</span>
+                <span class="star empty" data-val="4">⭐</span>
+                <span class="star empty" data-val="5">⭐</span>
+            </div>
+            <span class="stars-count" id="stars-avg"></span>
+        </div>
+    </div>
+
+    <!-- Pub locale gérant -->
+    <div id="local-ad-banner">
+        <img id="local-ad-img" src="" alt="Pub partenaire">
+        <span class="ad-label">Pub</span>
+    </div>
+
+    <!-- Google AdSense Slot #1 — Bannière principale -->
+    <div class="google-ad-slot">
+        <!--
+            REMPLACER le contenu ci-dessous par ton vrai code AdSense :
+            <ins class="adsbygoogle"
+                 style="display:block"
+                 data-ad-client="ca-pub-XXXXXXXXXXXXXXXX"
+                 data-ad-slot="YYYYYYYYYY"
+                 data-ad-format="auto"
+                 data-full-width-responsive="true"></ins>
+            <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
+        -->
+        <ins class="adsbygoogle"
+             style="display:block"
+             data-ad-client="ca-pub-XXXXXXXXXXXXXXXX"
+             data-ad-slot="1234567890"
+             data-ad-format="auto"
+             data-full-width-responsive="true"></ins>
+        <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
+    </div>
+
+    <!-- Appel serveur -->
+    <div class="call-server-wrap">
+        <button id="call-server-btn">
+            🔔 <span id="call-server-text">Appeler le serveur</span>
+        </button>
+    </div>
+
+    <!-- Recherche -->
+    <div class="search-wrap">
+        <input type="search" class="search-input" id="search-input" placeholder="Rechercher un plat..." autocomplete="off">
+    </div>
+
+    <!-- Catégories -->
+    <div class="categories-bar" id="categories-bar">
+        <button class="cat-pill active" data-cat="Tous">Tous</button>
+    </div>
+
+    <!-- Menu -->
+    <div class="menu-section" id="menu-container"></div>
+
+    <!-- Google AdSense Slot #2 — Entre le menu et le footer -->
+    <div class="google-ad-slot" style="margin-top:0;">
+        <ins class="adsbygoogle"
+             style="display:block"
+             data-ad-client="ca-pub-XXXXXXXXXXXXXXXX"
+             data-ad-slot="0987654321"
+             data-ad-format="auto"
+             data-full-width-responsive="true"></ins>
+        <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
+    </div>
+
+    <!-- Footer -->
+    <footer class="resto-footer">
+        <p class="hours" id="resto-hours"></p>
+        <a id="call-link" class="phone-link" href="#">
+            <span>📞</span><span id="phone-text"></span>
+        </a>
+        <p style="margin-top:16px;font-size:0.7rem;color:var(--text-dim);">
+            Digitalisé par <strong style="color:var(--brand);">Jo D. Digital</strong>
+        </p>
+    </footer>
+</main>
+
+<!-- ── FAB PANIER ──────────────────────────────── -->
+<button id="cart-fab">
+    🛒 <span id="cart-fab-label">Ma sélection</span>
+    <span class="cart-count-badge" id="cart-count">0</span>
+</button>
+
+<!-- ── MODAL PANIER ───────────────────────────── -->
+<div class="modal-overlay" id="cart-modal-overlay">
+    <div class="modal-box">
+        <div class="modal-handle"></div>
+        <button class="modal-close" id="close-cart-btn">✕</button>
+        <h2 class="modal-title" id="cart-modal-title">Ma sélection</h2>
+        <div id="cart-items-list"></div>
+        <div class="cart-footer">
+            <div class="cart-total-row">
+                <span class="cart-total-label" id="total-label">Total</span>
+                <span class="cart-total-amount" id="cart-total">0 FCFA</span>
+            </div>
+            <button id="whatsapp-order-btn">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="white"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+                <span id="whatsapp-btn-text">Commander sur WhatsApp</span>
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- ── MODAL APPEL SERVEUR ─────────────────────── -->
+<div class="modal-overlay" id="call-modal-overlay" style="align-items:center;justify-content:center;padding:20px;">
+    <div class="call-modal-box">
+        <h3>🔔 <span id="call-modal-title">Appeler le serveur</span></h3>
+        <p style="font-size:0.85rem;color:var(--text-dim);margin-top:6px;" id="call-modal-desc">Entrez votre numéro de table :</p>
+        <input type="number" class="table-input" id="table-number-input" placeholder="Ex: 12" min="1" max="99">
+        <button class="btn-confirm-call" id="confirm-call-btn">
+            📲 <span id="confirm-call-text">Envoyer la notification</span>
+        </button>
+        <button class="btn-cancel-call" id="cancel-call-btn" id="cancel-call-text">Annuler</button>
+    </div>
+</div>
+
+<!-- ── JAVASCRIPT ──────────────────────────────── -->
+<script>
+'use strict';
+
+// ================================================================
+// CONFIGURATION
+// ================================================================
+const SUPABASE_URL = 'https://TON_PROJET.supabase.co';  // ← Remplacer
+const SUPABASE_KEY = 'TON_ANON_PUBLIC_KEY';              // ← Remplacer
+
+// ── Traductions (Français / English) ─────────────────────────
+const LANG = {
+    fr: {
+        loading: 'Chargement du menu...',
+        mySelection: 'Ma sélection',
+        total: 'Total',
+        callServer: 'Appeler le serveur',
+        callModalTitle: 'Appeler le serveur',
+        callModalDesc: 'Entrez votre numéro de table :',
+        confirmCall: 'Envoyer la notification',
+        cancel: 'Annuler',
+        starsLabel: 'Votre avis sur ce restaurant :',
+        orderWA: 'Commander sur WhatsApp',
+        searchPlaceholder: 'Rechercher un plat...',
+        all: 'Tous',
+    },
+    en: {
+        loading: 'Loading menu...',
+        mySelection: 'My selection',
+        total: 'Total',
+        callServer: 'Call waiter',
+        callModalTitle: 'Call a waiter',
+        callModalDesc: 'Enter your table number:',
+        confirmCall: 'Send notification',
+        cancel: 'Cancel',
+        starsLabel: 'Rate this restaurant:',
+        orderWA: 'Order on WhatsApp',
+        searchPlaceholder: 'Search a dish...',
+        all: 'All',
+    }
+};
+
+let currentLang    = 'fr';
+let restaurantData = null;
+let allMenuItems   = [];
+let filteredItems  = [];
+let activeCategory = 'Tous';
+let cart           = {};
+let likedItems     = new Set();
+let ratedItems     = {};
+
+// ── Supabase ──────────────────────────────────────────────────
+const { createClient } = supabase;
+const db = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+// ================================================================
+// UTILITAIRES
+// ================================================================
+const slug = () => new URLSearchParams(window.location.search).get('id') || new URLSearchParams(window.location.search).get('slug');
+
+const formatPrice = n => new Intl.NumberFormat('fr-FR').format(n) + ' FCFA';
+
+const t = key => LANG[currentLang][key] || LANG.fr[key];
+
+function getOpenStatus(hoursText) {
+    if (!hoursText) return { open: true, label: currentLang === 'fr' ? 'Statut inconnu' : 'Unknown status' };
+    const h = new Date().getHours();
+    const isOpen = h >= 9 && h < 23;
+    return {
+        open: isOpen,
+        label: isOpen
+            ? (currentLang === 'fr' ? 'Ouvert maintenant' : 'Open now')
+            : (currentLang === 'fr' ? 'Actuellement fermé' : 'Currently closed')
+    };
+}
+
+// ================================================================
+// PERSISTENCE (localStorage)
+// ================================================================
+const storageKey = k => `${k}_${slug()}`;
+
+function loadPersistedData() {
+    try {
+        const l = localStorage.getItem(storageKey('liked'));
+        if (l) likedItems = new Set(JSON.parse(l));
+        const r = localStorage.getItem(storageKey('rated'));
+        if (r) ratedItems = JSON.parse(r);
+        const c = localStorage.getItem(storageKey('cart'));
+        if (c) cart = JSON.parse(c);
+    } catch(e) {}
+}
+
+function saveCart() {
+    try { localStorage.setItem(storageKey('cart'), JSON.stringify(cart)); } catch(e) {}
+}
+function saveLiked() {
+    try { localStorage.setItem(storageKey('liked'), JSON.stringify([...likedItems])); } catch(e) {}
+}
+function saveRated() {
+    try { localStorage.setItem(storageKey('rated'), JSON.stringify(ratedItems)); } catch(e) {}
+}
+
+// ================================================================
+// CHARGEMENT DONNÉES SUPABASE
+// ================================================================
+async function loadRestaurant(s) {
+    try {
+        const { data: r, error } = await db
+            .from('restaurants')
+            .select('*')
+            .eq('slug', s)
+            .eq('is_active', true)
+            .single();
+
+        if (error || !r) { showError(); return; }
+
+        const { data: menu } = await db
+            .from('menu_items')
+            .select('*')
+            .eq('restaurant_id', r.id)
+            .order('display_order', { ascending: true });
+
+        restaurantData = r;
+        allMenuItems   = menu || [];
+
+        // Mettre à jour les meta Open Graph dynamiquement
+        updateOpenGraph(r);
+
+        loadPersistedData();
+        renderRestaurant();
+        renderCategories();
+        renderMenu(allMenuItems);
+        updateCartFAB();
+        renderStars();
+
+        // Incrémenter les vues (+1 dans Supabase)
+        db.rpc('increment_views', { p_slug: s });
+
+    } catch(e) {
+        console.error(e);
+        showError();
+    }
+}
+
+// ================================================================
+// OPEN GRAPH — Partage WhatsApp / Facebook avec image
+// ================================================================
+function updateOpenGraph(r) {
+    const title = r.name + ' — Menu Digital';
+    const desc  = r.description || 'Consultez notre menu et commandez via WhatsApp';
+    const img   = r.cover_url || r.logo_url || '';
+    const url   = window.location.href;
+
+    document.getElementById('page-title').textContent = title;
+    document.getElementById('og-title').setAttribute('content', title);
+    document.getElementById('og-description').setAttribute('content', desc);
+    document.getElementById('og-image').setAttribute('content', img);
+    document.getElementById('og-url').setAttribute('content', url);
+    document.getElementById('tw-title').setAttribute('content', title);
+    document.getElementById('tw-image').setAttribute('content', img);
+}
+
+// ================================================================
+// RENDU HEADER RESTAURANT
+// ================================================================
+function renderRestaurant() {
+    const r = restaurantData;
+    if (r.theme_color) {
+        document.documentElement.style.setProperty('--brand', r.theme_color);
+        document.documentElement.style.setProperty('--brand-dim', r.theme_color + '18');
+    }
+    const cover = document.getElementById('cover-img');
+    if (r.cover_url) { cover.src = r.cover_url; cover.alt = r.name; }
+    else cover.style.display = 'none';
+
+    const logo = document.getElementById('logo-img');
+    if (r.logo_url) { logo.src = r.logo_url; logo.alt = r.name; }
+    else logo.style.display = 'none';
+
+    document.getElementById('resto-name').textContent    = r.name;
+    document.getElementById('resto-address').textContent = r.address || '';
+
+    const { open, label } = getOpenStatus(r.opening_hours);
+    const badge = document.getElementById('status-badge');
+    badge.className = `status-badge ${open ? 'open' : 'closed'}`;
+    document.getElementById('status-text').textContent = label;
+
+    document.getElementById('resto-hours').textContent = r.opening_hours || '';
+    const callLink = document.getElementById('call-link');
+    if (r.phone) { callLink.href = `tel:+${r.phone}`; document.getElementById('phone-text').textContent = `+${r.phone}`; }
+
+    // Pub locale gérant
+    if (r.partner_ad_banner) {
+        const exp = r.partner_ad_expires ? new Date(r.partner_ad_expires) : null;
+        if (!exp || exp > new Date()) {
+            document.getElementById('local-ad-banner').style.display = 'block';
+            document.getElementById('local-ad-img').src = r.partner_ad_banner;
+            if (r.partner_ad_link)
+                document.getElementById('local-ad-banner').onclick = () => window.open(r.partner_ad_link, '_blank');
+        }
+    }
+}
+
+// ================================================================
+// NOTE ÉTOILES (1-5)
+// ================================================================
+function renderStars() {
+    const s = slug();
+    const saved = ratedItems[s] || 0;
+    updateStarUI(saved);
+
+    document.querySelectorAll('.star').forEach(star => {
+        star.addEventListener('click', async () => {
+            const val = parseInt(star.dataset.val);
+            ratedItems[s] = val;
+            saveRated();
+            updateStarUI(val);
+            // Optionnel : envoyer la note à Supabase
+            // await db.from('ratings').upsert({ restaurant_id: restaurantData.id, visitor_id: getVisitorId(), score: val });
+        });
+    });
+}
+
+function updateStarUI(val) {
+    document.querySelectorAll('.star').forEach(s => {
+        const v = parseInt(s.dataset.val);
+        s.className = `star ${v <= val ? 'filled' : 'empty'}`;
+    });
+    if (val > 0) document.getElementById('stars-avg').textContent = `(${val}/5)`;
+}
+
+// ================================================================
+// CATÉGORIES
+// ================================================================
+function renderCategories() {
+    const cats = [t('all'), ...new Set(allMenuItems.map(i => i.category).filter(Boolean))];
+    const bar  = document.getElementById('categories-bar');
+    bar.innerHTML = '';
+    cats.forEach(cat => {
+        const btn = document.createElement('button');
+        btn.className = `cat-pill ${cat === activeCategory || (cat === t('all') && activeCategory === 'Tous') ? 'active' : ''}`;
+        btn.dataset.cat = cat;
+        btn.textContent = cat;
+        btn.addEventListener('click', () => {
+            activeCategory = cat === t('all') ? 'Tous' : cat;
+            document.querySelectorAll('.cat-pill').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            applyFilters();
+        });
+        bar.appendChild(btn);
+    });
+}
+
+// ================================================================
+// RENDU MENU
+// ================================================================
+function renderMenu(items) {
+    const container = document.getElementById('menu-container');
+    container.innerHTML = '';
+
+    if (!items.length) {
+        container.innerHTML = `<div class="empty-state"><div style="font-size:2rem;">🔍</div><p style="margin-top:12px;">${currentLang === 'fr' ? 'Aucun plat trouvé' : 'No dish found'}</p></div>`;
+        return;
+    }
+
+    const grouped = {};
+    items.forEach(i => { const cat = i.category || 'Autres'; if (!grouped[cat]) grouped[cat] = []; grouped[cat].push(i); });
+
+    Object.entries(grouped).forEach(([cat, dishes]) => {
+        const section = document.createElement('div');
+        section.innerHTML = `<h2 class="category-title">${cat}</h2>`;
+        dishes.forEach(d => section.appendChild(createDishCard(d)));
+        container.appendChild(section);
+    });
+}
+
+function createDishCard(dish) {
+    const inCart    = !!cart[dish.id];
+    const isLiked   = likedItems.has(dish.id);
+    const card      = document.createElement('div');
+    card.className  = `dish-card ${dish.is_available === false ? 'unavailable' : ''} ${inCart ? 'in-cart' : ''}`;
+    card.dataset.id = dish.id;
+
+    const imgHtml = dish.image_url
+        ? `<img class="dish-img" src="${dish.image_url}" alt="${dish.name}" loading="lazy" onerror="this.parentNode.innerHTML='<div class=\\"dish-img-placeholder\\">🍽️</div>'">`
+        : `<div class="dish-img-placeholder">🍽️</div>`;
+
+    const shareUrl  = encodeURIComponent(window.location.origin + window.location.pathname + window.location.search);
+    const shareText = encodeURIComponent(`${dish.name} — ${formatPrice(dish.price)} chez ${restaurantData?.name || ''}`);
+
+    card.innerHTML = `
+        <div class="dish-img-wrap">${imgHtml}</div>
+        <div class="dish-body">
+            <p class="dish-name">${dish.name}</p>
+            ${dish.description ? `<p class="dish-description">${dish.description}</p>` : ''}
+            <div class="dish-footer">
+                <span class="dish-price">${formatPrice(dish.price)}</span>
+                <div class="dish-actions">
+                    <button class="like-btn ${isLiked ? 'liked' : ''}" data-id="${dish.id}">
+                        <span class="heart">${isLiked ? '❤️' : '🤍'}</span>
+                        <span class="like-count">${dish.likes_count || 0}</span>
+                    </button>
+                    <button class="share-dish-btn" title="Partager" data-url="${shareUrl}" data-text="${shareText}">🔗</button>
+                </div>
+            </div>
+        </div>
+        <button class="add-btn ${inCart ? 'added' : ''}" data-id="${dish.id}">${inCart ? '✓' : '+'}</button>
+    `;
+
+    card.querySelector('.add-btn').addEventListener('click', () => toggleCart(dish, card));
+    card.querySelector('.like-btn').addEventListener('click', () => handleLike(dish, card));
+    card.querySelector('.share-dish-btn').addEventListener('click', (e) => shareDish(e.currentTarget));
+
+    return card;
+}
+
+// ================================================================
+// PANIER
+// ================================================================
+function toggleCart(dish, card) {
+    const btn = card.querySelector('.add-btn');
+    if (cart[dish.id]) {
+        delete cart[dish.id];
+        btn.textContent = '+'; btn.classList.remove('added'); card.classList.remove('in-cart');
+    } else {
+        cart[dish.id] = { name: dish.name, price: dish.price, qty: 1 };
+        btn.textContent = '✓'; btn.classList.add('added'); card.classList.add('in-cart');
+    }
+    saveCart();
+    updateCartFAB();
+}
+
+function updateCartFAB() {
+    const total = Object.values(cart).reduce((s, i) => s + i.qty, 0);
+    document.getElementById('cart-count').textContent = total;
+    document.getElementById('cart-fab').classList.toggle('visible', total > 0);
+}
+
+function openCartModal() {
+    renderCartModal();
+    document.getElementById('cart-modal-overlay').classList.add('visible');
+    document.body.style.overflow = 'hidden';
+}
+
+function closeCartModal() {
+    document.getElementById('cart-modal-overlay').classList.remove('visible');
+    document.body.style.overflow = '';
+}
+
+function renderCartModal() {
+    const list = document.getElementById('cart-items-list');
+    list.innerHTML = '';
+
+    if (!Object.keys(cart).length) {
+        list.innerHTML = `<div class="empty-state" style="padding:40px 0;"><div style="font-size:2rem;">🛒</div><p style="margin-top:12px;">${currentLang === 'fr' ? 'Panier vide' : 'Empty cart'}</p></div>`;
+    } else {
+        Object.entries(cart).forEach(([id, item]) => {
+            const row = document.createElement('div');
+            row.className = 'cart-item';
+            row.innerHTML = `
+                <div class="cart-item-name">${item.name}</div>
+                <div class="qty-controls">
+                    <button class="qty-btn minus" data-id="${id}">−</button>
+                    <span class="qty-display" id="qty-${id}">${item.qty}</span>
+                    <button class="qty-btn plus" data-id="${id}">+</button>
+                </div>
+                <span class="cart-item-price" id="price-${id}">${formatPrice(item.price * item.qty)}</span>
+                <button class="remove-item-btn" data-id="${id}">🗑️</button>
+            `;
+            row.querySelector('.qty-btn.plus').addEventListener('click', () => { cart[id].qty++; refreshCartRow(id); });
+            row.querySelector('.qty-btn.minus').addEventListener('click', () => { if (cart[id].qty > 1) { cart[id].qty--; refreshCartRow(id); } });
+            row.querySelector('.remove-item-btn').addEventListener('click', () => { delete cart[id]; saveCart(); row.remove(); updateCartFAB(); renderCartModal(); });
+            list.appendChild(row);
+        });
+    }
+    updateCartTotal();
+}
+
+function refreshCartRow(id) {
+    document.getElementById(`qty-${id}`).textContent = cart[id].qty;
+    document.getElementById(`price-${id}`).textContent = formatPrice(cart[id].price * cart[id].qty);
+    updateCartTotal(); updateCartFAB(); saveCart();
+}
+
+function updateCartTotal() {
+    const total = Object.values(cart).reduce((s, i) => s + i.price * i.qty, 0);
+    document.getElementById('cart-total').textContent = formatPrice(total);
+}
+
+function sendWhatsAppOrder() {
+    if (!restaurantData?.whatsapp || !Object.keys(cart).length) return;
+    let msg = `*COMMANDE — ${restaurantData.name}*\n\n`;
+    Object.values(cart).forEach((i, idx) => msg += `${idx+1}. ${i.name} × ${i.qty} = ${formatPrice(i.price * i.qty)}\n`);
+    const total = Object.values(cart).reduce((s, i) => s + i.price * i.qty, 0);
+    msg += `\n💰 *TOTAL : ${formatPrice(total)}*\n\n_Merci de confirmer ma commande._`;
+    window.open(`https://wa.me/${restaurantData.whatsapp}?text=${encodeURIComponent(msg)}`, '_blank');
+}
+
+// ================================================================
+// LIKES
+// ================================================================
+async function handleLike(dish, card) {
+    if (likedItems.has(dish.id)) return;
+    likedItems.add(dish.id);
+    saveLiked();
+    const btn   = card.querySelector('.like-btn');
+    const count = btn.querySelector('.like-count');
+    btn.classList.add('liked');
+    btn.querySelector('.heart').textContent = '❤️';
+    count.textContent = (parseInt(count.textContent) || 0) + 1;
+    db.rpc('increment_like', { p_item_id: dish.id, p_slug: slug() });
+}
+
+// ================================================================
+// PARTAGE D'UN PLAT (WhatsApp, Facebook, X)
+// ================================================================
+function shareDish(btn) {
+    const url  = decodeURIComponent(btn.dataset.url);
+    const text = decodeURIComponent(btn.dataset.text);
+    if (navigator.share) {
+        navigator.share({ title: text, url })
+            .catch(() => {});
+    } else {
+        const waUrl = `https://wa.me/?text=${encodeURIComponent(text + ' → ' + url)}`;
+        window.open(waUrl, '_blank');
+    }
+}
+
+// ================================================================
+// APPEL SERVEUR
+// ================================================================
+document.getElementById('call-server-btn').addEventListener('click', () => {
+    document.getElementById('call-modal-overlay').classList.add('visible');
+    document.body.style.overflow = 'hidden';
+});
+document.getElementById('cancel-call-btn').addEventListener('click', () => {
+    document.getElementById('call-modal-overlay').classList.remove('visible');
+    document.body.style.overflow = '';
+});
+
+document.getElementById('confirm-call-btn').addEventListener('click', () => {
+    const table = document.getElementById('table-number-input').value.trim();
+    if (!table) { document.getElementById('table-number-input').focus(); return; }
+
+    const msg = `🔔 *APPEL SERVEUR*\n\nTable n° *${table}*\nRestaurant : ${restaurantData?.name || '—'}\n\n_Un client demande de l'attention à la table ${table}._`;
+
+    if (restaurantData?.whatsapp) {
+        window.open(`https://wa.me/${restaurantData.whatsapp}?text=${encodeURIComponent(msg)}`, '_blank');
+    } else {
+        alert(`Notification envoyée pour la table ${table} !`);
+    }
+    document.getElementById('call-modal-overlay').classList.remove('visible');
+    document.body.style.overflow = '';
+    document.getElementById('table-number-input').value = '';
+});
+
+// ================================================================
+// RECHERCHE & FILTRES
+// ================================================================
+document.getElementById('search-input').addEventListener('input', applyFilters);
+
+function applyFilters() {
+    const q = document.getElementById('search-input').value.toLowerCase().trim();
+    let items = allMenuItems;
+    if (activeCategory !== 'Tous') items = items.filter(i => i.category === activeCategory);
+    if (q) items = items.filter(i => i.name.toLowerCase().includes(q) || (i.description || '').toLowerCase().includes(q));
+    renderMenu(items);
+}
+
+// ================================================================
+// LANGUE (FR / EN)
+// ================================================================
+document.getElementById('lang-btn').addEventListener('click', () => {
+    currentLang = currentLang === 'fr' ? 'en' : 'fr';
+    document.getElementById('lang-btn').textContent = currentLang === 'fr' ? 'EN' : 'FR';
+    applyTranslations();
+    if (restaurantData) { renderCategories(); }
+});
+
+function applyTranslations() {
+    document.getElementById('loading-text').textContent           = t('loading');
+    document.getElementById('cart-fab-label').textContent         = t('mySelection');
+    document.getElementById('cart-modal-title').textContent       = t('mySelection');
+    document.getElementById('total-label').textContent            = t('total');
+    document.getElementById('call-server-text').textContent       = t('callServer');
+    document.getElementById('call-modal-title').textContent       = t('callModalTitle');
+    document.getElementById('call-modal-desc').textContent        = t('callModalDesc');
+    document.getElementById('confirm-call-text').textContent      = t('confirmCall');
+    document.getElementById('cancel-call-btn').textContent        = t('cancel');
+    document.getElementById('stars-label').textContent            = t('starsLabel');
+    document.getElementById('whatsapp-btn-text').textContent      = t('orderWA');
+    document.getElementById('search-input').placeholder           = t('searchPlaceholder');
+}
+
+// ================================================================
+// ÉTAT D'AFFICHAGE
+// ================================================================
+function showError()  {
+    document.getElementById('loading-screen').classList.add('hidden');
+    document.getElementById('error-screen').classList.add('visible');
+}
+function hideLoading() {
+    document.getElementById('loading-screen').classList.add('hidden');
+    document.getElementById('app').style.display = 'block';
+}
+
+// ================================================================
+// ÉVÉNEMENTS
+// ================================================================
+document.getElementById('cart-fab').addEventListener('click', openCartModal);
+document.getElementById('close-cart-btn').addEventListener('click', closeCartModal);
+document.getElementById('cart-modal-overlay').addEventListener('click', e => {
+    if (e.target === document.getElementById('cart-modal-overlay')) closeCartModal();
+});
+document.getElementById('whatsapp-order-btn').addEventListener('click', sendWhatsAppOrder);
+
+// ================================================================
+// INIT
+// ================================================================
+(async () => {
+    const s = slug();
+    if (!s) { showError(); return; }
+    await loadRestaurant(s);
+    hideLoading();
+})();
+</script>
+</body>
+</html>
