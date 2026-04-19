@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Générateur QR Code — Restos Lomé</title>
+
+    <!--
+    ================================================================
+    qrcode.html — Générateur de QR Code pour les restaurants
+    Plateforme Restaurants Togo · Jo D. Digital
+    ================================================================
+
+    USAGE :
+    1. Ouvrir cette page
+    2. Entrer le slug du restaurant (ex: "akif" ou "la-marmite")
+    3. Choisir la taille et la couleur
+    4. Télécharger le QR code en PNG
+    5. Imprimer sur sticker, autocollant ou support PVC
+
+    Argument de vente : "Je génère un QR Code pro avec votre logo
+    pour coller sur vos tables en 30 secondes."
+
+    DÉPENDANCE : qrcode.js (CDN)
+    ================================================================
+    -->
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+
+    <style>
+        :root {
+            --gold: #c5a059;
+            --bg: #0f0f0f;
+            --surface: #1a1a1a;
+            --surface2: #222;
+            --border: #2a2a2a;
+            --text: #f0f0f0;
+            --text-dim: #888;
+            --radius: 14px;
+        }
+
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'DM Sans', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            padding: 32px 20px;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        .page-header {
+            text-align: center;
+            margin-bottom: 32px;
+        }
+
+        .page-header h1 {
+            font-family: 'Syne', sans-serif;
+            font-size: 1.6rem;
+            font-weight: 800;
+            color: var(--gold);
+            margin-bottom: 6px;
+        }
+
+        .page-header p {
+            font-size: 0.85rem;
+            color: var(--text-dim);
+        }
+
+        .card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 24px;
+            max-width: 520px;
+            margin: 0 auto 24px;
+        }
+
+        .field-group {
+            margin-bottom: 18px;
+        }
+
+        .field-label {
+            display: block;
+            font-size: 0.78rem;
+            font-weight: 600;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            margin-bottom: 6px;
+        }
+
+        .field-input {
+            width: 100%;
+            background: var(--surface2);
+            border: 1.5px solid var(--border);
+            color: var(--text);
+            padding: 11px 14px;
+            border-radius: 10px;
+            font-family: 'DM Sans', sans-serif;
+            font-size: 0.9rem;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .field-input:focus { border-color: var(--gold); }
+
+        .field-hint {
+            font-size: 0.72rem;
+            color: var(--text-dim);
+            margin-top: 4px;
+        }
+
+        .field-hint code {
+            background: var(--surface2);
+            padding: 1px 5px;
+            border-radius: 4px;
+            font-family: monospace;
+            color: var(--gold);
+        }
+
+        .color-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+
+        .color-preview-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        input[type="color"] {
+            width: 40px;
+            height: 40px;
+            border: 1.5px solid var(--border);
+            border-radius: 8px;
+            background: none;
+            padding: 2px;
+            cursor: pointer;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 13px 24px;
+            border-radius: 10px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            border: none;
+            cursor: pointer;
+            font-family: 'DM Sans', sans-serif;
+            transition: all 0.2s;
+            width: 100%;
+        }
+
+        .btn-primary { background: var(--gold); color: #000; }
+        .btn-primary:hover { background: #d4ae6a; }
+        .btn-ghost { background: var(--surface2); color: var(--text); border: 1px solid var(--border); margin-top: 10px; }
+        .btn-ghost:hover { border-color: var(--gold); color: var(--gold); }
+
+        /* ── APERÇU QR CODE ────────────────────── */
+        #qr-preview-card {
+            display: none;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 32px 24px;
+            max-width: 520px;
+            margin: 0 auto 24px;
+            text-align: center;
+        }
+
+        #qr-preview-card.visible { display: block; }
+
+        #qr-preview-title {
+            font-family: 'Syne', sans-serif;
+            font-size: 1rem;
+            font-weight: 700;
+            margin-bottom: 20px;
+            color: var(--gold);
+        }
+
+        /* Canvas du QR code */
+        #qr-canvas-wrap {
+            display: inline-block;
+            padding: 16px;
+            background: white;
+            border-radius: 12px;
+            margin-bottom: 20px;
+        }
+
+        #qr-canvas {
+            display: block;
+        }
+
+        .qr-caption {
+            font-size: 0.8rem;
+            color: var(--text-dim);
+            margin-bottom: 20px;
+            font-family: monospace;
+        }
+
+        .qr-resto-name {
+            font-family: 'Syne', sans-serif;
+            font-size: 1.1rem;
+            font-weight: 800;
+            margin-bottom: 8px;
+        }
+
+        /* Impression professionnelle (sticker) */
+        #print-template {
+            display: none;
+            margin-top: 24px;
+            padding: 24px;
+            background: white;
+            border-radius: 12px;
+            color: #000;
+            font-family: 'DM Sans', sans-serif;
+            text-align: center;
+            border: 2px dashed #ddd;
+        }
+
+        #print-template p {
+            font-size: 0.75rem;
+            color: #666;
+            margin-top: 8px;
+        }
+
+        /* Template URL générée */
+        .url-display {
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 10px 14px;
+            font-family: monospace;
+            font-size: 0.82rem;
+            color: var(--gold);
+            word-break: break-all;
+            margin-bottom: 16px;
+        }
+
+        /* ── TAILLES PRÉDÉFINIES ───────────────── */
+        .size-pills {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-bottom: 6px;
+        }
+
+        .size-pill {
+            padding: 5px 12px;
+            border-radius: 50px;
+            border: 1.5px solid var(--border);
+            background: transparent;
+            color: var(--text-dim);
+            font-size: 0.78rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .size-pill.active { background: var(--gold); border-color: var(--gold); color: #000; font-weight: 600; }
+
+        @media (min-width: 600px) {
+            body { max-width: 600px; margin: 0 auto; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="page-header">
+        <h1>🔲 Générateur QR Code</h1>
+        <p>Créez et téléchargez les QR Codes de vos restaurants</p>
+    </div>
+
+    <div class="card">
+        <!-- Domaine de la plateforme -->
+        <div class="field-group">
+            <label class="field-label">Domaine de votre plateforme</label>
+            <input type="text" class="field-input" id="domain-input"
+                   value="https://restaurant-lome.com/view"
+                   placeholder="https://restaurant-lome.com/view">
+            <p class="field-hint">URL de votre page menu. Ex: <code>https://restaurant-lome.com/view</code></p>
+        </div>
+
+        <!-- Slug du restaurant -->
+        <div class="field-group">
+            <label class="field-label">Slug du restaurant (identifiant)</label>
+            <input type="text" class="field-input" id="slug-input"
+                   placeholder="alt-munchen" maxlength="60">
+            <p class="field-hint">
+                Ex: <code>akif</code>, <code>la-marmite</code>, <code>alt-munchen</code>.
+                URL générée : <code>…/view?id=akif</code>
+            </p>
+        </div>
+
+        <!-- Nom affiché (pour la légende) -->
+        <div class="field-group">
+            <label class="field-label">Nom du restaurant (pour la légende)</label>
+            <input type="text" class="field-input" id="name-input"
+                   placeholder="Alt München" maxlength="60">
+        </div>
+
+        <!-- Taille -->
+        <div class="field-group">
+            <label class="field-label">Taille du QR Code</label>
+            <div class="size-pills">
+                <button class="size-pill" data-size="200">Petit (200px)</button>
+                <button class="size-pill active" data-size="300">Moyen (300px)</button>
+                <button class="size-pill" data-size="400">Grand (400px)</button>
+                <button class="size-pill" data-size="600">Impression (600px)</button>
+            </div>
+        </div>
+
+        <!-- Couleurs -->
+        <div class="color-row">
+            <div class="field-group">
+                <label class="field-label">Couleur du QR Code</label>
+                <div class="color-preview-row">
+                    <input type="color" id="qr-color-dark" value="#000000">
+                    <input type="text" class="field-input" id="qr-color-dark-hex" value="#000000" style="width:110px;font-family:monospace;">
+                </div>
+            </div>
+            <div class="field-group">
+                <label class="field-label">Couleur de fond</label>
+                <div class="color-preview-row">
+                    <input type="color" id="qr-color-light" value="#ffffff">
+                    <input type="text" class="field-input" id="qr-color-light-hex" value="#ffffff" style="width:110px;font-family:monospace;">
+                </div>
+            </div>
+        </div>
+
+        <!-- Niveau de correction d'erreur -->
+        <div class="field-group">
+            <label class="field-label">Qualité (correction d'erreur)</label>
+            <select class="field-input" id="qr-ecl">
+                <option value="L">Faible — L (Petit fichier)</option>
+                <option value="M" selected>Moyenne — M (Recommandé)</option>
+                <option value="Q">Haute — Q (Plus robuste)</option>
+                <option value="H">Maximale — H (Logo possible)</option>
+            </select>
+            <p class="field-hint">Niveau H permet d'intégrer un logo sans casser le QR code</p>
+        </div>
+
+        <button class="btn btn-primary" id="generate-btn">
+            🔲 Générer le QR Code
+        </button>
+    </div>
+
+    <!-- ── APERÇU ET TÉLÉCHARGEMENT ──── -->
+    <div id="qr-preview-card">
+        <div id="qr-preview-title">QR Code généré</div>
+
+        <p class="url-display" id="url-display">—</p>
+
+        <div id="qr-canvas-wrap">
+            <canvas id="qr-canvas"></canvas>
+        </div>
+
+        <p class="qr-resto-name" id="preview-resto-name"></p>
+        <p class="qr-caption">Scanner pour voir le menu digital</p>
+
+        <button class="btn btn-primary" id="download-btn">
+            📥 Télécharger le QR Code (PNG)
+        </button>
+
+        <button class="btn btn-ghost" id="copy-url-btn">
+            📋 Copier l'URL
+        </button>
+
+        <!-- Template d'impression simulé -->
+        <div id="print-template">
+            <canvas id="print-canvas"></canvas>
+            <p>🖨️ Imprimez ce modèle pour coller sur les tables du restaurant</p>
+        </div>
+    </div>
+
+    <!-- ── GUIDE D'UTILISATION ──── -->
+    <div class="card" style="font-size:0.85rem; line-height:1.8; color:var(--text-dim);">
+        <h3 style="font-family:'Syne',sans-serif; font-size:1rem; font-weight:700; color:var(--text); margin-bottom:12px;">
+            💡 Comment utiliser ce QR Code ?
+        </h3>
+        <p>1. <strong style="color:var(--text);">Génèrer</strong> le QR code avec le slug du restaurant (ex: <code style="color:var(--gold);">akif</code>)</p>
+        <p>2. <strong style="color:var(--text);">Télécharger</strong> l'image en PNG haute résolution</p>
+        <p>3. <strong style="color:var(--text);">Imprimer</strong> sur papier autocollant, sticker PVC ou carton</p>
+        <p>4. <strong style="color:var(--text);">Coller</strong> sur les tables, menus papier, vitrine ou QR stand</p>
+        <p>5. Chaque scan = <strong style="color:var(--gold);">+1 vue</strong> dans Supabase + impression Google AdSense pour Jo D. Digital</p>
+
+        <div style="margin-top:16px;padding:12px;background:var(--surface2);border-radius:10px;">
+            <strong style="color:var(--gold);">Argument de vente terrain :</strong>
+            <p style="margin-top:6px;">"Je vous imprime des stickers QR Code professionnels à coller sur vos tables. Vos clients scannent et voient le menu en 1 seconde. Plus besoin de menus papier sales."</p>
+        </div>
+    </div>
+
+    <script>
+    'use strict';
+
+    let currentSize = 300;
+
+    // ── Sync color pickers ──────────────────────────────────────
+    document.getElementById('qr-color-dark').addEventListener('input', function() {
+        document.getElementById('qr-color-dark-hex').value = this.value;
+    });
+    document.getElementById('qr-color-dark-hex').addEventListener('input', function() {
+        if (/^#[0-9A-Fa-f]{6}$/.test(this.value))
+            document.getElementById('qr-color-dark').value = this.value;
+    });
+    document.getElementById('qr-color-light').addEventListener('input', function() {
+        document.getElementById('qr-color-light-hex').value = this.value;
+    });
+    document.getElementById('qr-color-light-hex').addEventListener('input', function() {
+        if (/^#[0-9A-Fa-f]{6}$/.test(this.value))
+            document.getElementById('qr-color-light').value = this.value;
+    });
+
+    // ── Taille ──────────────────────────────────────────────────
+    document.querySelectorAll('.size-pill').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('.size-pill').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            currentSize = parseInt(btn.dataset.size);
+        });
+    });
+
+    // ── Génération QR Code ──────────────────────────────────────
+    document.getElementById('generate-btn').addEventListener('click', generateQR);
+
+    async function generateQR() {
+        const domain = document.getElementById('domain-input').value.trim();
+        const slug   = document.getElementById('slug-input').value.trim().toLowerCase().replace(/\s+/g, '-');
+        const name   = document.getElementById('name-input').value.trim();
+        const darkC  = document.getElementById('qr-color-dark-hex').value;
+        const lightC = document.getElementById('qr-color-light-hex').value;
+        const ecl    = document.getElementById('qr-ecl').value;
+
+        if (!slug) {
+            document.getElementById('slug-input').focus();
+            document.getElementById('slug-input').style.borderColor = '#e74c3c';
+            return;
+        }
+        document.getElementById('slug-input').style.borderColor = '';
+
+        const url = `${domain}?id=${slug}`;
+        document.getElementById('url-display').textContent = url;
+        document.getElementById('preview-resto-name').textContent = name || slug;
+
+        const canvas = document.getElementById('qr-canvas');
+
+        try {
+            await QRCode.toCanvas(canvas, url, {
+                width         : currentSize,
+                margin        : 2,
+                errorCorrectionLevel: ecl,
+                color: {
+                    dark : darkC,
+                    light: lightC,
+                },
+            });
+
+            document.getElementById('qr-preview-card').classList.add('visible');
+            document.getElementById('qr-preview-card').scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+        } catch(err) {
+            alert('Erreur de génération : ' + err.message);
+        }
+    }
+
+    // ── Téléchargement PNG ──────────────────────────────────────
+    document.getElementById('download-btn').addEventListener('click', () => {
+        const canvas = document.getElementById('qr-canvas');
+        const slug   = document.getElementById('slug-input').value.trim() || 'qrcode';
+        const name   = document.getElementById('name-input').value.trim() || slug;
+
+        // Crée un canvas plus grand avec le nom du restaurant en dessous
+        const finalCanvas  = document.createElement('canvas');
+        const padding      = 24;
+        const labelHeight  = 50;
+        finalCanvas.width  = canvas.width + padding * 2;
+        finalCanvas.height = canvas.height + padding * 2 + labelHeight;
+
+        const ctx = finalCanvas.getContext('2d');
+        const lightC = document.getElementById('qr-color-light-hex').value;
+
+        // Fond
+        ctx.fillStyle = lightC;
+        ctx.roundRect(0, 0, finalCanvas.width, finalCanvas.height, 12);
+        ctx.fill();
+
+        // QR Code
+        ctx.drawImage(canvas, padding, padding);
+
+        // Nom du restaurant
+        ctx.fillStyle = document.getElementById('qr-color-dark-hex').value;
+        ctx.font = `bold ${Math.round(canvas.width / 15)}px sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.fillText(name, finalCanvas.width / 2, canvas.height + padding + 28);
+
+        ctx.font = `${Math.round(canvas.width / 20)}px sans-serif`;
+        ctx.fillStyle = '#666';
+        ctx.fillText('Scannez pour voir le menu', finalCanvas.width / 2, canvas.height + padding + 46);
+
+        const link = document.createElement('a');
+        link.download = `qrcode-${slug}-${Date.now()}.png`;
+        link.href = finalCanvas.toDataURL('image/png');
+        link.click();
+    });
+
+    // ── Copier l'URL ────────────────────────────────────────────
+    document.getElementById('copy-url-btn').addEventListener('click', () => {
+        const url = document.getElementById('url-display').textContent;
+        if (url && url !== '—') {
+            navigator.clipboard.writeText(url).then(() => {
+                const btn = document.getElementById('copy-url-btn');
+                btn.textContent = '✅ URL copiée !';
+                setTimeout(() => btn.textContent = '📋 Copier l\'URL', 2000);
+            });
+        }
+    });
+
+    // Génération auto si des paramètres sont dans l'URL
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('slug')) {
+        document.getElementById('slug-input').value = params.get('slug');
+        if (params.get('name')) document.getElementById('name-input').value = params.get('name');
+        generateQR();
+    }
+    </script>
+</body>
+</html>
