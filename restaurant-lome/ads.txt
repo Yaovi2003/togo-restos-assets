@@ -1,0 +1,30 @@
+# ================================================================
+# ads.txt — Fichier de déclaration des vendeurs autorisés
+# Plateforme Restaurants Togo · Jo D. Digital
+# ================================================================
+#
+# PLACER CE FICHIER à la RACINE du dépôt GitHub.
+# Il est accessible via : https://restaurant-lome.com/ads.txt
+#
+# GOOGLE ADSENSE EXIGE CE FICHIER pour valider ton domaine.
+# Sans lui → Google refuse d'afficher des publicités.
+#
+# INSTRUCTIONS :
+# 1. Créer un compte sur https://adsense.google.com
+# 2. Soumettre ton domaine restaurant-lome.com (ou togo-restos.com)
+# 3. Google te donnera un code de la forme : ca-pub-XXXXXXXXXXXXXXXX
+# 4. Remplacer XXXXXXXXXXXXXXXX ci-dessous par TON numéro de publisher
+# 5. Push le fichier sur GitHub
+# 6. Cloudflare le servira automatiquement
+#
+# DÉLAI : Google peut mettre 24h à 2 semaines pour valider.
+#
+# ================================================================
+
+google.com, pub-XXXXXXXXXXXXXXXX, DIRECT, f08c47fec0942fa0
+
+# Explication du format :
+# google.com     = Le réseau publicitaire
+# pub-XXXX...    = TON identifiant Google AdSense (à remplacer)
+# DIRECT         = Relation directe (pas via un intermédiaire)
+# f08c47fec0...  = Code de certification Google (toujours ce code, ne pas changer)
