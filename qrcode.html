@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Générateur QR Code — Restos Lomé</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400&display=swap" rel="stylesheet">
+    <style>
+    :root{--gold:#c5a059;--bg:#0a0a0a;--s:#141414;--s2:#1c1c1c;--b:rgba(255,255,255,.08);--b2:rgba(255,255,255,.14);--t:#f0ece4;--td:#6e6a64;--r:12px}
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--t);min-height:100vh;padding:32px 20px 80px;-webkit-font-smoothing:antialiased}
+    .ph{text-align:center;margin-bottom:32px}
+    .ph h1{font-family:'Syne',sans-serif;font-size:1.6rem;font-weight:800;color:var(--gold);margin-bottom:6px}
+    .ph p{font-size:.85rem;color:var(--td)}
+    .card{background:var(--s);border:1px solid var(--b);border-radius:var(--r);padding:24px;max-width:520px;margin:0 auto 24px}
+    .field{display:flex;flex-direction:column;gap:5px;margin-bottom:18px}
+    .lbl{font-size:.73rem;font-weight:600;color:var(--td);text-transform:uppercase;letter-spacing:.06em}
+    .inp{width:100%;background:var(--s2);border:1.5px solid var(--b2);color:var(--t);padding:11px 13px;border-radius:10px;font-family:'DM Sans',sans-serif;font-size:.9rem;outline:none;transition:border-color .2s}
+    .inp:focus{border-color:var(--gold)}
+    .hint{font-size:.72rem;color:var(--td);margin-top:2px}
+    .hint code{background:var(--s2);padding:1px 5px;border-radius:4px;font-family:monospace;color:var(--gold)}
+    .pills{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:6px}
+    .pill{padding:5px 12px;border-radius:50px;border:1.5px solid var(--b);background:transparent;color:var(--td);font-size:.78rem;font-weight:500;cursor:pointer;transition:all .2s}
+    .pill.on{background:var(--gold);border-color:var(--gold);color:#000;font-weight:600}
+    .cr{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+    .crow{display:flex;align-items:center;gap:10px}
+    input[type=color]{width:40px;height:40px;border:1.5px solid var(--b2);border-radius:8px;background:none;padding:2px;cursor:pointer}
+    .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:13px 24px;border-radius:10px;font-size:.9rem;font-weight:600;border:none;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all .2s;width:100%}
+    .btn-p{background:var(--gold);color:#000}
+    .btn-p:hover{background:#d4ae6a}
+    .btn-g{background:var(--s2);color:var(--t);border:1px solid var(--b2);margin-top:10px}
+    .btn-g:hover{border-color:var(--gold);color:var(--gold)}
+    #preview{display:none;background:var(--s);border:1px solid var(--b);border-radius:var(--r);padding:32px 24px;max-width:520px;margin:0 auto 24px;text-align:center}
+    #preview.show{display:block}
+    #ptitle{font-family:'Syne',sans-serif;font-size:1rem;font-weight:700;margin-bottom:20px;color:var(--gold)}
+    #qr-wrap{display:inline-block;padding:16px;background:white;border-radius:12px;margin-bottom:20px}
+    .urlbox{background:var(--s2);border:1px solid var(--b);border-radius:8px;padding:10px 14px;font-family:monospace;font-size:.82rem;color:var(--gold);word-break:break-all;margin-bottom:16px}
+    .rname{font-family:'Syne',sans-serif;font-size:1.1rem;font-weight:800;margin-bottom:8px}
+    .rcap{font-size:.8rem;color:var(--td);margin-bottom:20px;font-family:monospace}
+    @media(min-width:600px){body{max-width:600px;margin:0 auto}}
+    </style>
+</head>
+<body>
+
+<div class="ph">
+    <h1>🔲 Générateur QR Code</h1>
+    <p>Créez et téléchargez les QR Codes de vos restaurants</p>
+</div>
+
+<div class="card">
+    <div class="field">
+        <label class="lbl">URL de votre menu (domaine + /view.html)</label>
+        <input type="text" class="inp" id="domain"
+               placeholder="https://togo-restos-assets.lome-restaurant.workers.dev/view.html">
+        <p class="hint">Copier votre URL Cloudflare jusqu'à <code>view.html</code></p>
+    </div>
+
+    <div class="field">
+        <label class="lbl">Slug du restaurant *</label>
+        <input type="text" class="inp" id="slug" placeholder="akif" maxlength="60">
+        <p class="hint">Ex: <code>akif</code>, <code>la-marmite</code>, <code>alt-munchen</code></p>
+    </div>
+
+    <div class="field">
+        <label class="lbl">Nom du restaurant (légende)</label>
+        <input type="text" class="inp" id="rname" placeholder="Akif Fast-Food" maxlength="60">
+    </div>
+
+    <div class="field">
+        <label class="lbl">Taille</label>
+        <div class="pills">
+            <button class="pill" data-size="150">Petit 150px</button>
+            <button class="pill on" data-size="250">Moyen 250px</button>
+            <button class="pill" data-size="350">Grand 350px</button>
+            <button class="pill" data-size="500">Impression 500px</button>
+        </div>
+    </div>
+
+    <div class="cr">
+        <div class="field">
+            <label class="lbl">Couleur QR</label>
+            <div class="crow">
+                <input type="color" id="dark" value="#000000">
+                <input type="text" class="inp" id="dark-hex" value="#000000" style="width:110px;font-family:monospace">
+            </div>
+        </div>
+        <div class="field">
+            <label class="lbl">Fond</label>
+            <div class="crow">
+                <input type="color" id="light" value="#ffffff">
+                <input type="text" class="inp" id="light-hex" value="#ffffff" style="width:110px;font-family:monospace">
+            </div>
+        </div>
+    </div>
+
+    <button class="btn btn-p" id="gen-btn">🔲 Générer le QR Code</button>
+</div>
+
+<div id="preview">
+    <div id="ptitle">QR Code généré</div>
+    <p class="urlbox" id="urlbox">—</p>
+    <div id="qr-wrap"></div>
+    <p class="rname" id="rname-disp"></p>
+    <p class="rcap">Scanner pour voir le menu digital</p>
+    <button class="btn btn-p" id="dl-btn">📥 Télécharger PNG</button>
+    <button class="btn btn-g" id="cp-btn">📋 Copier l'URL</button>
+</div>
+
+<script>
+'use strict';
+let sz = 250;
+
+// Sync color pickers
+['dark','light'].forEach(id => {
+    document.getElementById(id).addEventListener('input', function(){ document.getElementById(id+'-hex').value=this.value; });
+    document.getElementById(id+'-hex').addEventListener('input', function(){
+        if(/^#[0-9A-Fa-f]{6}$/.test(this.value)) document.getElementById(id).value=this.value;
+    });
+});
+
+// Tailles
+document.querySelectorAll('.pill').forEach(b => {
+    b.addEventListener('click', () => { document.querySelectorAll('.pill').forEach(x=>x.classList.remove('on')); b.classList.add('on'); sz=parseInt(b.dataset.size); });
+});
+
+document.getElementById('gen-btn').addEventListener('click', gen);
+
+function gen() {
+    const domain = document.getElementById('domain').value.trim();
+    const slug   = document.getElementById('slug').value.trim().toLowerCase().replace(/\s+/g,'-');
+    const name   = document.getElementById('rname').value.trim();
+    const darkC  = document.getElementById('dark-hex').value || '#000000';
+    const lightC = document.getElementById('light-hex').value || '#ffffff';
+
+    if (!domain) { document.getElementById('domain').focus(); document.getElementById('domain').style.borderColor='#ef4444'; return; }
+    if (!slug)   { document.getElementById('slug').focus();   document.getElementById('slug').style.borderColor='#ef4444';   return; }
+    document.getElementById('domain').style.borderColor='';
+    document.getElementById('slug').style.borderColor='';
+
+    if (typeof QRCode === 'undefined') {
+        alert('Erreur : La bibliothèque QR Code n\'est pas chargée.\nVérifiez votre connexion internet et rechargez la page.');
+        return;
+    }
+
+    const url = domain.includes('?') ? `${domain}&id=${slug}` : `${domain}?id=${slug}`;
+    document.getElementById('urlbox').textContent    = url;
+    document.getElementById('rname-disp').textContent = name || slug;
+
+    const wrap = document.getElementById('qr-wrap');
+    wrap.innerHTML = '';
+
+    try {
+        new QRCode(wrap, {
+            text        : url,
+            width       : sz,
+            height      : sz,
+            colorDark   : darkC,
+            colorLight  : lightC,
+            correctLevel: QRCode.CorrectLevel.M,
+        });
+
+        document.getElementById('preview').classList.add('show');
+        document.getElementById('preview').scrollIntoView({ behavior:'smooth', block:'start' });
+    } catch(e) {
+        console.error(e);
+        alert('Erreur génération : ' + e.message);
+    }
+}
+
+// Téléchargement PNG avec légende
+document.getElementById('dl-btn').addEventListener('click', () => {
+    const wrap  = document.getElementById('qr-wrap');
+    const slug  = document.getElementById('slug').value.trim() || 'qrcode';
+    const name  = document.getElementById('rname').value.trim() || slug;
+    const lightC= document.getElementById('light-hex').value || '#ffffff';
+    const darkC = document.getElementById('dark-hex').value  || '#000000';
+
+    const cvs = wrap.querySelector('canvas');
+    const imgEl = wrap.querySelector('img');
+    if (!cvs && !imgEl) { alert('Générer d\'abord le QR Code.'); return; }
+
+    const pad = 20, lblH = 52;
+    const out = document.createElement('canvas');
+    out.width  = sz + pad*2;
+    out.height = sz + pad*2 + lblH;
+    const ctx  = out.getContext('2d');
+
+    ctx.fillStyle = lightC;
+    ctx.fillRect(0,0,out.width,out.height);
+
+    const drawLbl = () => {
+        ctx.fillStyle = darkC;
+        ctx.font = `bold ${Math.round(sz/14)}px sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.fillText(name, out.width/2, sz+pad+28);
+        ctx.font = `${Math.round(sz/20)}px sans-serif`;
+        ctx.fillStyle = '#666';
+        ctx.fillText('Scannez pour voir le menu', out.width/2, sz+pad+46);
+        const a = document.createElement('a');
+        a.download = `qrcode-${slug}-${Date.now()}.png`;
+        a.href = out.toDataURL('image/png');
+        a.click();
+    };
+
+    if (cvs) {
+        ctx.drawImage(cvs, pad, pad, sz, sz);
+        drawLbl();
+    } else {
+        const tmp = new Image();
+        tmp.onload = () => { ctx.drawImage(tmp, pad, pad, sz, sz); drawLbl(); };
+        tmp.src = imgEl.src;
+    }
+});
+
+// Copier URL
+document.getElementById('cp-btn').addEventListener('click', () => {
+    const url = document.getElementById('urlbox').textContent;
+    if (url && url !== '—') {
+        navigator.clipboard.writeText(url).then(() => {
+            const b = document.getElementById('cp-btn');
+            const o = b.textContent;
+            b.textContent = '✅ Copié !';
+            setTimeout(() => b.textContent = o, 2000);
+        });
+    }
+});
+
+// Auto-génération depuis URL params
+const p = new URLSearchParams(location.search);
+if (p.get('slug')) {
+    document.getElementById('slug').value = p.get('slug');
+    if (p.get('name')) document.getElementById('rname').value = p.get('name');
+    setTimeout(() => { if (typeof QRCode !== 'undefined') gen(); }, 600);
+}
+</script>
+</body>
+</html>

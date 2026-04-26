@@ -1,0 +1,948 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Gastronomie togolaise, meilleurs restaurants de Lomé, recettes traditionnelles et actualité culinaire du Togo.">
+    <meta name="keywords"    content="gastronomie togo, restaurant lomé, fufu, cuisine togolaise, recettes togo">
+    <meta property="og:type"        content="website">
+    <meta property="og:title"       content="Blog Gastronomie Togo — Restos Lomé">
+    <meta property="og:description" content="Les saveurs du Togo, restaurants, recettes et bonnes adresses à Lomé.">
+    <meta property="og:site_name"   content="Restos Lomé">
+    <title>Blog Gastronomie Togo — Restos Lomé</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=DM+Sans:wght@300;400;500;600&family=Space+Mono:wght@400&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+    <script src="config.js"></script>
+
+    <style>
+    :root {
+        --gold   : #c5a059;
+        --bg     : #faf8f4;
+        --white  : #ffffff;
+        --dark   : #1a1715;
+        --mid    : #6b6460;
+        --dim    : #b0a89e;
+        --border : #ede8e2;
+        --danger : #ef4444;
+        --success: #22c55e;
+        --r      : 12px;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--dark); -webkit-font-smoothing: antialiased; }
+    button { cursor: pointer; font-family: inherit; }
+    a { text-decoration: none; color: inherit; }
+
+    .site-nav {
+        background: var(--white); border-bottom: 1px solid var(--border);
+        padding: 0 24px; height: 64px;
+        display: flex; align-items: center; justify-content: space-between;
+        position: sticky; top: 0; z-index: 100;
+    }
+    .nav-logo {
+        font-family: 'Libre Baskerville', serif;
+        font-size: 1.2rem; font-weight: 700; color: var(--gold);
+        display: flex; align-items: center; gap: 8px;
+        cursor: pointer; user-select: none;
+        transition: opacity .2s;
+    }
+    .nav-logo:hover { opacity: .8; }
+    .nav-links { display: flex; align-items: center; gap: 20px; }
+    .nav-link { font-size: .85rem; font-weight: 600; color: var(--mid); transition: color .2s; }
+    .nav-link:hover, .nav-link.active { color: var(--dark); }
+    .nav-cta { background: var(--gold); color: #000; padding: 8px 18px; border-radius: 50px; font-size: .82rem; font-weight: 700; transition: opacity .2s; }
+    .nav-cta:hover { opacity: .85; }
+
+    .hero {
+        background: linear-gradient(135deg, var(--dark) 0%, #2c2318 100%);
+        color: #fff; padding: 64px 24px 52px; text-align: center; position: relative; overflow: hidden;
+    }
+    .hero::before { content: ''; position: absolute; inset: 0; background: radial-gradient(ellipse 80% 60% at 50% 0%, rgba(197,160,89,.15) 0%, transparent 70%); pointer-events: none; }
+    .hero-tag { display: inline-block; background: rgba(197,160,89,.15); border: 1px solid rgba(197,160,89,.3); color: var(--gold); padding: 5px 16px; border-radius: 50px; font-size: .75rem; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; margin-bottom: 20px; }
+    .hero h1 { font-family: 'Libre Baskerville', serif; font-size: clamp(1.8rem, 6vw, 3rem); line-height: 1.2; margin-bottom: 16px; }
+    .hero h1 em { font-style: italic; color: var(--gold); }
+    .hero p { font-size: 1rem; color: rgba(255,255,255,.7); max-width: 460px; margin: 0 auto; line-height: 1.6; }
+
+    .main-layout {
+        max-width: 1100px; margin: 0 auto; padding: 40px 24px 80px;
+        display: grid; grid-template-columns: 1fr 300px; gap: 40px;
+    }
+    @media(max-width:768px){ .main-layout { grid-template-columns: 1fr; } .sidebar { order: 2; } }
+
+    .section-title {
+        font-family: 'Libre Baskerville', serif; font-size: 1.4rem; color: var(--dark);
+        margin-bottom: 24px; padding-bottom: 12px; border-bottom: 2px solid var(--border);
+        display: flex; align-items: center; gap: 10px;
+    }
+    .section-title::after { content: ''; flex: 1; height: 2px; background: linear-gradient(to right, var(--border), transparent); }
+    .articles-grid { display: grid; grid-template-columns: 1fr; gap: 20px; }
+
+    .art-card {
+        background: var(--white); border-radius: var(--r);
+        border: 1px solid var(--border); overflow: hidden;
+        display: flex; transition: box-shadow .25s, transform .25s;
+        cursor: pointer; position: relative;
+    }
+    .art-card:hover { transform: translateY(-3px); box-shadow: 0 12px 32px rgba(0,0,0,.08); }
+    .art-card.featured { flex-direction: column; }
+
+    .art-img { width: 160px; min-height: 140px; flex-shrink: 0; background: var(--border); display: flex; align-items: center; justify-content: center; font-size: 2.5rem; color: var(--dim); overflow: hidden; }
+    .art-img img { width: 100%; height: 100%; object-fit: cover; }
+    .art-card.featured .art-img { width: 100%; height: 240px; min-height: 0; }
+
+    .art-body { padding: 20px; display: flex; flex-direction: column; justify-content: space-between; flex: 1; }
+    .art-cat  { font-size: .7rem; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; color: var(--gold); margin-bottom: 8px; }
+    .art-title { font-family: 'Libre Baskerville', serif; font-size: 1.05rem; line-height: 1.4; color: var(--dark); margin-bottom: 8px; }
+    .art-card.featured .art-title { font-size: 1.4rem; }
+    .art-excerpt { font-size: .83rem; color: var(--mid); line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+    .art-meta { display: flex; align-items: center; gap: 12px; margin-top: 14px; font-size: .75rem; color: var(--dim); }
+    .read-more { margin-left: auto; font-size: .78rem; font-weight: 700; color: var(--gold); }
+
+    .art-delete-btn {
+        display: none;
+        position: absolute; top: 10px; right: 10px;
+        background: rgba(239,68,68,.9); color: #fff;
+        border: none; border-radius: 6px;
+        font-size: .72rem; font-weight: 700;
+        padding: 4px 10px; z-index: 10;
+        transition: opacity .2s;
+    }
+    .art-delete-btn:hover { opacity: .85; }
+    body.admin-mode .art-delete-btn { display: block; }
+
+    .sidebar { display: flex; flex-direction: column; gap: 24px; }
+    .widget { background: var(--white); border: 1px solid var(--border); border-radius: var(--r); padding: 20px; }
+    .widget-title { font-family: 'Libre Baskerville', serif; font-size: 1rem; font-weight: 700; margin-bottom: 14px; padding-bottom: 10px; border-bottom: 1px solid var(--border); color: var(--dark); }
+
+    .resto-mini { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border); cursor: pointer; transition: opacity .2s; }
+    .resto-mini:last-child { border-bottom: none; }
+    .resto-mini:hover { opacity: .7; }
+    .resto-mini-logo { width: 42px; height: 42px; border-radius: 10px; background: var(--border); overflow: hidden; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; }
+    .resto-mini-logo img { width: 100%; height: 100%; object-fit: cover; }
+    .resto-mini-name { font-size: .88rem; font-weight: 600; }
+    .resto-mini-cat  { font-size: .75rem; color: var(--mid); margin-top: 2px; }
+    .resto-mini-arrow { margin-left: auto; color: var(--dim); }
+
+    #article-view { display: none; max-width: 760px; margin: 0 auto; padding: 40px 24px 80px; }
+    .article-back { display: inline-flex; align-items: center; gap: 6px; color: var(--gold); font-weight: 700; font-size: .9rem; cursor: pointer; margin-bottom: 28px; }
+    .article-cover { width: 100%; height: 340px; object-fit: cover; border-radius: var(--r); display: block; margin-bottom: 32px; }
+    .article-cat  { font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--gold); margin-bottom: 12px; }
+    .article-title { font-family: 'Libre Baskerville', serif; font-size: clamp(1.8rem, 5vw, 2.6rem); line-height: 1.2; margin-bottom: 16px; }
+    .article-meta { font-size: .82rem; color: var(--dim); margin-bottom: 32px; padding-bottom: 24px; border-bottom: 1px solid var(--border); display: flex; gap: 16px; }
+
+    .article-content { font-family: 'Libre Baskerville', serif; font-size: 1.08rem; line-height: 1.85; color: #2a2520; }
+    .article-content h2  { font-size: 1.4rem; margin: 36px 0 14px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+    .article-content h3  { font-size: 1.15rem; margin: 28px 0 10px; }
+    .article-content p   { margin-bottom: 20px; }
+    .article-content ul, .article-content ol { padding-left: 24px; margin-bottom: 20px; }
+    .article-content li  { margin-bottom: 6px; }
+    .article-content strong { color: var(--dark); }
+    .article-content em { color: var(--mid); }
+    .article-content img { width: 100%; border-radius: 8px; margin: 16px 0; }
+    .article-content blockquote { border-left: 3px solid var(--gold); padding: 12px 20px; margin: 24px 0; background: rgba(197,160,89,.06); border-radius: 0 8px 8px 0; font-style: italic; color: var(--mid); }
+
+    .share-bar { display: flex; gap: 10px; margin-top: 40px; padding-top: 24px; border-top: 1px solid var(--border); flex-wrap: wrap; }
+    .share-btn { display: inline-flex; align-items: center; gap: 6px; padding: 9px 18px; border-radius: 50px; font-size: .82rem; font-weight: 700; border: none; cursor: pointer; }
+    .share-fb { background: #1877f2; color: #fff; }
+    .share-wa { background: #25d366; color: #fff; }
+    .share-x  { background: #000; color: #fff; }
+
+    #admin-panel {
+        display: none;
+        background: var(--dark); color: #fff;
+        border-radius: 18px; padding: 28px;
+        margin: 24px auto; max-width: 1100px;
+    }
+    #admin-panel.show { display: block; }
+
+    .admin-title {
+        font-family: 'Libre Baskerville', serif;
+        font-size: 1.2rem; font-weight: 700;
+        color: var(--gold); margin-bottom: 20px;
+        display: flex; align-items: center; justify-content: space-between;
+    }
+    .admin-badge {
+        font-size: .68rem; background: rgba(197,160,89,.15); border: 1px solid rgba(197,160,89,.3);
+        color: var(--gold); padding: 3px 10px; border-radius: 4px;
+        font-family: 'Space Mono', monospace; letter-spacing: .04em;
+    }
+
+    .form-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    @media(max-width:600px){ .form-2col { grid-template-columns: 1fr; } }
+
+    .field { display: flex; flex-direction: column; gap: 5px; margin-bottom: 14px; }
+    .field label { font-size: .72rem; font-weight: 600; color: rgba(255,255,255,.5); text-transform: uppercase; letter-spacing: .06em; }
+    .field input, .field textarea, .field select {
+        background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.12);
+        color: #fff; padding: 10px 13px; border-radius: 8px;
+        font-family: 'DM Sans', sans-serif; font-size: .9rem;
+        outline: none; transition: border-color .2s; resize: vertical;
+    }
+    .field input:focus, .field textarea:focus, .field select:focus { border-color: var(--gold); }
+    .field textarea { min-height: 160px; line-height: 1.5; }
+    .field-hint { font-size: .72rem; color: rgba(255,255,255,.3); margin-top: 3px; }
+
+    .btn-pub {
+        background: var(--gold); color: #000;
+        border: none; padding: 12px 26px; border-radius: 8px;
+        font-weight: 700; font-size: .9rem;
+        display: flex; align-items: center; gap: 8px;
+        transition: opacity .2s;
+    }
+    .btn-pub:hover { opacity: .85; }
+    .btn-pub:disabled { opacity: .45; pointer-events: none; }
+
+    .btn-close-admin {
+        background: rgba(255,255,255,.08); color: rgba(255,255,255,.6);
+        border: 1px solid rgba(255,255,255,.12); padding: 8px 16px;
+        border-radius: 8px; font-size: .82rem; cursor: pointer;
+        transition: all .2s;
+    }
+    .btn-close-admin:hover { border-color: var(--gold); color: var(--gold); }
+
+    .admin-art-list { margin-top: 20px; display: flex; flex-direction: column; gap: 10px; }
+    .admin-art-row {
+        display: flex; align-items: center; gap: 14px;
+        background: rgba(255,255,255,.05); border-radius: 10px; padding: 12px 16px;
+        border: 1px solid rgba(255,255,255,.08);
+    }
+    .admin-art-info { flex: 1; min-width: 0; }
+    .admin-art-title { font-size: .9rem; font-weight: 600; margin-bottom: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .admin-art-meta  { font-size: .72rem; color: rgba(255,255,255,.4); }
+    .btn-del {
+        background: rgba(239,68,68,.15); color: #ef4444;
+        border: 1px solid rgba(239,68,68,.25); padding: 6px 14px;
+        border-radius: 6px; font-size: .78rem; font-weight: 600;
+        cursor: pointer; white-space: nowrap; flex-shrink: 0;
+        transition: background .2s;
+    }
+    .btn-del:hover { background: rgba(239,68,68,.3); }
+
+    #pwd-overlay {
+        position: fixed; inset: 0; background: rgba(0,0,0,.75); backdrop-filter: blur(8px);
+        z-index: 2000; display: none; align-items: center; justify-content: center; padding: 20px;
+    }
+    #pwd-overlay.show { display: flex; }
+    .pwd-box {
+        background: var(--white); border-radius: 18px; padding: 32px;
+        width: 100%; max-width: 360px; text-align: center;
+    }
+    .pwd-box h3 { font-family: 'Libre Baskerville', serif; font-size: 1.1rem; margin-bottom: 8px; }
+    .pwd-box p  { font-size: .83rem; color: var(--mid); margin-bottom: 20px; }
+    .pwd-inp {
+        width: 100%; background: var(--bg); border: 1.5px solid var(--border);
+        color: var(--dark); padding: 12px; border-radius: 8px;
+        font-size: 1rem; text-align: center; outline: none;
+        letter-spacing: .1em; margin-bottom: 12px;
+        transition: border-color .2s;
+    }
+    .pwd-inp:focus { border-color: var(--gold); }
+    .btn-unlock { width: 100%; background: var(--gold); color: #000; border: none; padding: 12px; border-radius: 8px; font-weight: 700; font-size: .9rem; }
+    .btn-cancel { width: 100%; background: none; border: 1px solid var(--border); color: var(--mid); padding: 10px; border-radius: 8px; font-weight: 600; font-size: .88rem; margin-top: 8px; }
+    .pwd-error { color: var(--danger); font-size: .8rem; margin-top: 8px; display: none; }
+
+    #toasts { position: fixed; top: 16px; right: 16px; z-index: 3000; display: flex; flex-direction: column; gap: 8px; }
+    .toast {
+        background: var(--white); border: 1px solid var(--border); border-radius: var(--r);
+        padding: 12px 18px; font-size: .85rem; font-weight: 500;
+        display: flex; align-items: center; gap: 8px;
+        box-shadow: 0 8px 24px rgba(0,0,0,.1);
+        animation: slideIn .25s ease;
+        max-width: 320px;
+    }
+    .toast.ok  { border-left: 3px solid var(--success); }
+    .toast.err { border-left: 3px solid var(--danger); }
+    @keyframes slideIn { from { opacity:0; transform:translateX(16px); } to { opacity:1; transform:translateX(0); } }
+
+    .site-footer { background: var(--dark); color: #fff; padding: 48px 24px 32px; text-align: center; }
+    .footer-logo { font-family: 'Libre Baskerville', serif; font-size: 1.4rem; color: var(--gold); margin-bottom: 10px; }
+    .footer-desc { font-size: .85rem; color: rgba(255,255,255,.5); margin-bottom: 24px; }
+    .footer-links { display: flex; justify-content: center; gap: 24px; flex-wrap: wrap; margin-bottom: 24px; }
+    .footer-link  { font-size: .82rem; color: rgba(255,255,255,.5); transition: color .2s; }
+    .footer-link:hover { color: var(--gold); }
+    .footer-copy  { font-size: .72rem; color: rgba(255,255,255,.25); }
+
+    body.light { background: #f5f2ee; color: #1a1510; }
+    body.light .site-nav { background: #fff; border-color: #e5e1db; }
+    body.light .hero { background: linear-gradient(135deg, #2c2318 0%, #1a1208 100%); color: #fff; }
+    body.light .art-card { background: #fff; box-shadow: 0 2px 12px rgba(0,0,0,.06); }
+    body.light .art-title { color: #1a1510; }
+    body.light .widget { background: #fff; }
+    body.light .article-content { color: #2a2520; }
+    body.light #article-view { color: #1a1510; }
+    body.light .article-title { color: #1a1510; }
+    body.light #admin-panel { background: #1a1715; }
+    body.light .site-footer { background: #1a1715; }
+
+    #blog-theme-toggle {
+        background: none; border: 1px solid var(--border);
+        color: var(--mid); font-size: .82rem; padding: 5px 12px;
+        border-radius: 50px; cursor: pointer;
+        transition: all .2s;
+    }
+    #blog-theme-toggle:hover { border-color: var(--gold); color: var(--gold); }
+    </style>
+</head>
+<body>
+<div id="toasts"></div>
+
+<!-- MOT DE PASSE ADMIN -->
+<div id="pwd-overlay">
+    <div class="pwd-box">
+        <div style="font-size:2rem;margin-bottom:12px;">🔐</div>
+        <h3>Accès Administration</h3>
+        <p>Entrez le mot de passe pour gérer les articles.</p>
+        <input type="password" class="pwd-inp" id="pwd-inp" placeholder="••••••••" autocomplete="off">
+        <div class="pwd-error" id="pwd-err">Mot de passe incorrect.</div>
+        <button class="btn-unlock" id="btn-unlock">Accéder</button>
+        <button class="btn-cancel" id="btn-cancel-pwd">Annuler</button>
+    </div>
+</div>
+
+<!-- NAVIGATION -->
+<nav class="site-nav">
+    <div class="nav-logo" id="nav-logo">🍽️ Restos Lomé</div>
+    <div class="nav-links">
+        <a href="blog.html"  class="nav-link active">Blog</a>
+        <a href="index.html" class="nav-link">Annuaire</a>
+        <button id="blog-theme-toggle">☀️</button>
+        <a href="index.html" class="nav-cta">Voir les menus →</a>
+    </div>
+</nav>
+
+<!-- VUE LISTE -->
+<div id="list-view">
+
+    <div class="hero">
+        <span class="hero-tag">Gastronomie Togo</span>
+        <h1>Les saveurs du Togo<br><em>racontées</em></h1>
+        <p>Recettes traditionnelles, bonnes adresses, histoire culinaire et découvertes gastronomiques au pays des Éperviers.</p>
+    </div>
+
+    <!-- PANNEAU CRUD ADMIN -->
+    <div id="admin-panel">
+        <div class="admin-title">
+            ✍️ Panneau de rédaction
+            <div style="display:flex;gap:10px;align-items:center;">
+                <span class="admin-badge">ADMIN MODE</span>
+                <button class="btn-close-admin" id="close-admin-btn">Fermer ✕</button>
+            </div>
+        </div>
+
+        <h3 style="font-size:.88rem;color:rgba(255,255,255,.5);margin-bottom:16px;text-transform:uppercase;letter-spacing:.06em;">Ajouter un article</h3>
+
+        <div class="form-2col">
+            <div class="field">
+                <label>Titre de l'article *</label>
+                <input type="text" id="art-title-inp" placeholder="Recette du fufu sauce graine">
+            </div>
+            <div class="field">
+                <label>Catégorie *</label>
+                <select id="art-cat-inp">
+                    <option value="">— Choisir —</option>
+                    <option value="Recettes">Recettes</option>
+                    <option value="Bonnes adresses">Bonnes adresses</option>
+                    <option value="Culture">Culture</option>
+                    <option value="Guide">Guide</option>
+                    <option value="Actualité">Actualité</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="form-2col">
+            <div class="field">
+                <label>Image (URL)</label>
+                <input type="url" id="art-img-inp" placeholder="https://images.unsplash.com/…">
+                <p class="field-hint">Utiliser Unsplash.com pour des images gratuites</p>
+            </div>
+            <div class="field">
+                <label>Extrait (résumé court) *</label>
+                <input type="text" id="art-excerpt-inp" placeholder="En 1-2 phrases, l'essentiel de l'article">
+            </div>
+        </div>
+
+        <div class="field">
+            <label>Contenu complet (Markdown supporté) *</label>
+            <textarea id="art-content-inp" placeholder="## Titre principal
+
+Votre contenu ici. Vous pouvez utiliser le **gras**, *l'italique*, des listes à puces, etc.
+
+### Sous-titre
+- Point 1
+- Point 2
+
+> Citation mise en valeur"></textarea>
+            <p class="field-hint">Markdown : **gras**, *italique*, ## Titre, - liste</p>
+        </div>
+
+        <button class="btn-pub" id="publish-btn">
+            📝 Publier l'article
+        </button>
+
+        <div style="margin-top:28px;padding-top:20px;border-top:1px solid rgba(255,255,255,.1);">
+            <h3 style="font-size:.88rem;color:rgba(255,255,255,.5);margin-bottom:14px;text-transform:uppercase;letter-spacing:.06em;">
+                Articles publiés — cliquer 🗑️ pour supprimer
+            </h3>
+            <div class="admin-art-list" id="admin-art-list"></div>
+        </div>
+    </div>
+
+    <div class="main-layout">
+        <div>
+            <h2 class="section-title">Derniers articles</h2>
+            <div class="articles-grid" id="articles-grid"></div>
+        </div>
+
+        <aside class="sidebar">
+            <div class="widget">
+                <h3 class="widget-title">🏆 Restaurants populaires</h3>
+                <div id="restos-list"><p style="font-size:.82rem;color:var(--mid);">Chargement…</p></div>
+                <a href="index.html" style="display:block;text-align:center;margin-top:14px;color:var(--gold);font-size:.82rem;font-weight:700;">
+                    Voir tous les restaurants →
+                </a>
+            </div>
+
+            <div class="widget">
+                <h3 class="widget-title">🏷️ Catégories</h3>
+                <div id="cats-widget" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:4px;"></div>
+            </div>
+        </aside>
+    </div>
+</div>
+
+<!-- VUE ARTICLE -->
+<div id="article-view">
+    <div class="article-back" id="back-btn">← Retour au blog</div>
+    <img id="art-cover" class="article-cover" src="" alt="" style="display:none">
+    <p class="article-cat"  id="art-cat-disp"></p>
+    <h1 class="article-title" id="art-title-disp"></h1>
+    <div class="article-meta">
+        <span id="art-date-disp"></span>
+        <span id="art-read-disp"></span>
+    </div>
+    <div class="article-content" id="art-body"></div>
+    <div class="share-bar">
+        <button class="share-btn share-fb" id="share-fb">f Partager</button>
+        <button class="share-btn share-wa" id="share-wa">📲 WhatsApp</button>
+        <button class="share-btn share-x"  id="share-x">✕ Tweeter</button>
+    </div>
+</div>
+
+<!-- FOOTER -->
+<footer class="site-footer">
+    <div class="footer-logo">🍽️ Restos Lomé</div>
+    <p class="footer-desc">La plateforme des menus digitaux et de la gastronomie togolaise</p>
+    <div class="footer-links">
+        <a href="index.html" class="footer-link">Annuaire restaurants</a>
+        <a href="blog.html"  class="footer-link">Blog gastronomie</a>
+        <a href="mailto:yjosephdzakas@gmail.com" class="footer-link">Contact</a>
+    </div>
+    <p class="footer-copy">© 2026 Jo D. Digital · Lomé, Togo</p>
+</footer>
+
+<script>
+'use strict';
+
+/* ═══════════════════════════════════════════════════════════
+   CONFIG — AUCUNE CLÉ EN DUR
+   Chargé depuis le Worker Cloudflare
+═══════════════════════════════════════════════════════════ */
+let supabaseClient = null;
+
+/* ═══════════════════════════════════════════════════════════
+   ARTICLES PAR DÉFAUT (fallback si Supabase inaccessible)
+═══════════════════════════════════════════════════════════ */
+const DEFAULT_ARTICLES = [
+    {
+        id: 'default-1', slug: 'top-10-restaurants-lome-2026',
+        title: 'Top 10 des meilleurs restaurants de Lomé en 2026',
+        excerpt: 'De l\'élégante cuisine togolaise de Vivi Royale aux grillades d\'Alt München, voici les adresses incontournables pour manger à Lomé cette année.',
+        category: 'Bonnes adresses', date: '2026-03-15',
+        image: 'https://images.unsplash.com/photo-1414235077428-338989a2e8c0?w=800&q=80',
+        featured: true, removable: false,
+        content: `## Les restaurants incontournables de Lomé\n\nLomé regorge de saveurs. Des maquis populaires de Totsi aux restaurants huppés de la Zone Portuaire, la capitale togolaise offre une expérience culinaire riche et diversifiée.\n\n### 1. La Marmite du Terroir (Totsi)\nLe fufu sauce graine y est préparé dans les règles de l'art.\n\n### 2. Alt München (Zone Portuaire)\nUne institution pour les expatriés et les hommes d'affaires.\n\n### 3. Akif Fast-Food\nLe roi du Shawarma à Lomé.`
+    },
+    {
+        id: 'default-2', slug: 'recette-fufu-sauce-graine-togo',
+        title: 'Recette authentique : Fufu Sauce Graine façon togolaise',
+        excerpt: 'Le fufu sauce graine est le plat national par excellence du Togo.',
+        category: 'Recettes', date: '2026-02-28',
+        image: 'https://images.unsplash.com/photo-1567620905732-2d1ec7bb7445?w=800&q=80',
+        featured: false, removable: false,
+        content: `## Le fufu, âme de la cuisine togolaise\n\nLe fufu n'est pas simplement un plat : c'est un rituel, un moment de partage familial.\n\n### Ingrédients (4 personnes)\n- 1 kg de manioc pelé\n- 500g de noix de palme\n- 500g de viande de mouton\n\n### Préparation\n1. Faire bouillir le manioc 25 minutes\n2. Égoutter et piler\n3. Cuire la sauce graine 30 minutes à feu doux`
+    },
+    {
+        id: 'default-3', slug: 'histoire-gastronomie-togolaise',
+        title: 'Histoire et patrimoine de la gastronomie togolaise',
+        excerpt: 'Entre influences yoruba, éwé, kabyè et coloniales, la cuisine togolaise est un voyage dans le temps.',
+        category: 'Culture', date: '2026-02-10',
+        image: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=800&q=80',
+        featured: false, removable: false,
+        content: `## Une cuisine aux multiples héritages\n\nLa gastronomie togolaise est le reflet de sa diversité ethnique.\n\n### Les racines éwé\nLe poisson braisé accompagné d'alloco est né dans ces communautés de pêcheurs.\n\n### L'influence kabyè du nord\nLes régions nord apportent la pâte de mil (akoumé) et les sauces à base de haricots.`
+    },
+    {
+        id: 'default-4', slug: 'lomé-by-night-restaurants',
+        title: 'Lomé by night : les restaurants ouverts tard dans la capitale',
+        excerpt: 'Après minuit à Lomé, la vie culinaire ne s\'arrête pas.',
+        category: 'Bonnes adresses', date: '2026-01-05',
+        image: 'https://images.unsplash.com/photo-1519750157634-b6d493a0f77c?w=800&q=80',
+        featured: false, removable: false,
+        content: `## Lomé, ville qui ne dort pas\n\nPlusieurs établissements servent jusqu'à 2h, 3h voire 24h/24 le week-end.\n\n### Les incontournables après minuit\n**Akif Fast-Food** : Ouvert 24h/24 le dimanche.\n**Les maquis de la corniche** : Poisson braisé et alloco jusqu'à tard.`
+    }
+];
+
+/* ═══════════════════════════════════════════════════════════
+   ÉTAT
+═══════════════════════════════════════════════════════════ */
+let isAdmin = false;
+let logoClicks = 0;
+let logoTimer = null;
+let currentArt = null;
+let supabaseArticles = [];
+let articlesLoaded = false;
+
+/* ═══════════════════════════════════════════════════════════
+   INIT SUPABASE
+═══════════════════════════════════════════════════════════ */
+async function initSupabase() {
+    await CONFIG.load();
+    supabaseClient = supabase.createClient(CONFIG.supabaseUrl, CONFIG.supabaseKey);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   ARTICLES DEPUIS SUPABASE
+═══════════════════════════════════════════════════════════ */
+async function loadSupabaseArticles() {
+    if (articlesLoaded) return supabaseArticles;
+    try {
+        const { data, error } = await supabaseClient
+            .from('blog_articles')
+            .select('*')
+            .eq('published', true)
+            .order('featured', { ascending: false })
+            .order('created_at', { ascending: false });
+
+        if (!error && data) {
+            supabaseArticles = data.map(a => ({
+                id: a.id, slug: a.slug, title: a.title,
+                excerpt: a.excerpt, content: a.content,
+                category: a.category, image: a.image_url,
+                date: a.created_at.split('T')[0],
+                featured: a.featured, removable: true,
+            }));
+        }
+    } catch(e) {
+        console.error('Erreur chargement articles Supabase:', e);
+        supabaseArticles = [];
+    }
+    articlesLoaded = true;
+    return supabaseArticles;
+}
+
+function getAllArticles() {
+    return supabaseArticles.length > 0 ? supabaseArticles : DEFAULT_ARTICLES;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   TOAST
+═══════════════════════════════════════════════════════════ */
+function toast(msg, type='ok', dur=3500) {
+    const el = document.createElement('div');
+    el.className = `toast ${type}`;
+    el.innerHTML = `<span>${type==='ok'?'✅':'❌'}</span><span>${msg}</span>`;
+    document.getElementById('toasts').appendChild(el);
+    setTimeout(() => el.remove(), dur);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   ROUTING
+═══════════════════════════════════════════════════════════ */
+function init() {
+    const params = new URLSearchParams(location.search);
+    const artId = params.get('article');
+    if (artId) showArticle(artId);
+    else showList();
+}
+
+/* ═══════════════════════════════════════════════════════════
+   VUE LISTE
+═══════════════════════════════════════════════════════════ */
+async function showList() {
+    document.getElementById('list-view').style.display = 'block';
+    document.getElementById('article-view').style.display = 'none';
+    await loadSupabaseArticles();
+    renderArticles();
+    loadRestos();
+    buildCats();
+}
+
+function renderArticles(filter = null) {
+    const grid = document.getElementById('articles-grid');
+    grid.innerHTML = '';
+
+    let arts = getAllArticles();
+    if (filter) arts = arts.filter(a => a.category === filter);
+
+    arts.forEach((art, i) => {
+        const card = document.createElement('div');
+        card.className = `art-card ${i === 0 && !filter ? 'featured' : ''}`;
+
+        const imgHtml = art.image
+            ? `<div class="art-img"><img src="${art.image}" alt="${art.title}" loading="${i>0?'lazy':'eager'}"></div>`
+            : `<div class="art-img">🍽️</div>`;
+
+        card.innerHTML = `
+            ${imgHtml}
+            <div class="art-body">
+                <div>
+                    <p class="art-cat">${art.category}</p>
+                    <h3 class="art-title">${art.title}</h3>
+                    <p class="art-excerpt">${art.excerpt}</p>
+                </div>
+                <div class="art-meta">
+                    <span>📅 ${new Date(art.date).toLocaleDateString('fr-FR',{day:'numeric',month:'long',year:'numeric'})}</span>
+                    <span class="read-more">Lire →</span>
+                </div>
+            </div>
+            ${art.removable !== false ? `<button class="art-delete-btn" data-id="${art.id}">🗑️ Supprimer</button>` : ''}
+        `;
+
+        card.addEventListener('click', e => {
+            if (e.target.closest('.art-delete-btn')) return;
+            history.pushState({}, '', `?article=${art.id || art.slug}`);
+            showArticle(art.id || art.slug);
+        });
+
+        const delBtn = card.querySelector('.art-delete-btn');
+        if (delBtn) {
+            delBtn.addEventListener('click', e => {
+                e.stopPropagation();
+                deleteArticle(art.id);
+            });
+        }
+
+        grid.appendChild(card);
+    });
+
+    if (isAdmin) renderAdminList();
+}
+
+/* ═══════════════════════════════════════════════════════════
+   ARTICLE COMPLET
+═══════════════════════════════════════════════════════════ */
+function showArticle(idOrSlug) {
+    const arts = getAllArticles();
+    const art = arts.find(a => a.id === idOrSlug || a.slug === idOrSlug);
+    if (!art) { history.pushState({}, '', 'blog.html'); showList(); return; }
+
+    currentArt = art;
+    document.getElementById('list-view').style.display = 'none';
+    document.getElementById('article-view').style.display = 'block';
+    window.scrollTo({ top: 0, behavior: 'instant' });
+
+    document.title = art.title + ' — Blog Restos Lomé';
+
+    const cover = document.getElementById('art-cover');
+    if (art.image) { cover.src = art.image; cover.alt = art.title; cover.style.display = 'block'; }
+    else cover.style.display = 'none';
+
+    document.getElementById('art-cat-disp').textContent = art.category;
+    document.getElementById('art-title-disp').textContent = art.title;
+    document.getElementById('art-date-disp').textContent = '📅 ' + new Date(art.date).toLocaleDateString('fr-FR',{day:'numeric',month:'long',year:'numeric'});
+
+    const words = art.content.split(/\s+/).length;
+    document.getElementById('art-read-disp').textContent = `⏱ ${Math.ceil(words/200)} min de lecture`;
+
+    document.getElementById('art-body').innerHTML = marked.parse(art.content);
+
+    const articleSlug = art.slug || art.id;
+    const absoluteUrl = window.location.origin + window.location.pathname + '?article=' + articleSlug;
+    const url = encodeURIComponent(absoluteUrl);
+    const txt = encodeURIComponent(art.title + ' — Restos Lomé');
+    document.getElementById('share-fb').onclick = () => window.open(`https://www.facebook.com/sharer/sharer.php?u=${url}`, '_blank');
+    document.getElementById('share-wa').onclick = () => window.open(`https://wa.me/?text=${txt}%20${url}`, '_blank');
+    document.getElementById('share-x').onclick  = () => window.open(`https://twitter.com/intent/tweet?url=${url}&text=${txt}`, '_blank');
+}
+
+/* ═══════════════════════════════════════════════════════════
+   RESTAURANTS POPULAIRES (sidebar)
+═══════════════════════════════════════════════════════════ */
+async function loadRestos() {
+    try {
+        const { data } = await supabaseClient
+            .from('restaurants')
+            .select('id, name, slug, logo_url, opening_hours')
+            .eq('is_active', true)
+            .limit(5);
+
+        if (!data?.length) return;
+        const list = document.getElementById('restos-list');
+        list.innerHTML = '';
+        data.forEach(r => {
+            const row = document.createElement('div');
+            row.className = 'resto-mini';
+            row.innerHTML = `
+                <div class="resto-mini-logo">${r.logo_url ? `<img src="${r.logo_url}" alt="${r.name}">` : '🍽️'}</div>
+                <div><p class="resto-mini-name">${r.name}</p><p class="resto-mini-cat">${r.opening_hours||'Menu digital'}</p></div>
+                <span class="resto-mini-arrow">→</span>
+            `;
+            row.addEventListener('click', () => window.location.href = `/view.html?id=${r.slug}`);
+            list.appendChild(row);
+        });
+    } catch(_) {}
+}
+
+/* ═══════════════════════════════════════════════════════════
+   CATÉGORIES (sidebar)
+═══════════════════════════════════════════════════════════ */
+function buildCats() {
+    const cats = [...new Set(getAllArticles().map(a => a.category))];
+    const wrap = document.getElementById('cats-widget');
+    wrap.innerHTML = '';
+
+    const allBtn = document.createElement('button');
+    allBtn.style.cssText = `padding:5px 12px;border-radius:50px;border:1.5px solid var(--border);background:var(--gold);color:#000;font-size:.78rem;font-weight:700;cursor:pointer;`;
+    allBtn.textContent = 'Tous';
+    allBtn.addEventListener('click', () => renderArticles(null));
+    wrap.appendChild(allBtn);
+
+    cats.forEach(c => {
+        const btn = document.createElement('button');
+        btn.style.cssText = `padding:5px 12px;border-radius:50px;border:1.5px solid var(--border);background:transparent;color:var(--mid);font-size:.78rem;font-weight:600;cursor:pointer;transition:all .15s;`;
+        btn.textContent = c;
+        btn.addEventListener('click', () => renderArticles(c));
+        wrap.appendChild(btn);
+    });
+}
+
+/* ═══════════════════════════════════════════════════════════
+   CRUD — CRÉER UN ARTICLE
+═══════════════════════════════════════════════════════════ */
+document.getElementById('publish-btn').addEventListener('click', async () => {
+    const title   = document.getElementById('art-title-inp').value.trim();
+    const cat     = document.getElementById('art-cat-inp').value;
+    const excerpt = document.getElementById('art-excerpt-inp').value.trim();
+    const content = document.getElementById('art-content-inp').value.trim();
+    const image   = document.getElementById('art-img-inp').value.trim();
+
+    if (!title || !cat || !excerpt || !content) {
+        toast('Remplir : Titre, Catégorie, Extrait et Contenu.', 'err'); return;
+    }
+
+    const slug_art = title.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9\s]/g,'').trim().replace(/\s+/g,'-') + '-' + Date.now();
+
+    const btn_pub = document.getElementById('publish-btn');
+    btn_pub.disabled = true;
+    btn_pub.innerHTML = '⏳ Publication...';
+
+    try {
+        const { data: newArt, error: pubErr } = await supabaseClient
+            .from('blog_articles')
+            .insert({
+                slug: slug_art, title, excerpt, content,
+                category: cat, image_url: image || null,
+                published: true, featured: false,
+                author: 'Jo D. Digital',
+            })
+            .select()
+            .single();
+
+        if (pubErr) {
+            if (pubErr.code === '42P01') {
+                toast('⚠️ Table blog_articles manquante. Exécuter blog_articles.sql dans Supabase.', 'err', 8000);
+            } else {
+                throw pubErr;
+            }
+        } else {
+            supabaseArticles.unshift({
+                id: newArt.id, slug: newArt.slug, title: newArt.title,
+                excerpt: newArt.excerpt, content: newArt.content,
+                category: newArt.category, image: newArt.image_url,
+                date: newArt.created_at.split('T')[0],
+                featured: false, removable: true,
+            });
+        }
+    } catch(e) {
+        toast('Erreur publication : ' + e.message, 'err', 6000);
+    } finally {
+        btn_pub.disabled = false;
+        btn_pub.innerHTML = '📝 Publier l\'article';
+    }
+
+    ['art-title-inp','art-cat-inp','art-excerpt-inp','art-content-inp','art-img-inp']
+        .forEach(id => { document.getElementById(id).value = ''; });
+
+    renderArticles();
+    renderAdminList();
+    buildCats();
+    toast(`Article "${title}" publié !`);
+});
+
+/* ═══════════════════════════════════════════════════════════
+   CRUD — SUPPRIMER UN ARTICLE
+═══════════════════════════════════════════════════════════ */
+async function deleteArticle(id) {
+    if (!isAdmin) return;
+
+    const isLocalOnly = id.startsWith('default-');
+    if (isLocalOnly) { toast('Les articles par défaut ne peuvent pas être supprimés.', 'err'); return; }
+
+    try {
+        const { error } = await supabaseClient
+            .from('blog_articles')
+            .delete()
+            .eq('id', id);
+
+        if (error) throw error;
+        supabaseArticles = supabaseArticles.filter(a => a.id !== id);
+    } catch(e) {
+        toast('Erreur suppression : ' + e.message, 'err');
+        return;
+    }
+
+    renderArticles();
+    renderAdminList();
+    buildCats();
+    toast('Article supprimé.');
+}
+
+/* ═══════════════════════════════════════════════════════════
+   PANNEAU ADMIN — LISTE
+═══════════════════════════════════════════════════════════ */
+function renderAdminList() {
+    const list = document.getElementById('admin-art-list');
+    const arts = getAllArticles();
+    list.innerHTML = '';
+
+    arts.forEach(art => {
+        const row = document.createElement('div');
+        row.className = 'admin-art-row';
+        row.innerHTML = `
+            <div class="admin-art-info">
+                <p class="admin-art-title">${art.title}</p>
+                <p class="admin-art-meta">${art.category} · ${new Date(art.date).toLocaleDateString('fr-FR')} ${!art.removable?'· <em style="color:rgba(255,255,255,.3)">Article par défaut</em>':''}</p>
+            </div>
+            ${art.removable ? `<button class="btn-del" data-id="${art.id}">🗑️ Supprimer</button>` : ''}
+        `;
+        const del = row.querySelector('.btn-del');
+        if (del) del.addEventListener('click', () => deleteArticle(art.id));
+        list.appendChild(row);
+    });
+}
+
+/* ═══════════════════════════════════════════════════════════
+   DÉVEROUILLAGE ADMIN
+═══════════════════════════════════════════════════════════ */
+document.getElementById('nav-logo').addEventListener('click', () => {
+    logoClicks++;
+    clearTimeout(logoTimer);
+    logoTimer = setTimeout(() => { logoClicks = 0; }, 2000);
+
+    if (logoClicks >= 5) {
+        logoClicks = 0;
+        if (isAdmin) {
+            toggleAdmin(false);
+        } else {
+            document.getElementById('pwd-overlay').classList.add('show');
+            document.getElementById('pwd-inp').focus();
+        }
+    }
+});
+
+document.getElementById('btn-unlock').addEventListener('click', unlock);
+document.getElementById('pwd-inp').addEventListener('keydown', e => { if(e.key==='Enter') unlock(); });
+document.getElementById('btn-cancel-pwd').addEventListener('click', () => {
+    document.getElementById('pwd-overlay').classList.remove('show');
+    document.getElementById('pwd-inp').value = '';
+    document.getElementById('pwd-err').style.display = 'none';
+});
+
+async function unlock() {
+    const input = document.getElementById('pwd-inp').value;
+    const errorMsg = document.getElementById('pwd-err');
+    
+    try {
+        const valid = await CONFIG.verifyPassword(input, 'blog');
+        
+        if (valid) {
+            document.getElementById('pwd-overlay').classList.remove('show');
+            document.getElementById('pwd-inp').value = '';
+            errorMsg.style.display = 'none';
+            toggleAdmin(true);
+        } else {
+            errorMsg.textContent = "Mot de passe incorrect";
+            errorMsg.style.display = 'block';
+            document.getElementById('pwd-inp').value = '';
+            document.getElementById('pwd-inp').focus();
+        }
+    } catch (err) {
+        errorMsg.textContent = "Erreur de connexion au serveur";
+        errorMsg.style.display = 'block';
+    }
+}
+
+function toggleAdmin(on) {
+    isAdmin = on;
+    const panel = document.getElementById('admin-panel');
+    document.body.classList.toggle('admin-mode', on);
+    if (on) {
+        panel.classList.add('show');
+        renderAdminList();
+        panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        toast('Mode admin activé.');
+    } else {
+        panel.classList.remove('show');
+        toast('Mode admin désactivé.');
+    }
+    renderArticles();
+}
+
+document.getElementById('close-admin-btn').addEventListener('click', () => toggleAdmin(false));
+
+/* ═══════════════════════════════════════════════════════════
+   NAVIGATION
+═══════════════════════════════════════════════════════════ */
+document.getElementById('back-btn').addEventListener('click', () => {
+    history.pushState({}, '', 'blog.html');
+    showList();
+});
+window.addEventListener('popstate', () => {
+    const p = new URLSearchParams(location.search);
+    if (p.get('article')) showArticle(p.get('article'));
+    else showList();
+});
+
+/* ═══════════════════════════════════════════════════════════
+   THÈME
+═══════════════════════════════════════════════════════════ */
+const blogThemeBtn = document.getElementById('blog-theme-toggle');
+if (blogThemeBtn) {
+    try {
+        if (localStorage.getItem('blog_theme') === 'light') {
+            document.body.classList.add('light');
+            blogThemeBtn.textContent = '🌙';
+        }
+    } catch(_){}
+
+    blogThemeBtn.addEventListener('click', () => {
+        const isLight = document.body.classList.toggle('light');
+        blogThemeBtn.textContent = isLight ? '🌙' : '☀️';
+        try { localStorage.setItem('blog_theme', isLight ? 'light' : 'dark'); } catch(_){}
+    });
+}
+
+/* ═══════════════════════════════════════════════════════════
+   INIT
+═══════════════════════════════════════════════════════════ */
+(async () => {
+    await initSupabase();
+    await loadSupabaseArticles();
+    articlesLoaded = false;
+    init();
+})();
+</script>
+</body>
+</html>

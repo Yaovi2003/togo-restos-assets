@@ -1,0 +1,823 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Onboarding Nouveau Client — Jo D. Digital</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+    <script src="config.js"></script>
+
+    <style>
+        :root {
+            --gold     : #c5a059;
+            --gold-dim : rgba(197,160,89,0.1);
+            --gold-br  : rgba(197,160,89,0.25);
+            --bg       : #080808;
+            --surface  : #121212;
+            --surface2 : #1a1a1a;
+            --surface3 : #212121;
+            --border   : rgba(255,255,255,0.07);
+            --border2  : rgba(255,255,255,0.13);
+            --text     : #f0ece4;
+            --text-dim : #6e6a64;
+            --text-mid : #9a9690;
+            --success  : #22c55e;
+            --danger   : #ef4444;
+            --warning  : #f59e0b;
+            --r        : 12px;
+            --r-lg     : 18px;
+        }
+
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'DM Sans', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            padding: 32px 20px 80px;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        button { cursor: pointer; font-family: inherit; }
+        input, select, textarea { font-family: inherit; }
+
+        #toasts {
+            position: fixed; top: 16px; right: 16px; z-index: 9999;
+            display: flex; flex-direction: column; gap: 8px;
+            pointer-events: none;
+        }
+        .toast {
+            background: var(--surface2); border: 1px solid var(--border2);
+            border-radius: var(--r); padding: 12px 18px;
+            font-size: .85rem; font-weight: 500;
+            display: flex; align-items: center; gap: 8px;
+            animation: slideIn .25s ease; pointer-events: all;
+            max-width: 340px;
+        }
+        .toast.ok  { border-left: 3px solid var(--success); }
+        .toast.err { border-left: 3px solid var(--danger); }
+        .toast.inf { border-left: 3px solid var(--gold); }
+        .toast.wrn { border-left: 3px solid var(--warning); }
+        @keyframes slideIn { from{opacity:0;transform:translateX(16px);}to{opacity:1;transform:translateX(0);} }
+
+        #lock-screen {
+            min-height: 100vh; display: flex;
+            align-items: center; justify-content: center; padding: 20px;
+        }
+        .lock-card {
+            background: var(--surface); border: 1px solid var(--border2);
+            border-radius: var(--r-lg); padding: 44px 36px;
+            width: 100%; max-width: 380px; text-align: center;
+        }
+        .lock-icon { font-size: 2.4rem; margin-bottom: 16px; }
+        .lock-title { font-family: 'Syne', sans-serif; font-size: 1.3rem; font-weight: 800; margin-bottom: 6px; }
+        .lock-sub   { font-size: .83rem; color: var(--text-dim); margin-bottom: 28px; }
+
+        #app { display: none; max-width: 860px; margin: 0 auto; }
+
+        .page-header {
+            display: flex; align-items: center; justify-content: space-between;
+            margin-bottom: 36px; padding-bottom: 20px;
+            border-bottom: 1px solid var(--border);
+        }
+        .page-title { font-family: 'Syne', sans-serif; font-size: 1.6rem; font-weight: 800; }
+        .page-sub   { font-size: .83rem; color: var(--text-dim); margin-top: 4px; }
+
+        .card {
+            background: var(--surface); border: 1px solid var(--border);
+            border-radius: var(--r-lg); padding: 28px; margin-bottom: 20px;
+        }
+        .card-title {
+            font-family: 'Syne', sans-serif; font-size: 1rem; font-weight: 700;
+            margin-bottom: 20px; padding-bottom: 12px;
+            border-bottom: 1px solid var(--border);
+            display: flex; align-items: center; gap: 8px;
+        }
+
+        .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+        @media(max-width:600px){ .grid2 { grid-template-columns: 1fr; } }
+
+        .field { display: flex; flex-direction: column; gap: 5px; margin-bottom: 16px; }
+        .label {
+            font-size: .73rem; font-weight: 600; color: var(--text-dim);
+            text-transform: uppercase; letter-spacing: .06em;
+        }
+        .inp {
+            background: var(--surface2); border: 1.5px solid var(--border2);
+            color: var(--text); padding: 11px 13px; border-radius: var(--r);
+            font-size: .9rem; outline: none; width: 100%;
+            transition: border-color .2s;
+        }
+        .inp:focus { border-color: var(--gold); }
+        .inp.mono { font-family: 'IBM Plex Mono', monospace; font-size: .82rem; }
+        .hint { font-size: .72rem; color: var(--text-dim); margin-top: 3px; }
+
+        .slug-preview {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: .8rem; color: var(--gold); margin-top: 4px;
+        }
+
+        .color-row { display: flex; gap: 10px; align-items: center; }
+        .swatches  { display: flex; gap: 6px; flex-wrap: wrap; }
+        .swatch {
+            width: 28px; height: 28px; border-radius: 50%;
+            border: 2px solid transparent; cursor: pointer;
+            transition: transform .15s, border-color .15s;
+        }
+        .swatch:hover, .swatch.on { transform: scale(1.2); border-color: #fff; }
+        input[type="color"] { width: 40px; height: 36px; border-radius: 8px; border: 1.5px solid var(--border2); background: none; padding: 2px; cursor: pointer; }
+
+        .btn {
+            display: inline-flex; align-items: center; justify-content: center;
+            gap: 8px; padding: 12px 22px; border-radius: var(--r);
+            font-size: .9rem; font-weight: 700; border: none;
+            transition: all .18s; font-family: 'DM Sans', sans-serif;
+            cursor: pointer;
+        }
+        .btn-primary { background: var(--gold); color: #000; }
+        .btn-primary:hover { background: #d4ae6a; }
+        .btn-ghost { background: var(--surface2); color: var(--text); border: 1px solid var(--border2); }
+        .btn-ghost:hover { border-color: var(--gold); color: var(--gold); }
+        .btn-full { width: 100%; }
+        .btn:disabled { opacity: .45; pointer-events: none; }
+        .spinner {
+            width: 16px; height: 16px; border: 2px solid rgba(0,0,0,.2);
+            border-top-color: #000; border-radius: 50%;
+            animation: spin .7s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        #result-card {
+            display: none;
+            background: rgba(34,197,94,.07);
+            border: 1px solid rgba(34,197,94,.25);
+            border-radius: var(--r-lg); padding: 28px; margin-bottom: 20px;
+        }
+        #result-card.show { display: block; }
+
+        .result-title {
+            font-family: 'Syne', sans-serif; font-size: 1.1rem; font-weight: 800;
+            color: var(--success); margin-bottom: 20px;
+            display: flex; align-items: center; gap: 10px;
+        }
+        .result-row {
+            display: flex; align-items: center; gap: 10px;
+            margin-bottom: 10px; flex-wrap: wrap;
+        }
+        .result-label {
+            font-size: .72rem; font-weight: 600; text-transform: uppercase;
+            letter-spacing: .06em; color: var(--text-dim); min-width: 130px;
+        }
+        .result-value {
+            font-family: 'IBM Plex Mono', monospace; font-size: .8rem;
+            color: var(--gold); background: var(--surface2);
+            padding: 6px 12px; border-radius: 8px; flex: 1; word-break: break-all;
+        }
+        .copy-btn {
+            background: var(--surface2); border: 1px solid var(--border2);
+            color: var(--text-dim); padding: 6px 12px; border-radius: 8px;
+            font-size: .75rem; font-weight: 600; cursor: pointer;
+            white-space: nowrap; transition: all .15s;
+        }
+        .copy-btn:hover { border-color: var(--gold); color: var(--gold); }
+
+        .wa-template {
+            background: var(--surface2); border-radius: var(--r);
+            padding: 16px; margin-top: 16px;
+            font-size: .82rem; line-height: 1.7; white-space: pre-wrap;
+            color: var(--text); border-left: 3px solid #25d366;
+        }
+        .wa-btn {
+            display: inline-flex; align-items: center; gap: 8px;
+            background: #25d366; color: #fff;
+            padding: 12px 22px; border-radius: var(--r);
+            font-weight: 700; font-size: .9rem;
+            border: none; cursor: pointer; margin-top: 14px;
+        }
+
+        .progress-steps {
+            display: none;
+            flex-direction: column; gap: 8px;
+            margin-top: 16px; padding: 16px;
+            background: var(--surface2);
+            border-radius: var(--r);
+            border: 1px solid var(--border2);
+        }
+        .progress-steps.show { display: flex; }
+        .step-row {
+            display: flex; align-items: center; gap: 10px;
+            font-size: .84rem;
+        }
+        .step-icon { width: 20px; text-align: center; flex-shrink: 0; }
+        .step-text { flex: 1; }
+        .step-text.done { color: var(--success); }
+        .step-text.running { color: var(--gold); }
+        .step-text.error { color: var(--danger); }
+        .step-text.pending { color: var(--text-dim); }
+
+        #restos-section { margin-top: 40px; }
+        .section-title {
+            font-family: 'Syne', sans-serif; font-size: 1.1rem; font-weight: 800;
+            margin-bottom: 16px; display: flex; align-items: center; gap: 8px;
+        }
+        table { width: 100%; border-collapse: collapse; }
+        thead th {
+            font-size: .7rem; text-transform: uppercase; letter-spacing: .07em;
+            color: var(--text-dim); padding: 10px 16px; text-align: left;
+            background: var(--surface2); border-bottom: 1px solid var(--border);
+        }
+        tbody tr { border-bottom: 1px solid var(--border); transition: background .12s; }
+        tbody tr:hover { background: var(--surface2); }
+        tbody td { padding: 12px 16px; font-size: .85rem; vertical-align: middle; }
+        .slug-cell { font-family: 'IBM Plex Mono', monospace; font-size: .78rem; color: var(--gold); }
+        .dot-ok  { width: 8px; height: 8px; border-radius: 50%; background: var(--success); display: inline-block; }
+        .dot-ko  { width: 8px; height: 8px; border-radius: 50%; background: var(--danger); display: inline-block; }
+
+        .info-banner {
+            background: var(--gold-dim); border: 1px solid var(--gold-br);
+            border-radius: var(--r); padding: 14px 16px;
+            font-size: .82rem; color: var(--text-mid);
+            line-height: 1.6; margin-bottom: 16px;
+        }
+        .info-banner strong { color: var(--gold); }
+    </style>
+</head>
+<body>
+<div id="toasts"></div>
+
+<!-- VERROUILLAGE -->
+<div id="lock-screen">
+    <div class="lock-card">
+        <div class="lock-icon">🔐</div>
+        <h1 class="lock-title">Espace Réservé</h1>
+        <p class="lock-sub">Jo D. Digital — Super Admin uniquement</p>
+        <div class="field" style="text-align:left;">
+            <label class="label">Mot de passe maître</label>
+            <input type="password" class="inp" id="master-pwd"
+                   placeholder="••••••••" autocomplete="off">
+        </div>
+        <button class="btn btn-primary btn-full" id="unlock-btn" style="margin-top:8px;">
+            🔓 Accéder
+        </button>
+    </div>
+</div>
+
+<!-- APPLICATION -->
+<div id="app">
+
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">🚀 Créer un nouveau client</h1>
+            <p class="page-sub">Restaurant + Stats + Compte gérant en un seul clic</p>
+        </div>
+        <a href="admin.html" class="btn btn-ghost btn-sm" style="font-size:.82rem;padding:8px 16px;">← Admin</a>
+    </div>
+
+    <!-- RÉSULTAT -->
+    <div id="result-card">
+        <div class="result-title">✅ Restaurant créé avec succès !</div>
+        <div id="result-details"></div>
+        <div id="wa-wrap"></div>
+    </div>
+
+    <!-- FORMULAIRE -->
+    <div class="card">
+        <h2 class="card-title">🏪 Informations du restaurant</h2>
+
+        <div class="grid2">
+            <div class="field">
+                <label class="label">Nom du restaurant *</label>
+                <input type="text" class="inp" id="r-name" placeholder="Alt München">
+                <p class="slug-preview" id="slug-preview">@—</p>
+            </div>
+            <div class="field">
+                <label class="label">Slug (identifiant URL) *</label>
+                <input type="text" class="inp mono" id="r-slug" placeholder="alt-munchen"
+                       pattern="[a-z0-9\-]+" title="Minuscules, chiffres et tirets uniquement">
+                <p class="hint">Minuscules, tirets, pas d'accents. Ex: la-marmite</p>
+            </div>
+        </div>
+
+        <div class="field">
+            <label class="label">Description courte</label>
+            <textarea class="inp" id="r-desc" rows="2"
+                      placeholder="La meilleure cuisine togolaise à Lomé. Spécialité : fufu sauce graine."></textarea>
+        </div>
+
+        <div class="grid2">
+            <div class="field">
+                <label class="label">Adresse</label>
+                <input type="text" class="inp" id="r-address"
+                       placeholder="Boulevard du 13 Janvier, Déckon, Lomé">
+            </div>
+            <div class="field">
+                <label class="label">Horaires</label>
+                <input type="text" class="inp" id="r-hours"
+                       placeholder="Lun-Sam : 10h – 23h · Dim : Fermé">
+            </div>
+        </div>
+
+        <div class="grid2">
+            <div class="field">
+                <label class="label">Numéro WhatsApp (commandes) *</label>
+                <input type="text" class="inp mono" id="r-whatsapp" placeholder="22890010203">
+                <p class="hint">Avec indicatif pays, sans + ni espaces</p>
+            </div>
+            <div class="field">
+                <label class="label">Téléphone</label>
+                <input type="text" class="inp mono" id="r-phone" placeholder="22890010203">
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2 class="card-title">🎨 Couleur de marque</h2>
+        <div class="color-row">
+            <div class="swatches" id="swatches">
+                <div class="swatch on" data-c="#c5a059" style="background:#c5a059"></div>
+                <div class="swatch" data-c="#e53e3e" style="background:#e53e3e"></div>
+                <div class="swatch" data-c="#3182ce" style="background:#3182ce"></div>
+                <div class="swatch" data-c="#38a169" style="background:#38a169"></div>
+                <div class="swatch" data-c="#805ad5" style="background:#805ad5"></div>
+                <div class="swatch" data-c="#dd6b20" style="background:#dd6b20"></div>
+                <div class="swatch" data-c="#2b6cb0" style="background:#2b6cb0"></div>
+            </div>
+            <input type="color" id="r-color" value="#c5a059">
+            <input type="text" class="inp mono" id="r-color-hex" value="#c5a059" style="width:100px;">
+        </div>
+    </div>
+
+    <div class="card">
+        <h2 class="card-title">👤 Compte Admin du Gérant</h2>
+
+        <div class="info-banner">
+            <strong>Comment ça fonctionne :</strong><br>
+            Le gérant reçoit un email automatique de Supabase avec un lien
+            <strong>"Confirmer mon email"</strong>. En cliquant dessus, il accède à une page
+            où il choisit son mot de passe. Ensuite il peut se connecter sur
+            <strong>admin.html</strong> avec son email et son mot de passe.
+        </div>
+
+        <div class="grid2">
+            <div class="field">
+                <label class="label">Email du gérant *</label>
+                <input type="email" class="inp" id="r-email"
+                       placeholder="manager@akif.tg">
+            </div>
+            <div class="field">
+                <label class="label">Nom complet du gérant</label>
+                <input type="text" class="inp" id="r-manager-name"
+                       placeholder="Kofi Mensah">
+            </div>
+        </div>
+
+        <div class="field">
+            <label class="label">WhatsApp du gérant (pour lui envoyer ses accès)</label>
+            <input type="text" class="inp mono" id="r-manager-wa"
+                   placeholder="22890010203">
+        </div>
+    </div>
+
+    <!-- Étapes de progression -->
+    <div class="progress-steps" id="progress-steps">
+        <div class="step-row"><span class="step-icon" id="s1-ico">⏳</span><span class="step-text pending" id="s1-txt">Création du restaurant dans Supabase…</span></div>
+        <div class="step-row"><span class="step-icon" id="s2-ico">⏳</span><span class="step-text pending" id="s2-txt">Création des statistiques (vues / likes)…</span></div>
+        <div class="step-row"><span class="step-icon" id="s3-ico">⏳</span><span class="step-text pending" id="s3-txt">Création du compte gérant…</span></div>
+        <div class="step-row"><span class="step-icon" id="s4-ico">⏳</span><span class="step-text pending" id="s4-txt">Liaison du compte au restaurant…</span></div>
+        <div class="step-row"><span class="step-icon" id="s5-ico">⏳</span><span class="step-text pending" id="s5-txt">Envoi email de confirmation…</span></div>
+    </div>
+
+    <button class="btn btn-primary btn-full" id="create-btn"
+            style="font-size:1rem;padding:16px;margin-top:4px;">
+        🚀 Créer le restaurant et envoyer l'invitation
+    </button>
+
+    <!-- LISTE DES RESTAURANTS EXISTANTS -->
+    <div id="restos-section">
+        <h2 class="section-title" style="margin-top:40px;">📋 Restaurants existants</h2>
+        <div class="card" style="padding:0;overflow:hidden;">
+            <table>
+                <thead><tr>
+                    <th>Restaurant</th>
+                    <th>Slug</th>
+                    <th>WhatsApp</th>
+                    <th>Créé le</th>
+                    <th>Statut</th>
+                    <th>Action</th>
+                </tr></thead>
+                <tbody id="restos-tbody">
+                    <tr><td colspan="6" style="text-align:center;padding:24px;color:var(--text-dim);">Chargement…</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+</div><!-- #app -->
+
+<script>
+'use strict';
+
+/* ================================================================
+   CONFIG — AUCUNE CLÉ EN DUR
+   Chargé depuis le Worker Cloudflare
+================================================================ */
+const CFG = {
+    // Numéro WhatsApp de Jo D. Digital (pas une clé secrète)
+    TON_WA : '22896522778',
+    
+    // Domaine auto-détecté
+    get DOMAIN() {
+        return location.origin;
+    }
+};
+
+let supabaseClient = null;
+
+/* ── Init Supabase ──────────────────────────────────────────── */
+async function initSupabase() {
+    await CONFIG.load();
+    supabaseClient = supabase.createClient(CONFIG.supabaseUrl, CONFIG.supabaseKey, {
+        auth: {
+            persistSession: false
+        }
+    });
+}
+
+/* ── Toast ─────────────────────────────────────────────────── */
+function toast(msg, type = 'inf', dur = 4000) {
+    const icons = { ok:'✅', err:'❌', inf:'ℹ️', wrn:'⚠️' };
+    const el    = document.createElement('div');
+    el.className = `toast ${type}`;
+    el.innerHTML = `<span>${icons[type]||'ℹ️'}</span><span>${msg}</span>`;
+    document.getElementById('toasts').appendChild(el);
+    setTimeout(() => el.remove(), dur);
+}
+
+/* ── Étapes visuelles ───────────────────────────────────────── */
+function stepState(n, state, msg) {
+    const ico = document.getElementById(`s${n}-ico`);
+    const txt = document.getElementById(`s${n}-txt`);
+    const map = { done:'✅', error:'❌', running:'⏳', warn:'⚠️', skip:'⏭️' };
+    if (ico) ico.textContent = map[state] || '⏳';
+    if (txt) {
+        txt.className = `step-text ${state==='done'?'done':state==='error'?'error':state==='running'?'running':'pending'}`;
+        if (msg) txt.textContent = msg;
+    }
+}
+
+/* ── Verrouillage ───────────────────────────────────────────── */
+document.getElementById('unlock-btn').addEventListener('click', unlock);
+document.getElementById('master-pwd').addEventListener('keydown', e => { if(e.key==='Enter') unlock(); });
+
+async function unlock() {
+    const pwd = document.getElementById('master-pwd').value;
+    
+    try {
+        const valid = await CONFIG.verifyPassword(pwd, 'onboarding');
+        
+        if (valid) {
+            document.getElementById('lock-screen').style.display = 'none';
+            document.getElementById('app').style.display = 'block';
+            loadRestos();
+        } else {
+            toast('Mot de passe incorrect.', 'err');
+            document.getElementById('master-pwd').value = '';
+            document.getElementById('master-pwd').focus();
+        }
+    } catch(e) {
+        toast('Erreur de vérification. Réessayez.', 'err');
+    }
+}
+
+/* ── Génération du slug ─────────────────────────────────────── */
+document.getElementById('r-name').addEventListener('input', function() {
+    const slug = this.value
+        .toLowerCase()
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-z0-9\s-]/g, '')
+        .trim().replace(/\s+/g, '-');
+    document.getElementById('r-slug').value = slug;
+    document.getElementById('slug-preview').textContent = slug ? `@${slug}` : '@—';
+});
+
+document.getElementById('r-slug').addEventListener('input', function() {
+    document.getElementById('slug-preview').textContent = this.value ? `@${this.value}` : '@—';
+});
+
+/* ── Color picker ───────────────────────────────────────────── */
+document.querySelectorAll('.swatch').forEach(s => {
+    s.addEventListener('click', () => {
+        document.querySelectorAll('.swatch').forEach(x => x.classList.remove('on'));
+        s.classList.add('on');
+        document.getElementById('r-color').value = s.dataset.c;
+        document.getElementById('r-color-hex').value = s.dataset.c;
+    });
+});
+document.getElementById('r-color').addEventListener('input', function() {
+    document.getElementById('r-color-hex').value = this.value;
+    document.querySelectorAll('.swatch').forEach(x => x.classList.remove('on'));
+});
+document.getElementById('r-color-hex').addEventListener('input', function() {
+    if (/^#[0-9A-Fa-f]{6}$/.test(this.value))
+        document.getElementById('r-color').value = this.value;
+});
+
+/* ================================================================
+   CRÉATION DU RESTAURANT — FLUX COMPLET
+================================================================ */
+document.getElementById('create-btn').addEventListener('click', createRestaurant);
+
+async function createRestaurant() {
+    const name        = document.getElementById('r-name').value.trim();
+    const slug        = document.getElementById('r-slug').value.trim().toLowerCase();
+    const desc        = document.getElementById('r-desc').value.trim();
+    const address     = document.getElementById('r-address').value.trim();
+    const hours       = document.getElementById('r-hours').value.trim();
+    const whatsapp    = document.getElementById('r-whatsapp').value.trim();
+    const phone       = document.getElementById('r-phone').value.trim();
+    const color       = document.getElementById('r-color-hex').value.trim();
+    const email       = document.getElementById('r-email').value.trim();
+    const managerName = document.getElementById('r-manager-name').value.trim();
+    const managerWA   = document.getElementById('r-manager-wa').value.trim();
+
+    if (!name) { toast('Le nom du restaurant est obligatoire.', 'err'); return; }
+    if (!slug) { toast('Le slug est obligatoire.', 'err'); return; }
+    if (!/^[a-z0-9-]+$/.test(slug)) {
+        toast('Slug invalide : minuscules, chiffres et tirets uniquement.', 'err'); return;
+    }
+    if (!whatsapp) { toast('Le numéro WhatsApp est obligatoire.', 'err'); return; }
+    if (!email)    { toast('L\'email du gérant est obligatoire.', 'err'); return; }
+
+    const btn = document.getElementById('create-btn');
+    btn.disabled = true;
+    btn.innerHTML = '<div class="spinner"></div> Création en cours…';
+    document.getElementById('progress-steps').classList.add('show');
+    stepState(1, 'running', 'Création du restaurant dans Supabase…');
+
+    try {
+        /* ── ÉTAPE 1 : Créer le restaurant ─────────────────── */
+        const { data: resto, error: restoErr } = await supabaseClient
+            .from('restaurants')
+            .insert({
+                slug, name,
+                description   : desc     || null,
+                address       : address  || null,
+                opening_hours : hours    || null,
+                whatsapp,
+                phone         : phone    || null,
+                theme_color   : color    || '#c5a059',
+                is_active     : true,
+            })
+            .select()
+            .single();
+
+        if (restoErr) {
+            if (restoErr.code === '23505') {
+                stepState(1, 'error', `Slug "@${slug}" déjà utilisé — choisir un autre identifiant.`);
+                throw new Error(`Le slug "@${slug}" est déjà pris.`);
+            }
+            stepState(1, 'error', 'Erreur création restaurant : ' + restoErr.message);
+            throw restoErr;
+        }
+        stepState(1, 'done', `Restaurant "${name}" créé ✓`);
+
+        /* ── ÉTAPE 2 : Créer les stats ──────────────────────── */
+        stepState(2, 'running', 'Création des statistiques…');
+        const { error: statsErr } = await supabaseClient
+            .from('stats')
+            .insert({ restaurant_id: resto.id });
+
+        if (statsErr) {
+            if (statsErr.code === '23505') {
+                stepState(2, 'warn', 'Stats déjà existantes (normal)');
+            } else {
+                stepState(2, 'error', 'Erreur stats : ' + statsErr.message);
+                toast('Erreur stats — exécuter fix_rls_policies.sql dans Supabase', 'wrn', 8000);
+            }
+        } else {
+            stepState(2, 'done', 'Statistiques créées ✓');
+        }
+
+        /* ── ÉTAPE 3 : Créer le compte gérant ──────────────── */
+        stepState(3, 'running', 'Création du compte gérant…');
+
+        const tempPassword = 'Tmp!' + Math.random().toString(36).slice(-8) + Math.random().toString(36).slice(-4).toUpperCase();
+
+        const { data: authData, error: authErr } = await supabaseClient.auth.signUp({
+            email,
+            password: tempPassword,
+            options: {
+                data: {
+                    full_name          : managerName || name,
+                    restaurant_managed : name,
+                },
+            },
+        });
+
+        if (authErr) {
+            if (authErr.message?.includes('already registered')) {
+                stepState(3, 'warn', 'Email déjà enregistré — compte existant');
+                toast('Ce gérant a déjà un compte Supabase.', 'wrn');
+            } else {
+                stepState(3, 'error', 'Erreur compte : ' + authErr.message);
+                throw authErr;
+            }
+        } else {
+            stepState(3, 'done', 'Compte gérant créé ✓');
+        }
+
+        const newUserId = authData?.user?.id;
+
+        /* ── ÉTAPE 4 : Lier le profil au restaurant ─────────── */
+        stepState(4, 'running', 'Liaison du compte au restaurant…');
+
+        if (newUserId) {
+            const { error: profileErr } = await supabaseClient
+                .from('profiles')
+                .upsert({
+                    id            : newUserId,
+                    restaurant_id : resto.id,
+                    role          : 'admin',
+                    full_name     : managerName || null,
+                });
+
+            if (profileErr) {
+                stepState(4, 'warn', 'Liaison profil à compléter manuellement');
+                toast('Lier manuellement le profil dans Supabase', 'wrn', 8000);
+            } else {
+                stepState(4, 'done', 'Profil lié au restaurant ✓');
+            }
+        } else {
+            stepState(4, 'skip', 'Liaison manuelle requise (compte déjà existant)');
+        }
+
+                /* ── ÉTAPE 5 : Email de réinitialisation ────────────── */
+        stepState(5, 'running', 'Envoi email "Créer votre mot de passe"…');
+
+        // URL COMPLÈTE en dur pour éviter tout problème
+        const resetURL = 'https://togo-restos-assets.lome-restaurant.workers.dev/set-password.html';
+        console.log('🔗 URL de reset envoyée à Supabase:', resetURL);
+        
+        const { error: resetErr } = await supabaseClient.auth.resetPasswordForEmail(
+            email,
+            { redirectTo: resetURL }
+        );
+
+        if (resetErr) {
+            console.error('❌ Erreur resetPasswordForEmail:', resetErr);
+            stepState(5, 'error', 'Email non envoyé : ' + resetErr.message);
+            toast('⚠️ Erreur envoi email : ' + resetErr.message, 'err', 8000);
+        } else {
+            console.log('✅ Email de reset envoyé avec succès à:', email);
+            stepState(5, 'done', '✓ Email envoyé — le gérant VA créer son propre mot de passe');
+        }
+
+        /* ── AFFICHER LE RÉSULTAT ────────────────────────────── */
+        const menuUrl = `${CFG.DOMAIN}/view.html?id=${slug}`;
+        showResult(resto, email, managerName, managerWA, menuUrl);
+        toast('✅ Tout est prêt ! Le gérant va recevoir son email.', 'ok', 6000);
+        loadRestos();
+
+    } catch(err) {
+        console.error(err);
+        toast(err.message || 'Erreur lors de la création.', 'err', 8000);
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '🚀 Créer le restaurant et envoyer l\'invitation';
+    }
+}
+
+/* ── Afficher le résultat + message WhatsApp ─────────────────── */
+function showResult(resto, email, managerName, managerWA, menuUrl) {
+    const card    = document.getElementById('result-card');
+    const details = document.getElementById('result-details');
+
+    details.innerHTML = `
+        <div class="result-row">
+            <span class="result-label">Restaurant</span>
+            <span class="result-value">${resto.name}</span>
+        </div>
+        <div class="result-row">
+            <span class="result-label">Slug</span>
+            <span class="result-value">@${resto.slug}</span>
+        </div>
+        <div class="result-row">
+            <span class="result-label">Menu public</span>
+            <span class="result-value">${menuUrl}</span>
+            <button class="copy-btn" onclick="copyText('${menuUrl}', this)">Copier</button>
+        </div>
+        <div class="result-row">
+            <span class="result-label">Email gérant</span>
+            <span class="result-value">${email}</span>
+        </div>
+        <div class="result-row">
+            <span class="result-label">Lien admin</span>
+            <span class="result-value">${CFG.DOMAIN}/admin.html</span>
+            <button class="copy-btn" onclick="copyText('${CFG.DOMAIN}/admin.html', this)">Copier</button>
+        </div>
+    `;
+
+    const waMsg = `Bonjour ${managerName || ''}! 👋
+
+Votre menu digital est prêt sur *Restos Lomé* 🍽️
+
+*📱 Votre menu public* (à partager avec vos clients) :
+${menuUrl}
+
+*🔧 Votre espace de gestion :*
+Lien : ${CFG.DOMAIN}/admin.html
+Email : ${email}
+
+*🔐 Créer votre mot de passe :*
+Vous avez reçu un email intitulé *"Reset your password"*.
+✅ Cliquez sur le lien dans cet email.
+✅ Choisissez votre propre mot de passe.
+✅ Vous serez redirigé vers votre espace admin.
+
+*(Vérifiez vos spams / dossier Promotions si vous ne le trouvez pas)*
+
+*Dans votre espace admin vous pouvez :*
+✅ Ajouter / modifier vos plats avec photos
+✅ Activer ou désactiver un plat (épuisé)
+✅ Gérer vos événements (concerts, soirées…)
+✅ Voir vos statistiques (vues, likes)
+✅ Modifier les infos de votre restaurant
+
+Des questions ? Contactez-moi ! 😊`.trim();
+
+    const waTarget = managerWA
+        ? `https://wa.me/${managerWA}?text=${encodeURIComponent(waMsg)}`
+        : `https://wa.me/${CFG.TON_WA}?text=${encodeURIComponent(waMsg)}`;
+
+    document.getElementById('wa-wrap').innerHTML = `
+        <h3 style="font-family:'Syne',sans-serif;font-size:.9rem;font-weight:700;margin-top:20px;margin-bottom:10px;">
+            📲 Message WhatsApp prêt à envoyer
+        </h3>
+        <div class="wa-template">${waMsg}</div>
+        <a href="${waTarget}" target="_blank">
+            <button class="wa-btn">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="white"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+                Envoyer sur WhatsApp
+            </button>
+        </a>
+        <br><br>
+        <a href="${CFG.DOMAIN}/qrcode.html?slug=${resto.slug}&name=${encodeURIComponent(resto.name)}"
+           target="_blank"
+           style="color:var(--gold);font-size:.85rem;font-weight:600;">
+            🔲 Générer le QR Code pour ce restaurant →
+        </a>
+    `;
+
+    card.classList.add('show');
+    card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function copyText(text, btn) {
+    navigator.clipboard.writeText(text).then(() => {
+        const old = btn.textContent;
+        btn.textContent = '✅ Copié';
+        setTimeout(() => btn.textContent = old, 2000);
+    });
+}
+
+/* ── Liste des restaurants existants ─────────────────────────── */
+async function loadRestos() {
+    const { data } = await supabaseClient
+        .from('restaurants')
+        .select('id, name, slug, whatsapp, is_active, created_at')
+        .order('created_at', { ascending: false });
+
+    const tbody = document.getElementById('restos-tbody');
+    if (!data?.length) {
+        tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--text-dim);">Aucun restaurant pour l'instant.</td></tr>`;
+        return;
+    }
+
+    tbody.innerHTML = data.map(r => `
+        <tr>
+            <td><strong>${r.name}</strong></td>
+            <td class="slug-cell">@${r.slug}</td>
+            <td style="font-family:monospace;font-size:.78rem;">${r.whatsapp || '—'}</td>
+            <td style="font-size:.78rem;color:var(--text-dim);">${new Date(r.created_at).toLocaleDateString('fr-FR')}</td>
+            <td>${r.is_active ? '<span class="dot-ok"></span> Actif' : '<span class="dot-ko"></span> Inactif'}</td>
+            <td>
+                <a href="${CFG.DOMAIN}/view.html?id=${r.slug}" target="_blank"
+                   style="color:var(--gold);font-size:.78rem;font-weight:600;text-decoration:none;">
+                    Voir →
+                </a>
+            </td>
+        </tr>
+    `).join('');
+}
+
+/* ── DÉMARRAGE ───────────────────────────────────────────────── */
+(async () => {
+    await initSupabase();
+})();
+</script>
+</body>
+</html>
