@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Liens — Restos Lomé</title>
+
+    <!-- ✅ Content Security Policy (AJOUTÉ) -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net 'unsafe-inline'; style-src 'self' https://fonts.googleapis.com 'unsafe-inline'; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://*.supabase.co;">
+
+    <link rel="manifest" href="/manifest.json">
+    <meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-capable" content="yes">
+    <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+    <script src="config.js"></script>
+    <style>:root{--gold:#c5a059;--bg:#080808;--t:#f0ece4;--td:#6e6a64}*{box-sizing:border-box;margin:0;padding:0}body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--t);min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}.container{max-width:400px;width:100%;text-align:center}.logo{font-size:3rem;margin-bottom:8px}h1{font-family:'Syne',sans-serif;font-size:1.5rem;color:var(--gold);margin-bottom:24px}.link-btn{display:block;background:#1c1c1c;border:1px solid rgba(255,255,255,.1);color:var(--t);padding:14px;border-radius:12px;margin-bottom:10px;text-decoration:none;font-weight:600;transition:all .2s}.link-btn:hover{border-color:var(--gold);color:var(--gold)}.social-row{display:flex;gap:10px;justify-content:center;margin-top:20px}.social-btn{width:44px;height:44px;border-radius:50%;background:#1c1c1c;border:1px solid rgba(255,255,255,.1);display:flex;align-items:center;justify-content:center;font-size:1.2rem;text-decoration:none;transition:all .2s}.social-btn:hover{border-color:var(--gold)}#error-msg{display:none;background:rgba(239,68,68,.1);color:#ef4444;border:1px solid rgba(239,68,68,.2);padding:10px;border-radius:8px;margin-bottom:12px;font-size:.82rem}</style>
+</head>
+<body><div class="container"><div class="logo">🍽️</div><div id="error-msg"></div><h1 id="resto-name">Chargement...</h1><div id="linktree-qr" style="display:inline-block;background:#fff;padding:10px;border-radius:10px;margin-bottom:16px;"></div><div id="links"></div><div class="social-row"><a id="link-fb" href="#" target="_blank" rel="noopener noreferrer" class="social-btn">f</a><a id="link-wa" href="#" target="_blank" rel="noopener noreferrer" class="social-btn">💬</a><a id="link-insta" href="#" target="_blank" rel="noopener noreferrer" class="social-btn">📷</a></div></div>
+<script>
+'use strict';
+
+// ✅ FONCTIONS DE SÉCURITÉ (AJOUTÉES)
+function escapeHTML(str) {
+    if (!str && str !== 0) return '';
+    const div = document.createElement('div');
+    div.textContent = String(str);
+    return div.innerHTML;
+}
+
+function sanitizePhone(phone) {
+    if (!phone) return '';
+    return String(phone).replace(/[^0-9+]/g, '').substring(0, 20);
+}
+
+function sanitizeURL(url) {
+    if (!url) return '#';
+    try {
+        const parsed = new URL(url);
+        if (!['http:', 'https:', 'tel:', 'mailto:'].includes(parsed.protocol)) return '#';
+        return url;
+    } catch {
+        if (url.startsWith('tel:') || url.startsWith('mailto:')) return url;
+        return '#';
+    }
+}
+
+function showError(msg) {
+    const el = document.getElementById('error-msg');
+    el.textContent = msg;
+    el.style.display = 'block';
+}
+
+(async()=>{
+    await CONFIG.load();
+    const db=supabase.createClient(CONFIG.supabaseUrl,CONFIG.supabaseKey);
+    const slug=new URLSearchParams(location.search).get('id');
+    
+    if(!slug) {
+        showError('Aucun restaurant spécifié.');
+        return;
+    }
+    
+    // ✅ VALIDATION DU SLUG
+    if (!/^[a-z0-9-]+$/.test(slug)) {
+        showError('Identifiant de restaurant invalide.');
+        return;
+    }
+    
+    const{data:r}=await db.from('restaurants').select('*').eq('slug',slug).single();
+    if(!r) {
+        showError('Restaurant introuvable.');
+        return;
+    }
+    
+    // ✅ ÉCHAPPEMENT DU NOM
+    document.getElementById('resto-name').textContent = escapeHTML(r.name);
+    
+    // ✅ QR CODE AVEC URL ÉCHAPPÉE
+    const qrUrl = `${location.origin}/view.html?id=${encodeURIComponent(slug)}`;
+    new QRCode(document.getElementById('linktree-qr'),{
+        text: qrUrl,
+        width:120,height:120,
+        colorDark:'#000',colorLight:'#fff'
+    });
+    
+    document.title = escapeHTML(r.name) + ' — Liens';
+    
+    const links=document.getElementById('links');
+    const safeWA = r.whatsapp ? sanitizePhone(r.whatsapp) : '';
+    const safePhone = r.phone ? sanitizePhone(r.phone) : '';
+    
+    // ✅ GÉNÉRATION DES LIENS AVEC ÉCHAPPEMENT
+    const linkItems = [
+        `<a class="link-btn" href="/view.html?id=${encodeURIComponent(slug)}">🍽️ Voir le menu digital</a>`,
+        `<a class="link-btn" href="/checkout.html?id=${encodeURIComponent(slug)}">🛒 Commander en ligne</a>`
+    ];
+    
+    if (safeWA) {
+        linkItems.push(`<a class="link-btn" href="${sanitizeURL('https://wa.me/' + safeWA)}" target="_blank" rel="noopener noreferrer">💬 WhatsApp</a>`);
+    }
+    if (safePhone) {
+        linkItems.push(`<a class="link-btn" href="${sanitizeURL('tel:+' + safePhone)}">📞 Appeler</a>`);
+    }
+    linkItems.push(`<a class="link-btn" href="#map">📍 Nous trouver</a>`);
+    
+    links.innerHTML = linkItems.join('');
+    
+    // ✅ LIENS SOCIAUX SÉCURISÉS
+    if(safeWA) {
+        document.getElementById('link-wa').href = sanitizeURL('https://wa.me/' + safeWA);
+    }
+    // Facebook et Instagram restent en # par défaut (non configurés dans la DB)
+})();
+</script></body></html>

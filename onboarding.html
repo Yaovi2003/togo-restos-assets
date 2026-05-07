@@ -5,6 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Onboarding Nouveau Client — Jo D. Digital</title>
 
+    <!-- ✅ Content Security Policy (AJOUTÉ) -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net 'unsafe-inline'; style-src 'self' https://fonts.googleapis.com 'unsafe-inline'; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://*.supabase.co;">
+
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
@@ -291,32 +294,32 @@
         <div class="grid2">
             <div class="field">
                 <label class="label">Nom du restaurant *</label>
-                <input type="text" class="inp" id="r-name" placeholder="Alt München">
+                <input type="text" class="inp" id="r-name" placeholder="Alt München" maxlength="100">
                 <p class="slug-preview" id="slug-preview">@—</p>
             </div>
             <div class="field">
                 <label class="label">Slug (identifiant URL) *</label>
                 <input type="text" class="inp mono" id="r-slug" placeholder="alt-munchen"
-                       pattern="[a-z0-9\-]+" title="Minuscules, chiffres et tirets uniquement">
+                       pattern="[a-z0-9\-]+" title="Minuscules, chiffres et tirets uniquement" maxlength="60">
                 <p class="hint">Minuscules, tirets, pas d'accents. Ex: la-marmite</p>
             </div>
         </div>
 
         <div class="field">
             <label class="label">Description courte</label>
-            <textarea class="inp" id="r-desc" rows="2"
+            <textarea class="inp" id="r-desc" rows="2" maxlength="500"
                       placeholder="La meilleure cuisine togolaise à Lomé. Spécialité : fufu sauce graine."></textarea>
         </div>
 
         <div class="grid2">
             <div class="field">
                 <label class="label">Adresse</label>
-                <input type="text" class="inp" id="r-address"
+                <input type="text" class="inp" id="r-address" maxlength="200"
                        placeholder="Boulevard du 13 Janvier, Déckon, Lomé">
             </div>
             <div class="field">
                 <label class="label">Horaires</label>
-                <input type="text" class="inp" id="r-hours"
+                <input type="text" class="inp" id="r-hours" maxlength="100"
                        placeholder="Lun-Sam : 10h – 23h · Dim : Fermé">
             </div>
         </div>
@@ -324,12 +327,12 @@
         <div class="grid2">
             <div class="field">
                 <label class="label">Numéro WhatsApp (commandes) *</label>
-                <input type="text" class="inp mono" id="r-whatsapp" placeholder="22890010203">
+                <input type="text" class="inp mono" id="r-whatsapp" placeholder="22890010203" maxlength="20">
                 <p class="hint">Avec indicatif pays, sans + ni espaces</p>
             </div>
             <div class="field">
                 <label class="label">Téléphone</label>
-                <input type="text" class="inp mono" id="r-phone" placeholder="22890010203">
+                <input type="text" class="inp mono" id="r-phone" placeholder="22890010203" maxlength="20">
             </div>
         </div>
     </div>
@@ -347,7 +350,7 @@
                 <div class="swatch" data-c="#2b6cb0" style="background:#2b6cb0"></div>
             </div>
             <input type="color" id="r-color" value="#c5a059">
-            <input type="text" class="inp mono" id="r-color-hex" value="#c5a059" style="width:100px;">
+            <input type="text" class="inp mono" id="r-color-hex" value="#c5a059" style="width:100px;" maxlength="7">
         </div>
     </div>
 
@@ -366,19 +369,19 @@
             <div class="field">
                 <label class="label">Email du gérant *</label>
                 <input type="email" class="inp" id="r-email"
-                       placeholder="manager@akif.tg">
+                       placeholder="manager@akif.tg" maxlength="255">
             </div>
             <div class="field">
                 <label class="label">Nom complet du gérant</label>
                 <input type="text" class="inp" id="r-manager-name"
-                       placeholder="Kofi Mensah">
+                       placeholder="Kofi Mensah" maxlength="100">
             </div>
         </div>
 
         <div class="field">
             <label class="label">WhatsApp du gérant (pour lui envoyer ses accès)</label>
             <input type="text" class="inp mono" id="r-manager-wa"
-                   placeholder="22890010203">
+                   placeholder="22890010203" maxlength="20">
         </div>
     </div>
 
@@ -426,16 +429,73 @@
    Chargé depuis le Worker Cloudflare
 ================================================================ */
 const CFG = {
-    // Numéro WhatsApp de Jo D. Digital (pas une clé secrète)
     TON_WA : '22896522778',
     
-    // Domaine auto-détecté
     get DOMAIN() {
         return location.origin;
     }
 };
 
 let supabaseClient = null;
+
+// ✅ FONCTIONS DE SÉCURITÉ (AJOUTÉES)
+
+// Échappement HTML pour prévenir XSS
+function escapeHTML(str) {
+    if (!str && str !== 0) return '';
+    const div = document.createElement('div');
+    div.textContent = String(str);
+    return div.innerHTML;
+}
+
+// Validation de numéro de téléphone
+function sanitizePhone(phone) {
+    if (!phone) return '';
+    return String(phone).replace(/[^0-9+]/g, '').substring(0, 20);
+}
+
+// Validation d'URL
+function sanitizeURL(url) {
+    if (!url) return '#';
+    try {
+        const parsed = new URL(url);
+        if (!['http:', 'https:', 'tel:', 'mailto:'].includes(parsed.protocol)) return '#';
+        return url;
+    } catch {
+        if (url.startsWith('tel:') || url.startsWith('mailto:')) return url;
+        return '#';
+    }
+}
+
+// Rate limiting local pour le mot de passe
+const rateLimiter = {
+    attempts: new Map(),
+    maxAttempts: 5,
+    windowMs: 15 * 60 * 1000,
+    
+    check(key) {
+        const now = Date.now();
+        const record = this.attempts.get(key);
+        if (!record || (now - record.timestamp > this.windowMs)) return true;
+        if (record.count >= this.maxAttempts) return false;
+        return true;
+    },
+    
+    increment(key) {
+        const now = Date.now();
+        const record = this.attempts.get(key) || { count: 0, timestamp: now };
+        if (now - record.timestamp > this.windowMs) {
+            this.attempts.set(key, { count: 1, timestamp: now });
+        } else {
+            record.count++;
+            this.attempts.set(key, record);
+        }
+    },
+    
+    reset(key) {
+        this.attempts.delete(key);
+    }
+};
 
 /* ── Init Supabase ──────────────────────────────────────────── */
 async function initSupabase() {
@@ -452,9 +512,16 @@ function toast(msg, type = 'inf', dur = 4000) {
     const icons = { ok:'✅', err:'❌', inf:'ℹ️', wrn:'⚠️' };
     const el    = document.createElement('div');
     el.className = `toast ${type}`;
-    el.innerHTML = `<span>${icons[type]||'ℹ️'}</span><span>${msg}</span>`;
+    el.setAttribute('role', 'alert');
+    el.setAttribute('aria-live', 'polite');
+    el.innerHTML = `<span aria-hidden="true">${icons[type]||'ℹ️'}</span><span>${escapeHTML(msg)}</span>`;
     document.getElementById('toasts').appendChild(el);
-    setTimeout(() => el.remove(), dur);
+    setTimeout(() => {
+        el.style.opacity = '0';
+        el.style.transform = 'translateX(16px)';
+        el.style.transition = 'all 0.3s ease';
+        setTimeout(() => el.remove(), 300);
+    }, dur);
 }
 
 /* ── Étapes visuelles ───────────────────────────────────────── */
@@ -465,7 +532,7 @@ function stepState(n, state, msg) {
     if (ico) ico.textContent = map[state] || '⏳';
     if (txt) {
         txt.className = `step-text ${state==='done'?'done':state==='error'?'error':state==='running'?'running':'pending'}`;
-        if (msg) txt.textContent = msg;
+        if (msg) txt.textContent = escapeHTML(msg);
     }
 }
 
@@ -476,10 +543,19 @@ document.getElementById('master-pwd').addEventListener('keydown', e => { if(e.ke
 async function unlock() {
     const pwd = document.getElementById('master-pwd').value;
     
+    // ✅ RATE LIMITING (AJOUTÉ)
+    const rateKey = 'onboarding-pwd';
+    if (!rateLimiter.check(rateKey)) {
+        toast('Trop de tentatives. Réessayez dans 15 minutes.', 'wrn');
+        return;
+    }
+    rateLimiter.increment(rateKey);
+    
     try {
         const valid = await CONFIG.verifyPassword(pwd, 'onboarding');
         
         if (valid) {
+            rateLimiter.reset(rateKey);
             document.getElementById('lock-screen').style.display = 'none';
             document.getElementById('app').style.display = 'block';
             loadRestos();
@@ -499,13 +575,14 @@ document.getElementById('r-name').addEventListener('input', function() {
         .toLowerCase()
         .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
         .replace(/[^a-z0-9\s-]/g, '')
-        .trim().replace(/\s+/g, '-');
+        .trim().replace(/\s+/g, '-')
+        .substring(0, 60);
     document.getElementById('r-slug').value = slug;
-    document.getElementById('slug-preview').textContent = slug ? `@${slug}` : '@—';
+    document.getElementById('slug-preview').textContent = slug ? `@${escapeHTML(slug)}` : '@—';
 });
 
 document.getElementById('r-slug').addEventListener('input', function() {
-    document.getElementById('slug-preview').textContent = this.value ? `@${this.value}` : '@—';
+    document.getElementById('slug-preview').textContent = this.value ? `@${escapeHTML(this.value)}` : '@—';
 });
 
 /* ── Color picker ───────────────────────────────────────────── */
@@ -537,20 +614,27 @@ async function createRestaurant() {
     const desc        = document.getElementById('r-desc').value.trim();
     const address     = document.getElementById('r-address').value.trim();
     const hours       = document.getElementById('r-hours').value.trim();
-    const whatsapp    = document.getElementById('r-whatsapp').value.trim();
-    const phone       = document.getElementById('r-phone').value.trim();
+    const whatsapp    = sanitizePhone(document.getElementById('r-whatsapp').value.trim());
+    const phone       = sanitizePhone(document.getElementById('r-phone').value.trim());
     const color       = document.getElementById('r-color-hex').value.trim();
     const email       = document.getElementById('r-email').value.trim();
     const managerName = document.getElementById('r-manager-name').value.trim();
-    const managerWA   = document.getElementById('r-manager-wa').value.trim();
+    const managerWA   = sanitizePhone(document.getElementById('r-manager-wa').value.trim());
 
+    // ✅ VALIDATION RENFORCÉE
     if (!name) { toast('Le nom du restaurant est obligatoire.', 'err'); return; }
+    if (name.length > 100) { toast('Nom trop long (max 100 caractères).', 'err'); return; }
     if (!slug) { toast('Le slug est obligatoire.', 'err'); return; }
     if (!/^[a-z0-9-]+$/.test(slug)) {
         toast('Slug invalide : minuscules, chiffres et tirets uniquement.', 'err'); return;
     }
+    if (slug.length > 60) { toast('Slug trop long (max 60 caractères).', 'err'); return; }
     if (!whatsapp) { toast('Le numéro WhatsApp est obligatoire.', 'err'); return; }
     if (!email)    { toast('L\'email du gérant est obligatoire.', 'err'); return; }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        toast('Email invalide.', 'err'); return;
+    }
+    if (desc && desc.length > 500) { toast('Description trop longue (max 500 caractères).', 'err'); return; }
 
     const btn = document.getElementById('create-btn');
     btn.disabled = true;
@@ -563,13 +647,14 @@ async function createRestaurant() {
         const { data: resto, error: restoErr } = await supabaseClient
             .from('restaurants')
             .insert({
-                slug, name,
-                description   : desc     || null,
-                address       : address  || null,
-                opening_hours : hours    || null,
+                slug, 
+                name: escapeHTML(name),
+                description   : desc ? escapeHTML(desc) : null,
+                address       : address ? escapeHTML(address) : null,
+                opening_hours : hours ? escapeHTML(hours) : null,
                 whatsapp,
-                phone         : phone    || null,
-                theme_color   : color    || '#c5a059',
+                phone         : phone || null,
+                theme_color   : color || '#c5a059',
                 is_active     : true,
             })
             .select()
@@ -577,13 +662,13 @@ async function createRestaurant() {
 
         if (restoErr) {
             if (restoErr.code === '23505') {
-                stepState(1, 'error', `Slug "@${slug}" déjà utilisé — choisir un autre identifiant.`);
-                throw new Error(`Le slug "@${slug}" est déjà pris.`);
+                stepState(1, 'error', `Slug "@${escapeHTML(slug)}" déjà utilisé — choisir un autre identifiant.`);
+                throw new Error(`Le slug "@${escapeHTML(slug)}" est déjà pris.`);
             }
             stepState(1, 'error', 'Erreur création restaurant : ' + restoErr.message);
             throw restoErr;
         }
-        stepState(1, 'done', `Restaurant "${name}" créé ✓`);
+        stepState(1, 'done', `Restaurant "${escapeHTML(name)}" créé ✓`);
 
         /* ── ÉTAPE 2 : Créer les stats ──────────────────────── */
         stepState(2, 'running', 'Création des statistiques…');
@@ -658,7 +743,6 @@ async function createRestaurant() {
                 /* ── ÉTAPE 5 : Email de réinitialisation ────────────── */
         stepState(5, 'running', 'Envoi email "Créer votre mot de passe"…');
 
-        // URL COMPLÈTE en dur pour éviter tout problème
         const resetURL = 'https://togo-restos-assets.lome-restaurant.workers.dev/set-password.html';
         console.log('🔗 URL de reset envoyée à Supabase:', resetURL);
         
@@ -699,29 +783,29 @@ function showResult(resto, email, managerName, managerWA, menuUrl) {
     details.innerHTML = `
         <div class="result-row">
             <span class="result-label">Restaurant</span>
-            <span class="result-value">${resto.name}</span>
+            <span class="result-value">${escapeHTML(resto.name)}</span>
         </div>
         <div class="result-row">
             <span class="result-label">Slug</span>
-            <span class="result-value">@${resto.slug}</span>
+            <span class="result-value">@${escapeHTML(resto.slug)}</span>
         </div>
         <div class="result-row">
             <span class="result-label">Menu public</span>
-            <span class="result-value">${menuUrl}</span>
-            <button class="copy-btn" onclick="copyText('${menuUrl}', this)">Copier</button>
+            <span class="result-value">${escapeHTML(menuUrl)}</span>
+            <button class="copy-btn" onclick="copyText('${menuUrl.replace(/'/g,"\\'")}', this)">Copier</button>
         </div>
         <div class="result-row">
             <span class="result-label">Email gérant</span>
-            <span class="result-value">${email}</span>
+            <span class="result-value">${escapeHTML(email)}</span>
         </div>
         <div class="result-row">
             <span class="result-label">Lien admin</span>
-            <span class="result-value">${CFG.DOMAIN}/admin.html</span>
-            <button class="copy-btn" onclick="copyText('${CFG.DOMAIN}/admin.html', this)">Copier</button>
+            <span class="result-value">${escapeHTML(CFG.DOMAIN + '/admin.html')}</span>
+            <button class="copy-btn" onclick="copyText('${(CFG.DOMAIN + '/admin.html').replace(/'/g,"\\'")}', this)">Copier</button>
         </div>
     `;
 
-    const waMsg = `Bonjour ${managerName || ''}! 👋
+    const waMsg = `Bonjour ${escapeHTML(managerName || '')}! 👋
 
 Votre menu digital est prêt sur *Restos Lomé* 🍽️
 
@@ -750,23 +834,23 @@ Vous avez reçu un email intitulé *"Reset your password"*.
 Des questions ? Contactez-moi ! 😊`.trim();
 
     const waTarget = managerWA
-        ? `https://wa.me/${managerWA}?text=${encodeURIComponent(waMsg)}`
-        : `https://wa.me/${CFG.TON_WA}?text=${encodeURIComponent(waMsg)}`;
+        ? sanitizeURL(`https://wa.me/${managerWA}?text=${encodeURIComponent(waMsg)}`)
+        : sanitizeURL(`https://wa.me/${CFG.TON_WA}?text=${encodeURIComponent(waMsg)}`);
 
     document.getElementById('wa-wrap').innerHTML = `
         <h3 style="font-family:'Syne',sans-serif;font-size:.9rem;font-weight:700;margin-top:20px;margin-bottom:10px;">
             📲 Message WhatsApp prêt à envoyer
         </h3>
-        <div class="wa-template">${waMsg}</div>
-        <a href="${waTarget}" target="_blank">
+        <div class="wa-template">${escapeHTML(waMsg)}</div>
+        <a href="${waTarget}" target="_blank" rel="noopener noreferrer">
             <button class="wa-btn">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="white"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
                 Envoyer sur WhatsApp
             </button>
         </a>
         <br><br>
-        <a href="${CFG.DOMAIN}/qrcode.html?slug=${resto.slug}&name=${encodeURIComponent(resto.name)}"
-           target="_blank"
+        <a href="${sanitizeURL(CFG.DOMAIN + '/qrcode.html?slug=' + encodeURIComponent(resto.slug) + '&name=' + encodeURIComponent(resto.name))}"
+           target="_blank" rel="noopener noreferrer"
            style="color:var(--gold);font-size:.85rem;font-weight:600;">
             🔲 Générer le QR Code pour ce restaurant →
         </a>
@@ -781,6 +865,8 @@ function copyText(text, btn) {
         const old = btn.textContent;
         btn.textContent = '✅ Copié';
         setTimeout(() => btn.textContent = old, 2000);
+    }).catch(() => {
+        toast('Erreur lors de la copie', 'err');
     });
 }
 
@@ -799,13 +885,13 @@ async function loadRestos() {
 
     tbody.innerHTML = data.map(r => `
         <tr>
-            <td><strong>${r.name}</strong></td>
-            <td class="slug-cell">@${r.slug}</td>
-            <td style="font-family:monospace;font-size:.78rem;">${r.whatsapp || '—'}</td>
+            <td><strong>${escapeHTML(r.name)}</strong></td>
+            <td class="slug-cell">@${escapeHTML(r.slug)}</td>
+            <td style="font-family:monospace;font-size:.78rem;">${escapeHTML(r.whatsapp || '—')}</td>
             <td style="font-size:.78rem;color:var(--text-dim);">${new Date(r.created_at).toLocaleDateString('fr-FR')}</td>
             <td>${r.is_active ? '<span class="dot-ok"></span> Actif' : '<span class="dot-ko"></span> Inactif'}</td>
             <td>
-                <a href="${CFG.DOMAIN}/view.html?id=${r.slug}" target="_blank"
+                <a href="${sanitizeURL(CFG.DOMAIN + '/view.html?id=' + encodeURIComponent(r.slug))}" target="_blank" rel="noopener noreferrer"
                    style="color:var(--gold);font-size:.78rem;font-weight:600;text-decoration:none;">
                     Voir →
                 </a>

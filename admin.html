@@ -4,10 +4,14 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin — Plateforme Restaurants</title>
+    
+    <!-- Content Security Policy -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net 'unsafe-inline'; style-src 'self' https://fonts.googleapis.com 'unsafe-inline'; font-src https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://*.supabase.co;">
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=IBM+Plex+Mono:wght@400;500&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.min.js"></script>
     <script src="config.js"></script>
 
     <style>
@@ -65,6 +69,7 @@
         .toast.success { border-left: 3px solid var(--success); }
         .toast.error   { border-left: 3px solid var(--danger);  }
         .toast.info    { border-left: 3px solid var(--gold);    }
+        .toast.warning { border-left: 3px solid var(--warning); }
 
         @keyframes slideIn {
             from { opacity: 0; transform: translateX(20px); }
@@ -164,12 +169,12 @@
 
         .sidebar-brand p { font-size: 0.72rem; color: var(--text-dim); margin-top: 3px; font-family: var(--mono); }
 
-        .sidebar-nav { flex: 1; padding: 16px 10px; display: flex; flex-direction: column; gap: 2px; }
+        .sidebar-nav { flex: 1; padding: 10px 8px; display: flex; flex-direction: column; gap: 1px; overflow-y: auto; }
 
         .nav-item {
             display: flex; align-items: center; gap: 10px;
-            padding: 10px 12px; border-radius: 10px;
-            font-size: 0.875rem; font-weight: 500; color: var(--text-dim);
+            padding: 7px 10px; border-radius: 10px;
+            font-size: 0.8rem; font-weight: 500; color: var(--text-dim);
             cursor: pointer; transition: all 0.15s;
             border: none; background: none; width: 100%; text-align: left;
         }
@@ -439,6 +444,10 @@
             <button class="nav-item" data-panel="gallery-admin"><span class="nav-icon">🖼️</span> Galerie photos</button>
             <button class="nav-item" data-panel="formula"><span class="nav-icon">⭐</span> Formule du jour</button>
             <button class="nav-item" data-panel="drinks"><span class="nav-icon">🍷</span> Carte des vins</button>
+            <button class="nav-item" data-panel="orders-admin"><span class="nav-icon">📋</span> Commandes</button>
+            <button class="nav-item" data-panel="accounting"><span class="nav-icon">💰</span> Comptabilité</button>
+            <button class="nav-item" data-panel="stock"><span class="nav-icon">📦</span> Stock</button>
+            <button class="nav-item" data-panel="employees-panel"><span class="nav-icon">👥</span> Personnel</button>
         </nav>
         <div class="sidebar-footer">
             <button class="btn btn-ghost btn-full btn-sm" id="logout-btn">↩ Déconnexion</button>
@@ -448,1239 +457,387 @@
     <main class="main-content">
         <!-- DASHBOARD -->
         <div id="panel-dashboard" class="panel">
-            <div class="section-header">
-                <div>
-                    <h2 class="section-title">Tableau de bord</h2>
-                    <p class="section-subtitle">Performance de votre restaurant</p>
-                </div>
-            </div>
+            <div class="section-header"><div><h2 class="section-title">Tableau de bord</h2><p class="section-subtitle">Performance de votre restaurant</p></div></div>
             <div class="stats-grid">
-                <div class="stat-card">
-                    <div class="stat-label">Vues totales</div>
-                    <div class="stat-value" id="stat-views">—</div>
-                    <div class="stat-unit">scans de QR code</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-label">Likes totaux</div>
-                    <div class="stat-value" id="stat-likes">—</div>
-                    <div class="stat-unit">sur tous les plats</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-label">Visiteurs aujourd'hui</div>
-                    <div class="stat-value" id="stat-today">—</div>
-                    <div class="stat-unit">depuis minuit</div>
-                </div>
+                <div class="stat-card"><div class="stat-label">Vues totales</div><div class="stat-value" id="stat-views">—</div><div class="stat-unit">scans de QR code</div></div>
+                <div class="stat-card"><div class="stat-label">Likes totaux</div><div class="stat-value" id="stat-likes">—</div><div class="stat-unit">sur tous les plats</div></div>
+                <div class="stat-card"><div class="stat-label">Visiteurs aujourd'hui</div><div class="stat-value" id="stat-today">—</div><div class="stat-unit">depuis minuit</div></div>
             </div>
-            <div class="menu-table-wrap">
-                <div class="menu-table-header"><span class="menu-table-title">🏆 Plats les plus aimés</span></div>
-                <table>
-                    <thead><tr><th>Plat</th><th>Catégorie</th><th>Prix</th><th>Likes</th><th>Statut</th></tr></thead>
-                    <tbody id="top-dishes-tbody">
-                        <tr><td colspan="5" style="text-align:center; padding:30px; color:var(--text-dim);">Chargement...</td></tr>
-                    </tbody>
-                </table>
-            </div>
+            <div class="menu-table-wrap"><div class="menu-table-header"><span class="menu-table-title">🏆 Plats les plus aimés</span></div><table><thead><tr><th>Plat</th><th>Catégorie</th><th>Prix</th><th>Likes</th><th>Statut</th></tr></thead><tbody id="top-dishes-tbody"><tr><td colspan="5" style="text-align:center;padding:30px;color:var(--text-dim);">Chargement...</td></tr></tbody></table></div>
         </div>
-
         <!-- GESTION DES PLATS -->
-        <div id="panel-menu" class="panel" style="display:none;">
-            <div class="section-header">
-                <div>
-                    <h2 class="section-title">Mes plats</h2>
-                    <p class="section-subtitle" id="menu-count-label">Chargement...</p>
-                </div>
-                <button class="btn btn-primary" id="open-add-dish-btn">+ Ajouter un plat</button>
-            </div>
-            <div class="menu-table-wrap">
-                <table>
-                    <thead><tr><th width="60">Photo</th><th>Plat</th><th>Catégorie</th><th>Prix</th><th>Statut</th><th>Actions</th></tr></thead>
-                    <tbody id="menu-tbody">
-                        <tr><td colspan="6" style="text-align:center; padding:30px; color:var(--text-dim);">Chargement...</td></tr>
-                    </tbody>
-                </table>
-            </div>
-        </div>
-
+        <div id="panel-menu" class="panel" style="display:none;"><div class="section-header"><div><h2 class="section-title">Mes plats</h2><p class="section-subtitle" id="menu-count-label">Chargement...</p></div><button class="btn btn-primary" id="open-add-dish-btn">+ Ajouter un plat</button></div><div class="menu-table-wrap"><table><thead><tr><th width="60">Photo</th><th>Plat</th><th>Catégorie</th><th>Prix</th><th>Statut</th><th>Actions</th></tr></thead><tbody id="menu-tbody"><tr><td colspan="6" style="text-align:center;padding:30px;color:var(--text-dim);">Chargement...</td></tr></tbody></table></div></div>
         <!-- INFOS RESTAURANT -->
-        <div id="panel-restaurant" class="panel" style="display:none;">
-            <div class="section-header">
-                <div>
-                    <h2 class="section-title">Mon restaurant</h2>
-                    <p class="section-subtitle">Informations affichées sur votre menu public</p>
-                </div>
-            </div>
-            <div class="info-card">
-                <h3 class="info-card-title">🏷️ Identité</h3>
-                <div class="form-grid-2">
-                    <div class="field-group"><label class="field-label">Nom du restaurant</label><input type="text" class="field-input" id="r-name"></div>
-                    <div class="field-group"><label class="field-label">Adresse</label><input type="text" class="field-input" id="r-address"></div>
-                </div>
-                <div class="field-group"><label class="field-label">Description</label><textarea class="field-input" id="r-description" rows="3"></textarea></div>
-            </div>
-            <div class="info-card">
-                <h3 class="info-card-title">📞 Contact & Horaires</h3>
-                <div class="form-grid-2">
-                    <div class="field-group"><label class="field-label">WhatsApp</label><input type="text" class="field-input" id="r-whatsapp" placeholder="22890010203"></div>
-                    <div class="field-group"><label class="field-label">Téléphone</label><input type="text" class="field-input" id="r-phone"></div>
-                </div>
-                <div class="field-group"><label class="field-label">Horaires</label><input type="text" class="field-input" id="r-hours" placeholder="Lun-Sam : 11h00 – 23h00"></div>
-            </div>
-            <div class="info-card">
-                <h3 class="info-card-title">🎨 Apparence</h3>
-                <div class="field-group">
-                    <label class="field-label">Couleur de marque</label>
-                    <div class="color-picker-wrap">
-                        <input type="color" id="r-theme-color" value="#c5a059">
-                        <input type="text" class="field-input" id="r-theme-color-hex" value="#c5a059" style="width:140px;font-family:var(--mono);">
-                    </div>
-                </div>
-            </div>
-            <div class="info-card">
-                <h3 class="info-card-title">🖼️ Images</h3>
-                <div class="form-grid-2">
-                    <div class="field-group"><label class="field-label">URL du Logo</label><input type="url" class="field-input" id="r-logo-url" placeholder="https://..."></div>
-                    <div class="field-group"><label class="field-label">URL de la couverture</label><input type="url" class="field-input" id="r-cover-url" placeholder="https://..."></div>
-                </div>
-            </div>
-            <button class="btn btn-primary" id="save-resto-btn">💾 Enregistrer les modifications</button>
-        </div>
-
+        <div id="panel-restaurant" class="panel" style="display:none;"><div class="section-header"><div><h2 class="section-title">Mon restaurant</h2><p class="section-subtitle">Informations affichées sur votre menu public</p></div></div><div class="info-card"><h3 class="info-card-title">🏷️ Identité</h3><div class="form-grid-2"><div class="field-group"><label class="field-label">Nom</label><input type="text" class="field-input" id="r-name"></div><div class="field-group"><label class="field-label">Adresse</label><input type="text" class="field-input" id="r-address"></div></div><div class="field-group"><label class="field-label">Description</label><textarea class="field-input" id="r-description" rows="3"></textarea></div></div><div class="info-card"><h3 class="info-card-title">📞 Contact</h3><div class="form-grid-2"><div class="field-group"><label class="field-label">WhatsApp</label><input type="text" class="field-input" id="r-whatsapp" placeholder="22890010203"></div><div class="field-group"><label class="field-label">Téléphone</label><input type="text" class="field-input" id="r-phone"></div></div><div class="field-group"><label class="field-label">Horaires</label><input type="text" class="field-input" id="r-hours" placeholder="Lun-Sam : 11h00 – 23h00"></div></div><div class="info-card"><h3 class="info-card-title">🎨 Apparence</h3><div class="field-group"><label class="field-label">Couleur</label><div class="color-picker-wrap"><input type="color" id="r-theme-color" value="#c5a059"><input type="text" class="field-input" id="r-theme-color-hex" value="#c5a059" style="width:140px;font-family:var(--mono);"></div></div></div><button class="btn btn-primary" id="save-resto-btn">💾 Enregistrer</button></div>
         <!-- PUB LOCALE -->
-        <div id="panel-ads" class="panel" style="display:none;">
-            <div class="section-header">
-                <div><h2 class="section-title">Publicité locale</h2><p class="section-subtitle">Vendez votre espace pub à vos partenaires</p></div>
-                <button class="btn btn-primary" id="open-add-ad-btn">+ Nouvelle pub</button>
-            </div>
-            <div id="ads-list"><div class="empty-placeholder"><div class="icon">📢</div><p>Aucune publicité locale configurée.</p></div></div>
-        </div>
-
+        <div id="panel-ads" class="panel" style="display:none;"><div class="section-header"><div><h2 class="section-title">Publicité locale</h2></div><button class="btn btn-primary" id="open-add-ad-btn">+ Nouvelle pub</button></div><div id="ads-list"><div class="empty-placeholder"><div class="icon">📢</div><p>Aucune publicité.</p></div></div></div>
         <!-- ÉVÉNEMENTS -->
-        <div id="panel-events" class="panel" style="display:none;">
-            <div class="section-header">
-                <div><h2 class="section-title">Événements</h2><p class="section-subtitle">Concerts, soirées, dîners spéciaux</p></div>
-                <button class="btn btn-primary" id="open-add-event-btn">+ Ajouter un événement</button>
-            </div>
-            <div id="events-list-admin"><div class="empty-placeholder"><div class="icon">🎭</div><p>Aucun événement pour l'instant.</p></div></div>
-        </div>
-
+        <div id="panel-events" class="panel" style="display:none;"><div class="section-header"><div><h2 class="section-title">Événements</h2></div><button class="btn btn-primary" id="open-add-event-btn">+ Ajouter</button></div><div id="events-list-admin"><div class="empty-placeholder"><div class="icon">🎭</div><p>Aucun événement.</p></div></div></div>
         <!-- LOCALISATION -->
-        <div id="panel-geoloc" class="panel" style="display:none;">
-            <div class="section-header"><div><h2 class="section-title">Localisation</h2><p class="section-subtitle">Permettre aux clients de vous trouver</p></div></div>
-            <div class="info-card">
-                <h3 class="info-card-title">🗺️ Code Google Maps</h3>
-                <div class="field-group"><label class="field-label">Code iframe Google Maps</label><textarea class="field-input" id="geo-embed-code" rows="4" placeholder='<iframe src="https://www.google.com/maps/embed?..."></iframe>' style="font-family:var(--mono);font-size:0.75rem;"></textarea></div>
-            </div>
-            <div class="info-card">
-                <h3 class="info-card-title">📡 Coordonnées GPS</h3>
-                <div class="form-grid-2">
-                    <div class="field-group"><label class="field-label">Latitude</label><input type="number" class="field-input" id="geo-lat" placeholder="6.1375" step="0.0001"></div>
-                    <div class="field-group"><label class="field-label">Longitude</label><input type="number" class="field-input" id="geo-lng" placeholder="1.2123" step="0.0001"></div>
-                </div>
-            </div>
-            <div class="info-card" id="geo-preview-card" style="display:none;"><h3 class="info-card-title">👁️ Aperçu</h3><div id="geo-preview-map" style="border-radius:10px;overflow:hidden;"></div></div>
-            <div style="display:flex;gap:12px;margin-top:4px;">
-                <button class="btn btn-ghost" id="preview-map-btn" style="flex:1;">👁️ Aperçu</button>
-                <button class="btn btn-primary" id="save-geoloc-btn" style="flex:2;">💾 Enregistrer</button>
-            </div>
-        </div>
-
+        <div id="panel-geoloc" class="panel" style="display:none;"><div class="section-header"><div><h2 class="section-title">Localisation</h2></div></div><div class="info-card"><h3 class="info-card-title">🗺️ Google Maps</h3><div class="field-group"><textarea class="field-input" id="geo-embed-code" rows="4" style="font-family:var(--mono);font-size:0.75rem;"></textarea></div></div><div class="info-card"><h3 class="info-card-title">📡 GPS</h3><div class="form-grid-2"><div class="field-group"><label class="field-label">Latitude</label><input type="number" class="field-input" id="geo-lat" placeholder="6.1375" step="0.0001"></div><div class="field-group"><label class="field-label">Longitude</label><input type="number" class="field-input" id="geo-lng" placeholder="1.2123" step="0.0001"></div></div></div><button class="btn btn-primary" id="save-geoloc-btn">💾 Enregistrer</button></div>
         <!-- RÉSERVATIONS -->
-        <div id="panel-reservation" class="panel" style="display:none;">
-            <div class="section-header"><div><h2 class="section-title">📅 Réservations</h2></div><button class="btn btn-ghost btn-sm" id="refresh-res-btn">🔄 Actualiser</button></div>
-            <div id="reservations-list" class="menu-table-wrap"><div class="empty-placeholder"><div class="icon">📅</div><p>Aucune réservation pour l'instant.</p></div></div>
-        </div>
-
+        <div id="panel-reservation" class="panel" style="display:none;"><div class="section-header"><div><h2 class="section-title">📅 Réservations</h2></div><button class="btn btn-ghost btn-sm" id="refresh-res-btn">🔄 Actualiser</button></div><div id="reservations-list" class="menu-table-wrap"><div class="empty-placeholder"><div class="icon">📅</div><p>Aucune réservation.</p></div></div></div>
         <!-- PROFIL CHEF -->
-        <div id="panel-chef" class="panel" style="display:none;">
-            <div class="section-header"><div><h2 class="section-title">👨‍🍳 Profil du Chef</h2></div></div>
-            <div class="info-card">
-                <div class="form-grid-2">
-                    <div class="field-group"><label class="field-label">Nom du Chef</label><input type="text" class="field-input" id="chef-name" placeholder="Pierre Mensah"></div>
-                    <div class="field-group"><label class="field-label">Titre</label><input type="text" class="field-input" id="chef-title" placeholder="Chef Exécutif"></div>
-                </div>
-                <div class="field-group"><label class="field-label">URL photo</label><input type="url" class="field-input" id="chef-photo" placeholder="https://..."></div>
-                <div class="field-group"><label class="field-label">Biographie</label><textarea class="field-input" id="chef-bio" rows="4" maxlength="500"></textarea></div>
-                <div id="chef-photo-preview" style="display:none;margin:12px 0;"><img src="" alt="" style="width:120px;height:160px;object-fit:cover;border-radius:10px;border:1px solid var(--border2);" id="chef-img-preview"></div>
-            </div>
-            <button class="btn btn-primary" id="save-chef-btn">💾 Enregistrer</button>
-        </div>
-
+        <div id="panel-chef" class="panel" style="display:none;"><div class="section-header"><div><h2 class="section-title">👨‍🍳 Profil Chef</h2></div></div><div class="info-card"><div class="form-grid-2"><div class="field-group"><label class="field-label">Nom</label><input type="text" class="field-input" id="chef-name"></div><div class="field-group"><label class="field-label">Titre</label><input type="text" class="field-input" id="chef-title"></div></div><div class="field-group"><label class="field-label">Photo URL</label><input type="url" class="field-input" id="chef-photo"></div><div class="field-group"><label class="field-label">Biographie</label><textarea class="field-input" id="chef-bio" rows="4" maxlength="500"></textarea></div><button class="btn btn-primary" id="save-chef-btn">💾 Enregistrer</button></div></div>
         <!-- GALERIE -->
-        <div id="panel-gallery-admin" class="panel" style="display:none;">
-            <div class="section-header"><div><h2 class="section-title">🖼️ Galerie photos</h2></div></div>
-            <div class="info-card">
-                <h3 class="info-card-title">+ Ajouter une photo</h3>
-                <div class="field-group"><label class="field-label">URL de la photo</label><input type="url" class="field-input" id="gal-url" placeholder="https://raw.githubusercontent.com/..."></div>
-                <div class="field-group"><label class="field-label">Légende</label><input type="text" class="field-input" id="gal-caption" placeholder="Notre salle principale"></div>
-                <div id="gal-preview" style="display:none;margin:10px 0;"><img src="" alt="" style="width:100%;max-height:140px;object-fit:cover;border-radius:10px;" id="gal-img-preview"></div>
-                <button class="btn btn-primary" id="add-photo-btn" style="margin-top:8px;">📸 Ajouter</button>
-            </div>
-            <div class="info-card"><h3 class="info-card-title">Photos actuelles</h3><div id="gallery-photos-list"><p style="color:var(--text-dim);font-size:.85rem;">Chargement…</p></div></div>
-        </div>
-
+        <div id="panel-gallery-admin" class="panel" style="display:none;"><div class="section-header"><div><h2 class="section-title">🖼️ Galerie</h2></div></div><div class="info-card"><h3 class="info-card-title">+ Ajouter</h3><div class="field-group"><label class="field-label">URL Photo</label><input type="url" class="field-input" id="gal-url"></div><div class="field-group"><label class="field-label">Légende</label><input type="text" class="field-input" id="gal-caption"></div><button class="btn btn-primary" id="add-photo-btn">📸 Ajouter</button></div><div class="info-card"><h3 class="info-card-title">Photos</h3><div id="gallery-photos-list"></div></div></div>
         <!-- FORMULE DU JOUR -->
-        <div id="panel-formula" class="panel" style="display:none;">
-            <div class="section-header"><div><h2 class="section-title">⭐ Formule du jour</h2></div></div>
-            <div class="info-card" style="border-color:rgba(197,160,89,0.3)">
-                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
-                    <h3 class="info-card-title" style="margin-bottom:0;">Configuration</h3>
-                    <label class="toggle-wrap" style="cursor:pointer;">
-                        <div class="toggle"><input type="checkbox" id="formula-active"><div class="toggle-track"></div></div>
-                        <span style="font-size:.875rem;margin-left:8px;" id="formula-toggle-lbl">Formule désactivée</span>
-                    </label>
-                </div>
-                <div class="field-group"><label class="field-label">Titre</label><input type="text" class="field-input" id="formula-title-inp" placeholder="Menu Découverte"></div>
-                <div class="field-group"><label class="field-label">Description</label><textarea class="field-input" id="formula-desc-inp" rows="3"></textarea></div>
-                <div class="form-grid-2">
-                    <div class="field-group"><label class="field-label">Prix (FCFA)</label><input type="number" class="field-input" id="formula-price-inp" placeholder="7500" min="0"></div>
-                    <div class="field-group"><label class="field-label">Expire à</label><input type="datetime-local" class="field-input" id="formula-expires-inp"></div>
-                </div>
-                <button class="btn btn-primary" id="save-formula-btn">⭐ Enregistrer</button>
-            </div>
-        </div>
-
+        <div id="panel-formula" class="panel" style="display:none;"><div class="section-header"><div><h2 class="section-title">⭐ Formule du jour</h2></div></div><div class="info-card"><div class="field-group"><label class="field-label">Titre</label><input type="text" class="field-input" id="formula-title-inp"></div><div class="field-group"><label class="field-label">Description</label><textarea class="field-input" id="formula-desc-inp" rows="3"></textarea></div><div class="form-grid-2"><div class="field-group"><label class="field-label">Prix (FCFA)</label><input type="number" class="field-input" id="formula-price-inp" min="0"></div><div class="field-group"><label class="field-label">Expire à</label><input type="datetime-local" class="field-input" id="formula-expires-inp"></div></div><button class="btn btn-primary" id="save-formula-btn">⭐ Enregistrer</button></div></div>
         <!-- CARTE DES VINS -->
-        <div id="panel-drinks" class="panel" style="display:none;">
-            <div class="section-header"><div><h2 class="section-title">🍷 Carte des vins</h2></div></div>
-            <div class="menu-table-wrap">
-                <div class="menu-table-header"><span class="menu-table-title">Vos boissons</span><button class="btn btn-ghost btn-sm" onclick="showPanel('menu')">→ Aller à Mes plats</button></div>
-                <div id="drinks-list"><div class="empty-placeholder"><div class="icon">🍷</div><p>Aucune boisson marquée.</p></div></div>
-            </div>
-        </div>
+        <div id="panel-drinks" class="panel" style="display:none;"><div class="section-header"><div><h2 class="section-title">🍷 Carte des vins</h2></div></div><div class="menu-table-wrap"><div class="menu-table-header"><span class="menu-table-title">Boissons</span></div><div id="drinks-list"><p>Aucune boisson.</p></div></div></div>
+        <!-- COMMANDES -->
+        <div id="panel-orders-admin" class="panel" style="display:none;"><div class="section-header"><div><h2 class="section-title">📋 Commandes</h2></div></div><div class="menu-table-wrap"><table><thead><tr><th>N°</th><th>Client</th><th>Téléphone</th><th>Type</th><th>Total</th><th>Statut</th><th>Action</th></tr></thead><tbody id="orders-admin-tbody"><tr><td colspan="7" style="text-align:center;padding:30px;color:var(--text-dim);">Chargement...</td></tr></tbody></table></div></div>
+        <!-- COMPTABILITÉ -->
+        <div id="panel-accounting" class="panel" style="display:none;"><div class="section-header"><div><h2 class="section-title">💰 Comptabilité</h2><p class="section-subtitle">Caisse, transactions et rapports</p></div></div><div class="stats-grid"><div class="stat-card"><div class="stat-label">💰 CA du jour</div><div class="stat-value" id="acc-ca-day">—</div><div class="stat-unit">FCFA</div></div><div class="stat-card"><div class="stat-label">📅 CA semaine</div><div class="stat-value" id="acc-ca-week">—</div><div class="stat-unit">FCFA</div></div><div class="stat-card"><div class="stat-label">📆 CA mois</div><div class="stat-value" id="acc-ca-month">—</div><div class="stat-unit">FCFA</div></div></div><div class="info-card"><h3 class="info-card-title">💳 Paiements</h3><div style="display:flex;gap:16px;flex-wrap:wrap;"><div style="flex:1;min-width:100px;background:var(--surface2);border-radius:var(--radius);padding:16px;text-align:center;"><div style="font-size:1.5rem;font-weight:700;color:var(--gold);" id="acc-cash">—</div><div style="font-size:.7rem;color:var(--text-dim);">💵 Espèces</div></div><div style="flex:1;min-width:100px;background:var(--surface2);border-radius:var(--radius);padding:16px;text-align:center;"><div style="font-size:1.5rem;font-weight:700;color:var(--gold);" id="acc-tmoney">—</div><div style="font-size:.7rem;color:var(--text-dim);">📱 TMoney</div></div><div style="flex:1;min-width:100px;background:var(--surface2);border-radius:var(--radius);padding:16px;text-align:center;"><div style="font-size:1.5rem;font-weight:700;color:var(--gold);" id="acc-flooz">—</div><div style="font-size:.7rem;color:var(--text-dim);">📱 Flooz</div></div></div></div><div class="menu-table-wrap"><div class="menu-table-header"><span class="menu-table-title">🧾 Transactions du jour</span><div style="display:flex;gap:8px;"><button class="btn btn-primary btn-sm" onclick="closeCashRegister()">🔒 Clôturer</button><button class="btn btn-primary btn-sm" onclick="sendDailyReport()" style="margin-left:8px;">📧 Rapport du jour</button></div></div><table><thead><tr><th>N°</th><th>Client</th><th>Montant</th><th>Paiement</th><th>Type</th><th>Heure</th></tr></thead><tbody id="transactions-tbody"><tr><td colspan="6" style="text-align:center;padding:30px;color:var(--text-dim);">Chargement...</td></tr></tbody></table></div></div>
+        <!-- STOCK -->
+        <div id="panel-stock" class="panel" style="display:none;"><div class="section-header"><div><h2 class="section-title">📦 Stock</h2></div><button class="btn btn-primary" id="open-add-stock-btn">+ Ajouter</button></div><div class="menu-table-wrap"><table><thead><tr><th>Article</th><th>Unité</th><th>Qté</th><th>Seuil</th><th>Prix/U</th><th>Valeur</th><th></th></tr></thead><tbody id="stock-tbody"><tr><td colspan="7" style="text-align:center;padding:30px;color:var(--text-dim);">Chargement...</td></tr></tbody></table></div></div>
+        <!-- PERSONNEL -->
+        <div id="panel-employees-panel" class="panel" style="display:none;"><div class="section-header"><div><h2 class="section-title">👥 Personnel</h2></div><button class="btn btn-primary" id="open-add-employee-btn">+ Ajouter</button></div><div class="menu-table-wrap"><table><thead><tr><th>Nom</th><th>Poste</th><th>Téléphone</th><th>Salaire</th><th>Embauché</th><th></th></tr></thead><tbody id="employees-tbody"><tr><td colspan="6" style="text-align:center;padding:30px;color:var(--text-dim);">Chargement...</td></tr></tbody></table></div></div>
     </main>
-</div>
-
-<!-- MODAL AJOUTER/MODIFIER PLAT -->
-<div class="modal-overlay" id="dish-modal-overlay">
-    <div class="modal-box">
-        <div class="modal-head"><h3 class="modal-title" id="dish-modal-title">Ajouter un plat</h3><button class="modal-close" id="close-dish-modal">✕</button></div>
-        <input type="hidden" id="dish-edit-id">
-        <div class="form-grid-2">
-            <div class="field-group"><label class="field-label">Nom du plat *</label><input type="text" class="field-input" id="dish-name" placeholder="Fufu Sauce Graine"></div>
-            <div class="field-group"><label class="field-label">Catégorie *</label><select class="field-input" id="dish-category"><option value="">— Choisir —</option><option value="Entrée">Entrée</option><option value="Plat Principal">Plat Principal</option><option value="Spécialité">Spécialité</option><option value="Dessert">Dessert</option><option value="Boisson">Boisson</option><option value="Autre">Autre</option></select></div>
-        </div>
-        <div class="form-grid-2">
-            <div class="field-group"><label class="field-label">Prix (FCFA) *</label><input type="number" class="field-input" id="dish-price" placeholder="2500" min="0"></div>
-            <div class="field-group"><label class="field-label">Ordre d'affichage</label><input type="number" class="field-input" id="dish-order" placeholder="0" min="0"></div>
-        </div>
-        <div class="field-group"><label class="field-label">Description</label><textarea class="field-input" id="dish-description" rows="2"></textarea></div>
-        <div class="field-group">
-            <label class="field-label">Photo du plat</label>
-            <div class="img-upload-zone" id="img-drop-zone">
-                <input type="file" id="dish-img-input" accept="image/*">
-                <div class="img-upload-icon">📷</div>
-                <p class="img-upload-text"><strong>Cliquer ou glisser une photo ici</strong><br>JPG, PNG, WebP</p>
-            </div>
-            <div id="img-preview-wrap"><img id="img-preview" src="" alt="Aperçu"><div class="img-preview-info"><span id="img-file-info">—</span><button class="btn btn-ghost btn-sm" id="change-img-btn">Changer</button></div></div>
-            <div id="upload-progress-wrap"><div class="progress-bar-bg"><div class="progress-bar-fill" id="progress-fill"></div></div><p class="progress-label" id="progress-label">Compression...</p></div>
-            <div id="current-img-url-wrap" style="margin-top:10px; display:none;"><label class="field-label">Image actuelle</label><input type="url" class="field-input" id="current-img-url" readonly style="font-family:var(--mono);font-size:0.75rem;"></div>
-        </div>
-        <div class="field-group">
-            <label class="field-label">Disponibilité</label>
-            <label class="toggle-wrap"><div class="toggle"><input type="checkbox" id="dish-available" checked><div class="toggle-track"></div></div><span id="dish-available-label" style="font-size:0.875rem;">Disponible</span></label>
-        </div>
-        <div class="field-group">
-            <label class="field-label">Carte des vins</label>
-            <label class="toggle-wrap"><div class="toggle"><input type="checkbox" id="dish-is-drink"><div class="toggle-track"></div></div><span style="font-size:0.875rem;">Afficher dans la carte des vins</span></label>
-        </div>
-        <div style="display:flex; gap:12px; margin-top:8px;">
-            <button class="btn btn-ghost" id="cancel-dish-btn" style="flex:1;">Annuler</button>
-            <button class="btn btn-primary" id="save-dish-btn" style="flex:2;">💾 Enregistrer</button>
-        </div>
-    </div>
-</div>
-
-<!-- MODAL CONFIRMATION SUPPRESSION -->
-<div class="modal-overlay" id="delete-modal-overlay">
-    <div class="confirm-dialog">
-        <h3>🗑️ Supprimer ce plat ?</h3>
-        <p>Cette action est irréversible. Le plat <strong id="delete-dish-name"></strong> sera retiré définitivement.</p>
-        <div class="confirm-actions">
-            <button class="btn btn-ghost" id="cancel-delete-btn" style="flex:1;">Annuler</button>
-            <button class="btn btn-danger" id="confirm-delete-btn" style="flex:1;">Supprimer</button>
-        </div>
-    </div>
-</div>
-
-<!-- MODAL AJOUTER PUB -->
-<div class="modal-overlay" id="ad-modal-overlay">
-    <div class="modal-box" style="max-width:480px;">
-        <div class="modal-head"><h3 class="modal-title">📢 Nouvelle publicité</h3><button class="modal-close" id="close-ad-modal">✕</button></div>
-        <div class="field-group"><label class="field-label">Libellé interne</label><input type="text" class="field-input" id="ad-label" placeholder="Pub BB Lomé"></div>
-        <div class="field-group">
-            <label class="field-label">Bannière</label>
-            <div class="img-upload-zone" id="ad-drop-zone">
-                <input type="file" id="ad-img-input" accept="image/*">
-                <div class="img-upload-icon">🖼️</div>
-                <p class="img-upload-text"><strong>Bannière publicitaire</strong><br>Format recommandé : 800 × 200 px</p>
-            </div>
-            <div id="ad-img-preview-wrap" style="display:none; margin-top:10px;"><div class="ad-preview-wrap"><img id="ad-img-preview" src="" alt=""></div></div>
-        </div>
-        <div class="field-group"><label class="field-label">Lien de redirection</label><input type="url" class="field-input" id="ad-link" placeholder="https://facebook.com/mon-partenaire"></div>
-        <div class="field-group"><label class="field-label">Date d'expiration</label><input type="date" class="field-input" id="ad-expires"></div>
-        <div style="display:flex; gap:12px; margin-top:8px;">
-            <button class="btn btn-ghost" id="cancel-ad-btn" style="flex:1;">Annuler</button>
-            <button class="btn btn-primary" id="save-ad-btn" style="flex:2;">📢 Publier</button>
-        </div>
-    </div>
 </div>
 
 <script>
 'use strict';
 
-// ================================================================
-// AUCUNE CLÉ EN DUR — Tout passe par CONFIG (Worker Cloudflare)
-// ================================================================
+let db=null,currentUser=null,currentProfile=null,currentRestaurant=null,allDishes=[],pendingImgFile=null,pendingAdFile=null,deletePendingId=null,activePanel='dashboard',editingAdId=null,editingEventId=null,editingDishId=null;
+const IMG_SETTINGS={MAX_IMG_WIDTH:1200,MAX_IMG_HEIGHT:1200,IMG_QUALITY:0.92,MAX_KB:400};
 
-let db = null;
-let currentUser = null;
-let currentProfile = null;
-let currentRestaurant = null;
-let allDishes = [];
-let pendingImgFile = null;
-let pendingAdFile = null;
-let deletePendingId = null;
-let activePanel = 'dashboard';
-
-// Paramètres de compression (pas des secrets)
-const IMG_SETTINGS = {
-    MAX_IMG_WIDTH: 1200,
-    MAX_IMG_HEIGHT: 1200,
-    IMG_QUALITY: 0.92,
-    MAX_KB: 400,
+// Configuration du rate limiting local
+const rateLimiter = {
+    attempts: new Map(),
+    maxAttempts: 5,
+    windowMs: 15 * 60 * 1000,
+    
+    check(key) {
+        const now = Date.now();
+        const record = this.attempts.get(key);
+        if (!record || (now - record.timestamp > this.windowMs)) return true;
+        if (record.count >= this.maxAttempts) return false;
+        return true;
+    },
+    
+    increment(key) {
+        const now = Date.now();
+        const record = this.attempts.get(key) || { count: 0, timestamp: now };
+        if (now - record.timestamp > this.windowMs) {
+            this.attempts.set(key, { count: 1, timestamp: now });
+        } else {
+            record.count++;
+            this.attempts.set(key, record);
+        }
+    },
+    
+    reset(key) {
+        this.attempts.delete(key);
+    }
 };
 
-// ═══════════════════════════════════════════════════════════
-// INIT SUPABASE
-// ═══════════════════════════════════════════════════════════
-async function initSupabase() {
-    await CONFIG.load();
-    db = supabase.createClient(CONFIG.supabaseUrl, CONFIG.supabaseKey);
+function escapeHTML(str) {
+    if (!str && str !== 0) return '';
+    const div = document.createElement('div');
+    div.textContent = String(str);
+    return div.innerHTML;
 }
 
-// ═══════════════════════════════════════════════════════════
-// TOAST
-// ═══════════════════════════════════════════════════════════
-function toast(msg, type = 'info', duration = 4000) {
-    const icons = { success: '✅', error: '❌', info: 'ℹ️' };
-    const el = document.createElement('div');
-    el.className = `toast ${type}`;
-    el.innerHTML = `<span>${icons[type]}</span><span>${msg}</span>`;
-    document.getElementById('toast-container').appendChild(el);
-    setTimeout(() => el.remove(), duration);
+function sanitizeHTML(str, options = {}) {
+    if (!str) return '';
+    const defaultOptions = {
+        ALLOWED_TAGS: ['b', 'i', 'em', 'strong', 'a', 'p', 'br', 'ul', 'ol', 'li', 'span', 'div', 'h3', 'h4'],
+        ALLOWED_ATTR: ['class', 'href', 'target', 'rel', 'style'],
+        ALLOW_DATA_ATTR: false
+    };
+    if (typeof DOMPurify !== 'undefined') {
+        return DOMPurify.sanitize(str, { ...defaultOptions, ...options });
+    }
+    return escapeHTML(str.replace(/<[^>]*>/g, ''));
 }
 
-// ═══════════════════════════════════════════════════════════
-// NAVIGATION PANNEAUX
-// ═══════════════════════════════════════════════════════════
-function showPanel(panelId) {
-    document.querySelectorAll('.panel').forEach(p => p.style.display = 'none');
-    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+async function initSupabase(){await CONFIG.load();db=supabase.createClient(CONFIG.supabaseUrl,CONFIG.supabaseKey,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:false}})}
 
-    const panel = document.getElementById(`panel-${panelId}`);
-    if (panel) panel.style.display = 'block';
-
-    const navBtn = document.querySelector(`[data-panel="${panelId}"]`);
-    if (navBtn) navBtn.classList.add('active');
-
-    activePanel = panelId;
-
-    if (panelId === 'dashboard') loadStats();
-    if (panelId === 'menu') renderMenuTable();
-    if (panelId === 'restaurant') fillRestoForm();
-    if (panelId === 'ads') loadAds();
-    if (panelId === 'events') loadEventsAdmin();
-    if (panelId === 'geoloc') initGeolocPanel();
-    if (panelId === 'reservation') loadReservations();
-    if (panelId === 'chef') initChefPanel();
-    if (panelId === 'gallery-admin') loadGalleryAdmin();
-    if (panelId === 'formula') initFormulaPanel();
-    if (panelId === 'drinks') initDrinksPanel();
+function toast(msg,type='info',d=4000){
+    const i={success:'✅',error:'❌',info:'ℹ️',warning:'⚠️'};
+    const e=document.createElement('div');
+    e.className=`toast ${type}`;
+    e.setAttribute('role','alert');
+    e.setAttribute('aria-live','polite');
+    const safeMsg = typeof msg === 'string' ? escapeHTML(msg) : msg;
+    e.innerHTML=`<span aria-hidden="true">${i[type]||i.info}</span><span>${safeMsg}</span>`;
+    document.getElementById('toast-container').appendChild(e);
+    setTimeout(()=>{
+        e.style.opacity='0';
+        e.style.transform='translateX(20px)';
+        e.style.transition='all 0.3s ease';
+        setTimeout(()=>e.remove(),300);
+    },d);
 }
 
-document.querySelectorAll('.nav-item').forEach(btn => {
-    btn.addEventListener('click', () => showPanel(btn.dataset.panel));
-});
+function showPanel(id){
+    document.querySelectorAll('.panel').forEach(p=>p.style.display='none');
+    document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+    const p=document.getElementById(`panel-${id}`);if(p)p.style.display='block';
+    const b=document.querySelector(`[data-panel="${id}"]`);if(b)b.classList.add('active');activePanel=id;
+    if(id==='dashboard')loadStats();
+    if(id==='menu')renderMenuTable();
+    if(id==='restaurant')fillRestoForm();
+    if(id==='ads')loadAds();
+    if(id==='events')loadEventsAdmin();
+    if(id==='geoloc')initGeolocPanel();
+    if(id==='reservation')loadReservations();
+    if(id==='chef')initChefPanel();
+    if(id==='gallery-admin')loadGalleryAdmin();
+    if(id==='formula')initFormulaPanel();
+    if(id==='drinks')initDrinksPanel();
+    if(id==='orders-admin')loadOrdersAdmin();
+    if(id==='accounting')loadAccounting();
+    if(id==='stock')loadStock();
+    if(id==='employees-panel')loadEmployees();
+}
+document.querySelectorAll('.nav-item').forEach(b=>b.addEventListener('click',()=>showPanel(b.dataset.panel)));
 
-// ═══════════════════════════════════════════════════════════
-// AUTHENTIFICATION
-// ═══════════════════════════════════════════════════════════
-document.getElementById('login-btn').addEventListener('click', async () => {
-    const email = document.getElementById('login-email').value.trim();
-    const pwd = document.getElementById('login-password').value;
-
-    if (!email || !pwd) { toast('Remplis tous les champs.', 'error'); return; }
-
-    const btn = document.getElementById('login-btn');
-    btn.disabled = true;
-    btn.innerHTML = '<div class="btn-spinner"></div> Connexion...';
-
-    try {
-        const { data, error } = await db.auth.signInWithPassword({ email, password: pwd });
-        if (error) throw error;
+// Login
+document.getElementById('login-btn').addEventListener('click',async()=>{
+    const e=document.getElementById('login-email').value.trim();
+    const p=document.getElementById('login-password').value;
+    if(!e||!p){toast('Remplis tous les champs.','error');return;}
+    if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)){toast('Adresse email invalide.','error');return;}
+    const rateKey=`login_${e}`;
+    if(!rateLimiter.check(rateKey)){toast('Trop de tentatives. Réessayez dans 15 minutes.','warning');return;}
+    rateLimiter.increment(rateKey);
+    const b=document.getElementById('login-btn');
+    b.disabled=true;b.innerHTML='<div class="btn-spinner"></div> Connexion...';
+    try{
+        const{data,error}=await db.auth.signInWithPassword({email:e,password:p});
+        if(error)throw error;
+        rateLimiter.reset(rateKey);
         await initApp(data.user);
-    } catch (err) {
-        toast(err.message || 'Identifiants incorrects.', 'error');
-        btn.disabled = false;
-        btn.textContent = 'Se connecter';
+    }catch(err){
+        let msg='Identifiants incorrects.';
+        if(err.message?.includes('Invalid login'))msg='Email ou mot de passe incorrect.';
+        else if(err.message?.includes('Email not confirmed'))msg='Email non confirmé.';
+        toast(msg,'error');
+        b.disabled=false;b.textContent='Se connecter';
     }
 });
 
-['login-email', 'login-password'].forEach(id => {
-    document.getElementById(id).addEventListener('keydown', e => {
-        if (e.key === 'Enter') document.getElementById('login-btn').click();
-    });
+['login-email','login-password'].forEach(id=>document.getElementById(id).addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('login-btn').click()}));
+
+// Déconnexion
+document.getElementById('logout-btn').addEventListener('click',async()=>{
+    try{
+        for(let i=0;i<localStorage.length;i++){
+            const key=localStorage.key(i);
+            if(key.startsWith('sb-')||key.includes('token')||key.includes('auth'))localStorage.removeItem(key);
+        }
+        await db.auth.signOut();
+        window.location.replace('/admin.html');
+    }catch(e){location.reload();}
 });
 
-document.getElementById('logout-btn').addEventListener('click', async () => {
-    await db.auth.signOut();
-    location.reload();
-});
+// Inactivité
+let inactivityTimeout;
+const INACTIVITY_LIMIT=30*60*1000;
+function resetInactivityTimer(){
+    clearTimeout(inactivityTimeout);
+    inactivityTimeout=setTimeout(async()=>{toast('Déconnexion automatique pour inactivité','info');await db.auth.signOut();location.reload();},INACTIVITY_LIMIT);
+}
+['mousemove','keydown','click','scroll','touchstart'].forEach(e=>document.addEventListener(e,resetInactivityTimer));
+resetInactivityTimer();
 
-// ═══════════════════════════════════════════════════════════
-// INIT APP
-// ═══════════════════════════════════════════════════════════
-async function initApp(user) {
-    currentUser = user;
-
-    const { data: profile, error: profileErr } = await db
-        .from('profiles')
-        .select('*, restaurants(*)')
-        .eq('id', user.id)
-        .single();
-
-    if (profileErr || !profile?.restaurant_id) {
-        toast('Aucun restaurant lié à ce compte.', 'error');
-        return;
-    }
-
-    currentProfile = profile;
-    currentRestaurant = profile.restaurants;
-
-    document.getElementById('sidebar-resto-name').textContent = currentRestaurant.name;
-    document.getElementById('sidebar-slug').textContent = `@${currentRestaurant.slug}`;
-
+// Init app
+async function initApp(user){
+    currentUser=user;
+    const{data:profile,error}=await db.from('profiles').select('*, restaurants(*)').eq('id',user.id).single();
+    if(error||!profile?.restaurant_id){toast('Aucun restaurant lié.','error');return}
+    currentProfile=profile;currentRestaurant=profile.restaurants;
+    document.getElementById('sidebar-resto-name').textContent=currentRestaurant.name;
+    document.getElementById('sidebar-slug').textContent=`@${currentRestaurant.slug}`;
     await loadDishes();
-
-    document.getElementById('login-page').style.display = 'none';
+    document.getElementById('login-page').style.display='none';
     document.getElementById('app-layout').classList.add('visible');
-
     showPanel('dashboard');
 }
 
-// Vérifier session existante
-(async () => {
+(async()=>{
     await initSupabase();
-    const { data: { session } } = await db.auth.getSession();
-    if (session?.user) await initApp(session.user);
+    const{data:{session}}=await db.auth.getSession();
+    if(session?.user){
+        const expiresAt=new Date(session.expires_at*1000);
+        if(expiresAt>new Date()){await initApp(session.user);}
+        else{const{data:{session:refreshedSession}}=await db.auth.refreshSession();if(refreshedSession?.user)await initApp(refreshedSession.user);}
+    }
 })();
 
-// ═══════════════════════════════════════════════════════════
-// CHARGEMENT PLATS
-// ═══════════════════════════════════════════════════════════
-async function loadDishes() {
-    const { data, error } = await db
-        .from('menu_items')
-        .select('*')
-        .eq('restaurant_id', currentRestaurant.id)
-        .order('display_order', { ascending: true })
-        .order('category', { ascending: true });
+db?.auth.onAuthStateChange((event,session)=>{
+    if(event==='SIGNED_OUT'||event==='USER_DELETED'){
+        document.getElementById('login-page').style.display='block';
+        document.getElementById('app-layout').classList.remove('visible');
+        currentUser=null;currentProfile=null;currentRestaurant=null;allDishes=[];
+    }else if(event==='TOKEN_REFRESHED'&&session?.user){currentUser=session.user;}
+});
 
-    if (!error) allDishes = data || [];
+// Load dishes
+async function loadDishes(){
+    if(!currentRestaurant?.id)return;
+    const{data,error}=await db.from('menu_items').select('*').eq('restaurant_id',currentRestaurant.id).order('display_order').order('category').limit(1000);
+    if(!error)allDishes=data||[];
+    else{console.error('Erreur loadDishes:',error);toast('Erreur chargement plats','error');}
 }
 
-// ═══════════════════════════════════════════════════════════
-// STATS
-// ═══════════════════════════════════════════════════════════
-async function loadStats() {
-    const { data } = await db.from('stats').select('*').eq('restaurant_id', currentRestaurant.id).single();
-    document.getElementById('stat-views').textContent = data?.views_count ?? 0;
-    document.getElementById('stat-likes').textContent = data?.likes_count ?? 0;
-    document.getElementById('stat-today').textContent = data?.visitors_today ?? 0;
+// Stats
+async function loadStats(){
+    const{data}=await db.from('stats').select('*').eq('restaurant_id',currentRestaurant.id).single();
+    document.getElementById('stat-views').textContent=data?.views_count??0;
+    document.getElementById('stat-likes').textContent=data?.likes_count??0;
+    document.getElementById('stat-today').textContent=data?.visitors_today??0;
+    const top=[...allDishes].sort((a,b)=>(b.likes_count||0)-(a.likes_count||0)).slice(0,5);
+    const t=document.getElementById('top-dishes-tbody');
+    if(!top.length){t.innerHTML='<tr><td colspan="5" style="text-align:center;padding:30px;color:var(--text-dim);">Aucun plat.</td></tr>';return}
+    t.innerHTML=top.map(d=>`<tr><td><strong>${escapeHTML(d.name)}</strong></td><td style="color:var(--text-dim);font-size:0.82rem;">${escapeHTML(d.category)}</td><td class="price-mono">${d.price.toLocaleString('fr-FR')} FCFA</td><td><span style="color:var(--gold);font-weight:700;">❤️ ${d.likes_count||0}</span></td><td>${d.is_available?'<span class="badge available"><span class="badge-dot"></span>Dispo</span>':'<span class="badge unavailable"><span class="badge-dot"></span>Épuisé</span>'}</td></tr>`).join('');
+}
 
-    const top = [...allDishes].sort((a, b) => (b.likes_count || 0) - (a.likes_count || 0)).slice(0, 5);
-    const tbody = document.getElementById('top-dishes-tbody');
+// Menu table
+function renderMenuTable(){
+    document.getElementById('menu-count-label').textContent=`${allDishes.length} plat${allDishes.length>1?'s':''}`;
+    const t=document.getElementById('menu-tbody');
+    if(!allDishes.length){t.innerHTML='<tr><td colspan="6"><div class="empty-placeholder"><div class="icon">🍽️</div><p>Menu vide.</p></div></td></tr>';return}
+    t.innerHTML=allDishes.map(d=>`<tr><td>${d.image_url?`<img class="dish-thumb" src="${d.image_url}" alt="${escapeHTML(d.name)}" loading="lazy">`:'🍽️'}</td><td><div class="dish-name-cell">${escapeHTML(d.name)}</div></td><td style="color:var(--text-dim);">${escapeHTML(d.category)}</td><td class="price-mono">${d.price.toLocaleString()} FCFA</td><td><label class="toggle-wrap"><div class="toggle"><input type="checkbox" ${d.is_available?'checked':''} onchange="toggleAvailability('${d.id.replace(/'/g,"\\'")}',this.checked)" aria-label="Disponibilité du plat ${escapeHTML(d.name)}"><div class="toggle-track"></div></div></label></td><td><div class="actions-cell"><button class="btn btn-ghost btn-sm" onclick="openEditDish('${d.id.replace(/'/g,"\\'")}')" aria-label="Modifier ${escapeHTML(d.name)}">✏️</button><button class="btn btn-danger btn-sm" onclick="openDeleteConfirm('${d.id.replace(/'/g,"\\'")}','${d.name.replace(/'/g,"\\'").replace(/"/g,'&quot;')}')" aria-label="Supprimer ${escapeHTML(d.name)}">🗑️</button></div></td></tr>`).join('');
+}
 
-    if (top.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;padding:30px;color:var(--text-dim);">Aucun plat pour l'instant.</td></tr>`;
-        return;
+async function toggleAvailability(dishId,av){await db.from('menu_items').update({is_available:av}).eq('id',dishId);const d=allDishes.find(x=>x.id===dishId);if(d)d.is_available=av;toast(`Plat ${av?'disponible':'épuisé'}.`,'success');renderMenuTable()}
+
+/* ═══ COMPTABILITÉ ═══ */
+async function loadAccounting(){
+    const today=new Date().toISOString().split('T')[0];
+    const{data:trans}=await db.from('transactions').select('*').eq('restaurant_id',currentRestaurant.id).gte('created_at',today).order('created_at',{ascending:false});
+    const tbody=document.getElementById('transactions-tbody');
+    let total=0,tm=0,fl=0,ca=0;
+    if(!trans?.length){tbody.innerHTML='<tr><td colspan="6" style="text-align:center;padding:30px;color:var(--text-dim);">Aucune transaction.</td></tr>'}
+    else{
+        trans.forEach(t=>{total+=t.amount;if(t.payment_method==='tmoney')tm+=t.amount;else if(t.payment_method==='flooz')fl+=t.amount;else ca+=t.amount});
+        tbody.innerHTML=trans.map(t=>`<tr><td style="font-family:var(--mono);">#${escapeHTML(t.id?.substring(0,6)||'')}</td><td>${escapeHTML(t.description||'—')}</td><td class="price-mono">${t.amount.toLocaleString()} FCFA</td><td>${t.payment_method==='tmoney'?'📱 TMoney':t.payment_method==='flooz'?'📱 Flooz':'💵 Espèces'}</td><td>${t.type==='livraison'?'🛵':'🏪'}</td><td style="font-size:.78rem;color:var(--text-dim);">${new Date(t.created_at).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})}</td></tr>`).join('');
     }
-
-    tbody.innerHTML = top.map(d => `
-        <tr>
-            <td><strong>${d.name}</strong></td>
-            <td style="color:var(--text-dim);font-size:0.82rem;">${d.category}</td>
-            <td class="price-mono">${d.price.toLocaleString('fr-FR')} FCFA</td>
-            <td><span style="color:var(--gold);font-weight:700;">❤️ ${d.likes_count || 0}</span></td>
-            <td>${d.is_available ? '<span class="badge available"><span class="badge-dot"></span>Dispo</span>' : '<span class="badge unavailable"><span class="badge-dot"></span>Épuisé</span>'}</td>
-        </tr>
-    `).join('');
+    document.getElementById('acc-ca-day').textContent=total.toLocaleString();
+    document.getElementById('acc-cash').textContent=ca.toLocaleString();
+    document.getElementById('acc-tmoney').textContent=tm.toLocaleString();
+    document.getElementById('acc-flooz').textContent=fl.toLocaleString();
 }
 
-// ═══════════════════════════════════════════════════════════
-// TABLE DES PLATS
-// ═══════════════════════════════════════════════════════════
-function renderMenuTable() {
-    const label = document.getElementById('menu-count-label');
-    label.textContent = `${allDishes.length} plat${allDishes.length > 1 ? 's' : ''} au menu`;
-
-    const tbody = document.getElementById('menu-tbody');
-
-    if (allDishes.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="6"><div class="empty-placeholder"><div class="icon">🍽️</div><p>Votre menu est vide.</p></div></td></tr>`;
-        return;
-    }
-
-    tbody.innerHTML = allDishes.map(dish => `
-        <tr>
-            <td>${dish.image_url ? `<img class="dish-thumb" src="${dish.image_url}" alt="${dish.name}" loading="lazy">` : `<div class="dish-thumb" style="display:flex;align-items:center;justify-content:center;font-size:1.2rem;">🍽️</div>`}</td>
-            <td><div class="dish-name-cell">${dish.name}${dish.description ? `<small>${dish.description.substring(0, 60)}…</small>` : ''}</div></td>
-            <td style="color:var(--text-dim);font-size:0.82rem;">${dish.category}</td>
-            <td class="price-mono">${dish.price.toLocaleString('fr-FR')} FCFA</td>
-            <td>
-                <label class="toggle-wrap" style="cursor:pointer;">
-                    <div class="toggle"><input type="checkbox" ${dish.is_available ? 'checked' : ''} onchange="toggleAvailability('${dish.id}', this.checked)"><div class="toggle-track"></div></div>
-                    <span style="font-size:0.8rem;color:var(--text-dim);">${dish.is_available ? 'Dispo' : 'Épuisé'}</span>
-                </label>
-            </td>
-            <td><div class="actions-cell">
-                <button class="btn btn-ghost btn-sm" onclick="openEditDish('${dish.id}')">✏️</button>
-                <button class="btn btn-danger btn-sm" onclick="openDeleteConfirm('${dish.id}', '${dish.name.replace(/'/g, "\\'")}')">🗑️</button>
-            </div></td>
-        </tr>
-    `).join('');
+async function closeCashRegister(){
+    if(!confirm('Clôturer la caisse ?'))return;
+    const today=new Date().toISOString().split('T')[0];
+    const{data}=await db.from('transactions').select('amount,payment_method').eq('restaurant_id',currentRestaurant.id).gte('created_at',today);
+    if(!data){toast('Aucune transaction.','error');return}
+    let ca=0,tm=0,fl=0;
+    data.forEach(t=>{if(t.payment_method==='tmoney')tm+=t.amount;else if(t.payment_method==='flooz')fl+=t.amount;else ca+=t.amount});
+    await db.from('cash_register').upsert({restaurant_id:currentRestaurant.id,date:today,total_cash:ca,total_tmoney:tm,total_flooz:fl,total_revenue:ca+tm+fl,total_orders:data.length,is_closed:true,closed_at:new Date().toISOString()});
+    toast('Caisse clôturée !','success');loadAccounting();
 }
 
-// ═══════════════════════════════════════════════════════════
-// TOGGLE DISPONIBILITÉ
-// ═══════════════════════════════════════════════════════════
-async function toggleAvailability(dishId, available) {
-    const { error } = await db.from('menu_items').update({ is_available: available }).eq('id', dishId);
-    if (error) { toast('Erreur.', 'error'); return; }
-    const dish = allDishes.find(d => d.id === dishId);
-    if (dish) dish.is_available = available;
-    toast(`Plat ${available ? 'disponible' : 'épuisé'}.`, 'success');
-    renderMenuTable();
+async function sendDailyReport(){if(!currentRestaurant?.id)return;toast('Envoi du rapport...','info');await CONFIG.sendReport(currentRestaurant.id);toast('Rapport envoyé sur WhatsApp !','success')}
+
+/* ═══ STOCK ═══ */
+async function loadStock(){
+    const{data}=await db.from('inventory').select('*').eq('restaurant_id',currentRestaurant.id).order('item_name');
+    const t=document.getElementById('stock-tbody');
+    if(!data?.length){t.innerHTML='<tr><td colspan="7" style="text-align:center;padding:30px;color:var(--text-dim);">Aucun article.</td></tr>';return}
+    t.innerHTML=data.map(i=>`<tr><td><strong>${escapeHTML(i.item_name)}</strong></td><td>${escapeHTML(i.unit||'')}</td><td style="color:${i.quantity<=i.min_threshold?'var(--danger)':'var(--text)'};">${i.quantity}${i.quantity<=i.min_threshold?' ⚠️':''}</td><td>${i.min_threshold}</td><td class="price-mono">${i.unit_price?.toLocaleString()||0} FCFA</td><td class="price-mono">${((i.quantity||0)*(i.unit_price||0)).toLocaleString()} FCFA</td><td><button class="btn btn-ghost btn-sm" onclick="updateStock('${i.id.replace(/'/g,"\\'")}')">✏️</button><button class="btn btn-danger btn-sm" onclick="deleteStock('${i.id.replace(/'/g,"\\'")}')">🗑️</button></td></tr>`).join('');
 }
 
-// ═══════════════════════════════════════════════════════════
-// MODAL AJOUTER/MODIFIER PLAT
-// ═══════════════════════════════════════════════════════════
-function resetDishModal() {
-    document.getElementById('dish-edit-id').value = '';
-    document.getElementById('dish-name').value = '';
-    document.getElementById('dish-category').value = '';
-    document.getElementById('dish-price').value = '';
-    document.getElementById('dish-order').value = '0';
-    document.getElementById('dish-description').value = '';
-    document.getElementById('dish-available').checked = true;
-    if(document.getElementById('dish-is-drink')) document.getElementById('dish-is-drink').checked = false;
-    document.getElementById('dish-available-label').textContent = 'Disponible (en stock)';
-    document.getElementById('img-drop-zone').style.display = 'block';
-    document.getElementById('img-preview-wrap').style.display = 'none';
-    document.getElementById('upload-progress-wrap').style.display = 'none';
-    document.getElementById('current-img-url-wrap').style.display = 'none';
-    document.getElementById('current-img-url').value = '';
-    pendingImgFile = null;
+async function updateStock(id){const q=prompt('Nouvelle quantité :');if(q===null)return;await db.from('inventory').update({quantity:parseFloat(q),last_updated:new Date().toISOString()}).eq('id',id);toast('Mis à jour !','success');loadStock()}
+async function deleteStock(id){if(!confirm('Supprimer ?'))return;await db.from('inventory').delete().eq('id',id);toast('Supprimé.','success');loadStock()}
+document.getElementById('open-add-stock-btn')?.addEventListener('click',()=>{const n=prompt('Article :');if(!n)return;const u=prompt('Unité (kg, litre) :','kg');if(!u)return;const q=parseFloat(prompt('Quantité :','0'));if(isNaN(q))return;const th=parseFloat(prompt('Seuil alerte :','5'));if(isNaN(th))return;const pr=parseInt(prompt('Prix unitaire (FCFA) :','0'));if(isNaN(pr))return;db.from('inventory').insert({restaurant_id:currentRestaurant.id,item_name:n,unit:u,quantity:q,min_threshold:th,unit_price:pr}).then(()=>{toast('Ajouté !','success');loadStock()})});
+
+/* ═══ PERSONNEL ═══ */
+async function loadEmployees(){
+    const{data}=await db.from('employees').select('*').eq('restaurant_id',currentRestaurant.id).order('name');
+    const t=document.getElementById('employees-tbody');
+    if(!data?.length){t.innerHTML='<tr><td colspan="6" style="text-align:center;padding:30px;color:var(--text-dim);">Aucun employé.</td></tr>';return}
+    t.innerHTML=data.map(e=>`<tr><td><strong>${escapeHTML(e.name)}</strong></td><td>${escapeHTML(e.position||'—')}</td><td>${escapeHTML(e.phone||'—')}</td><td class="price-mono">${e.monthly_salary?.toLocaleString()||0} FCFA</td><td style="font-size:.78rem;color:var(--text-dim);">${new Date(e.hire_date).toLocaleDateString('fr-FR')}</td><td><button class="btn btn-ghost btn-sm" onclick="deleteEmployee('${e.id.replace(/'/g,"\\'")}')">🗑️</button></td></tr>`).join('');
 }
 
-function openAddDish() {
-    resetDishModal();
-    document.getElementById('dish-modal-title').textContent = '+ Ajouter un plat';
-    document.getElementById('dish-modal-overlay').classList.add('visible');
+async function deleteEmployee(id){if(!confirm('Supprimer ?'))return;await db.from('employees').delete().eq('id',id);toast('Supprimé.','success');loadEmployees()}
+document.getElementById('open-add-employee-btn')?.addEventListener('click',()=>{const n=prompt('Nom :');if(!n)return;const p=prompt('Poste :','Serveur');if(!p)return;const ph=prompt('Téléphone :');const s=parseInt(prompt('Salaire mensuel (FCFA) :','0'));if(isNaN(s))return;db.from('employees').insert({restaurant_id:currentRestaurant.id,name:n,position:p,phone:ph||null,monthly_salary:s,hire_date:new Date().toISOString().split('T')[0]}).then(()=>{toast('Ajouté !','success');loadEmployees()})});
+
+/* ═══ COMMANDES ═══ */
+async function loadOrdersAdmin(){
+    const{data:orders}=await db.from('orders').select('*').eq('restaurant_id',currentRestaurant.id).order('created_at',{ascending:false}).limit(50);
+    const t=document.getElementById('orders-admin-tbody');
+    if(!orders?.length){t.innerHTML='<tr><td colspan="7"><div class="empty-placeholder"><div class="icon">📋</div><p>Aucune commande.</p></div></td></tr>';return}
+    t.innerHTML=orders.map(o=>`<tr><td style="font-family:var(--mono);font-size:.78rem;">#${escapeHTML(o.id?.substring(0,8)||'')}</td><td><strong>${escapeHTML(o.customer_name)}</strong></td><td><a href="tel:${escapeHTML(o.customer_phone||'')}" style="color:var(--gold)">${escapeHTML(o.customer_phone||'')}</a></td><td>${o.delivery_type==='livraison'?'🛵':'🏪'}</td><td class="price-mono">${o.total.toLocaleString()} FCFA</td><td><select onchange="updateOrderStatus('${o.id.replace(/'/g,"\\'")}',this.value)" style="background:var(--surface2);border:1px solid var(--border2);color:var(--text);padding:4px 8px;border-radius:6px;font-size:.78rem;"><option value="confirmé"${o.status==='confirmé'?' selected':''}>Confirmé</option><option value="préparé"${o.status==='préparé'?' selected':''}>Préparé</option><option value="prêt"${o.status==='prêt'?' selected':''}>Prêt</option><option value="livré"${o.status==='livré'?' selected':''}>Livré</option><option value="annulé"${o.status==='annulé'?' selected':''}>Annulé</option></select></td><td><a href="https://wa.me/${o.customer_phone?.replace(/[^0-9]/g,'')}?text=${encodeURIComponent('Bonjour '+o.customer_name+', commande #'+o.id?.substring(0,8)+' : '+o.status)}" target="_blank" rel="noopener noreferrer" class="btn btn-ghost btn-sm">💬</a></td></tr>`).join('');
 }
 
-function openEditDish(dishId) {
-    const dish = allDishes.find(d => d.id === dishId);
-    if (!dish) return;
-    resetDishModal();
-    document.getElementById('dish-modal-title').textContent = '✏️ Modifier le plat';
-    document.getElementById('dish-edit-id').value = dish.id;
-    document.getElementById('dish-name').value = dish.name;
-    document.getElementById('dish-category').value = dish.category;
-    document.getElementById('dish-price').value = dish.price;
-    document.getElementById('dish-order').value = dish.display_order || 0;
-    document.getElementById('dish-description').value = dish.description || '';
-    document.getElementById('dish-available').checked = dish.is_available;
-    if(document.getElementById('dish-is-drink')) document.getElementById('dish-is-drink').checked = !!dish.is_drink;
-    document.getElementById('dish-available-label').textContent = dish.is_available ? 'Disponible' : 'Épuisé';
-    if (dish.image_url) {
-        document.getElementById('current-img-url').value = dish.image_url;
-        document.getElementById('current-img-url-wrap').style.display = 'block';
-    }
-    document.getElementById('dish-modal-overlay').classList.add('visible');
+async function updateOrderStatus(orderId,status){await db.from('orders').update({status}).eq('id',orderId);toast('Statut mis à jour !','success');loadOrdersAdmin()}
+
+/* ═══ INFOS RESTAURANT ═══ */
+function fillRestoForm(){const r=currentRestaurant;if(!r)return;document.getElementById('r-name').value=r.name||'';document.getElementById('r-address').value=r.address||'';document.getElementById('r-description').value=r.description||'';document.getElementById('r-whatsapp').value=r.whatsapp||'';document.getElementById('r-phone').value=r.phone||'';document.getElementById('r-hours').value=r.opening_hours||'';document.getElementById('r-theme-color').value=r.theme_color||'#c5a059';document.getElementById('r-theme-color-hex').value=r.theme_color||'#c5a059'}
+document.getElementById('save-resto-btn')?.addEventListener('click',async()=>{const btn=document.getElementById('save-resto-btn');btn.disabled=true;btn.innerHTML='⏳ Enregistrement...';try{const updates={name:document.getElementById('r-name').value.trim(),address:document.getElementById('r-address').value.trim(),description:document.getElementById('r-description').value.trim(),whatsapp:document.getElementById('r-whatsapp').value.trim(),phone:document.getElementById('r-phone').value.trim(),opening_hours:document.getElementById('r-hours').value.trim(),theme_color:document.getElementById('r-theme-color-hex').value.trim()};const{data,error}=await db.from('restaurants').update(updates).eq('id',currentRestaurant.id).select().single();if(error)throw error;currentRestaurant=data;document.getElementById('sidebar-resto-name').textContent=data.name;toast('Restaurant mis à jour !','success')}catch(err){toast(err.message||'Erreur.','error')}finally{btn.disabled=false;btn.innerHTML='💾 Enregistrer'}});
+
+/* ═══ PUB LOCALE ═══ */
+async function loadAds(){const{data:ads}=await db.from('local_ads').select('*').eq('restaurant_id',currentRestaurant.id).order('created_at',{ascending:false});const container=document.getElementById('ads-list');if(!ads?.length){container.innerHTML='<div class="empty-placeholder"><div class="icon">📢</div><p>Aucune publicité locale.</p></div>';return}container.innerHTML=ads.map(ad=>{const isExpired=ad.expires_at&&new Date(ad.expires_at)<new Date();return`<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:20px;margin-bottom:16px;"><div style="display:flex;justify-content:space-between;margin-bottom:8px;"><strong>${escapeHTML(ad.label||'Sans nom')}</strong>${isExpired?'<span class="badge unavailable">Expirée</span>':''}<button class="btn btn-danger btn-sm" onclick="deleteAd('${ad.id.replace(/'/g,"\\'")}')">🗑️</button></div><img src="${ad.banner_url}" style="width:100%;height:80px;object-fit:cover;border-radius:8px;" alt="${escapeHTML(ad.label||'Publicité')}" loading="lazy"><div style="font-size:.75rem;color:var(--text-dim);margin-top:6px;">${escapeHTML(ad.redirect_url||'Pas de lien')} ${ad.expires_at?'· Expire le '+new Date(ad.expires_at).toLocaleDateString('fr-FR'):''}</div></div>`}).join('')}
+async function deleteAd(adId){if(!confirm('Supprimer ?'))return;await db.from('local_ads').delete().eq('id',adId);toast('Supprimé.','success');loadAds()}
+
+/* ═══ ÉVÉNEMENTS ═══ */
+async function loadEventsAdmin(){const{data:events}=await db.from('events').select('*').eq('restaurant_id',currentRestaurant.id).order('event_date',{ascending:true});const container=document.getElementById('events-list-admin');if(!events?.length){container.innerHTML='<div class="empty-placeholder"><div class="icon">🎭</div><p>Aucun événement.</p></div>';return}container.innerHTML=events.map(ev=>`<div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:12px;"><strong>${escapeHTML(ev.title)}</strong><br><span style="font-size:.78rem;color:var(--text-dim);">${ev.event_date?new Date(ev.event_date).toLocaleDateString('fr-FR'):'Date non définie'} ${ev.is_published?'✅ Publié':'📝 Brouillon'}</span><div style="margin-top:8px;display:flex;gap:6px;"><button class="btn btn-danger btn-sm" onclick="deleteEvent('${ev.id.replace(/'/g,"\\'")}')">🗑️</button></div></div>`).join('')}
+async function deleteEvent(evId){if(!confirm('Supprimer ?'))return;await db.from('events').delete().eq('id',evId);toast('Supprimé.','success');loadEventsAdmin()}
+
+/* ═══ LOCALISATION ═══ */
+function initGeolocPanel(){const r=currentRestaurant;if(r?.maps_embed_code)document.getElementById('geo-embed-code').value=r.maps_embed_code;if(r?.maps_lat)document.getElementById('geo-lat').value=r.maps_lat;if(r?.maps_lng)document.getElementById('geo-lng').value=r.maps_lng}
+document.getElementById('save-geoloc-btn')?.addEventListener('click',async()=>{const updates={maps_embed_code:document.getElementById('geo-embed-code').value.trim()||null,maps_lat:document.getElementById('geo-lat').value||null,maps_lng:document.getElementById('geo-lng').value||null};const{error}=await db.from('restaurants').update(updates).eq('id',currentRestaurant.id);if(!error)toast('Localisation enregistrée !','success');else toast('Erreur.','error')});
+
+/* ═══ RÉSERVATIONS ═══ */
+async function loadReservations(){
+    const{data:res}=await db.from('reservations').select('*').eq('restaurant_id',currentRestaurant.id).order('created_at',{ascending:false}).limit(20);
+    const el=document.getElementById('reservations-list');
+    if(!res?.length){el.innerHTML='<div class="empty-placeholder"><div class="icon">📅</div><p>Aucune réservation.</p></div>';return}
+    el.innerHTML=`<table><thead><tr><th>Nom</th><th>Téléphone</th><th>Date</th><th>Pers.</th><th>Note</th><th>Action</th></tr></thead><tbody>`+res.map(r=>{
+        const dateDisplay=r.reservation_date||'—';
+        const timeDisplay=r.reservation_time?r.reservation_time.substring(0,5):'';
+        const guestCount=r.party_size||2;
+        const note=r.notes||'';
+        const phone=r.guest_phone||'';
+        const waMsg=encodeURIComponent(`Bonjour ${r.guest_name}, votre réservation du ${dateDisplay} à ${timeDisplay||'19h'} (${guestCount} pers.) est confirmée. À bientôt !`);
+        return`<tr><td><strong>${escapeHTML(r.guest_name||'—')}</strong></td><td><a href="tel:${escapeHTML(phone)}" style="color:var(--gold)">${escapeHTML(phone||'—')}</a></td><td>${escapeHTML(dateDisplay)} ${timeDisplay?'à '+escapeHTML(timeDisplay):''}</td><td>👥 ${guestCount}</td><td style="font-size:.78rem;color:var(--text-dim);">${escapeHTML(note||'—')}</td><td><a href="https://wa.me/${phone.replace(/[^0-9]/g,'')}?text=${waMsg}" target="_blank" rel="noopener noreferrer" class="btn btn-ghost btn-sm">✅ WA</a></td></tr>`;
+    }).join('')+'</tbody></table>';
 }
 
-function closeDishModal() {
-    document.getElementById('dish-modal-overlay').classList.remove('visible');
-    resetDishModal();
-}
+/* ═══ PROFIL CHEF ═══ */
+function initChefPanel(){const r=currentRestaurant;document.getElementById('chef-name').value=r.chef_name||'';document.getElementById('chef-title').value=r.chef_title||'';document.getElementById('chef-photo').value=r.chef_photo||'';document.getElementById('chef-bio').value=r.chef_bio||''}
+document.getElementById('save-chef-btn')?.addEventListener('click',async()=>{const updates={chef_name:document.getElementById('chef-name').value.trim()||null,chef_title:document.getElementById('chef-title').value.trim()||null,chef_photo:document.getElementById('chef-photo').value.trim()||null,chef_bio:document.getElementById('chef-bio').value.trim()||null};const{error}=await db.from('restaurants').update(updates).eq('id',currentRestaurant.id);if(!error)toast('Profil Chef enregistré !','success');else toast('Erreur.','error')});
 
-document.getElementById('open-add-dish-btn').addEventListener('click', openAddDish);
-document.getElementById('close-dish-modal').addEventListener('click', closeDishModal);
-document.getElementById('cancel-dish-btn').addEventListener('click', closeDishModal);
+/* ═══ GALERIE ═══ */
+async function loadGalleryAdmin(){const{data:photos}=await db.from('gallery_photos').select('*').eq('restaurant_id',currentRestaurant.id).order('display_order');const list=document.getElementById('gallery-photos-list');if(!photos?.length){list.innerHTML='<p style="color:var(--text-dim);">Aucune photo.</p>';return}list.innerHTML=photos.map(p=>`<div style="display:flex;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);"><img src="${p.photo_url}" style="width:60px;height:60px;object-fit:cover;border-radius:6px;" alt="${escapeHTML(p.caption||'Photo galerie')}" loading="lazy"><span style="flex:1;font-size:.82rem;">${escapeHTML(p.caption||'Sans légende')}</span><button class="btn btn-danger btn-sm" onclick="deleteGalleryPhoto('${p.id.replace(/'/g,"\\'")}')">🗑️</button></div>`).join('')}
+document.getElementById('add-photo-btn')?.addEventListener('click',async()=>{const url=document.getElementById('gal-url').value.trim();const caption=document.getElementById('gal-caption').value.trim();if(!url){toast('URL requise.','error');return}await db.from('gallery_photos').insert({restaurant_id:currentRestaurant.id,photo_url:url,caption:caption||null,display_order:0});toast('Ajoutée !','success');document.getElementById('gal-url').value='';document.getElementById('gal-caption').value='';loadGalleryAdmin()});
+async function deleteGalleryPhoto(id){if(!confirm('Supprimer ?'))return;await db.from('gallery_photos').delete().eq('id',id);toast('Supprimée.','success');loadGalleryAdmin()}
 
-document.getElementById('dish-available').addEventListener('change', function() {
-    document.getElementById('dish-available-label').textContent = this.checked ? 'Disponible (en stock)' : 'Épuisé';
-});
+/* ═══ FORMULE DU JOUR ═══ */
+function initFormulaPanel(){const r=currentRestaurant;document.getElementById('formula-title-inp').value=r.formula_title||'';document.getElementById('formula-desc-inp').value=r.formula_description||'';document.getElementById('formula-price-inp').value=r.formula_price||'';if(r.formula_expires_at){const d=new Date(r.formula_expires_at);document.getElementById('formula-expires-inp').value=d.toISOString().slice(0,16)}}
+document.getElementById('save-formula-btn')?.addEventListener('click',async()=>{const updates={formula_title:document.getElementById('formula-title-inp').value.trim()||null,formula_description:document.getElementById('formula-desc-inp').value.trim()||null,formula_price:parseInt(document.getElementById('formula-price-inp').value)||null,formula_expires_at:document.getElementById('formula-expires-inp').value?new Date(document.getElementById('formula-expires-inp').value).toISOString():null};const{error}=await db.from('restaurants').update(updates).eq('id',currentRestaurant.id);if(!error)toast('Formule enregistrée !','success');else toast('Erreur.','error')});
 
-// ═══════════════════════════════════════════════════════════
-// COMPRESSION IMAGE
-// ═══════════════════════════════════════════════════════════
-async function compressImage(file) {
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            const img = new Image();
-            img.onload = () => {
-                let { width, height } = img;
-                const maxW = IMG_SETTINGS.MAX_IMG_WIDTH;
-                const maxH = IMG_SETTINGS.MAX_IMG_HEIGHT;
-                if (width > maxW || height > maxH) {
-                    const ratio = Math.min(maxW / width, maxH / height);
-                    width = Math.round(width * ratio);
-                    height = Math.round(height * ratio);
-                }
-                const canvas = document.createElement('canvas');
-                canvas.width = width;
-                canvas.height = height;
-                const ctx = canvas.getContext('2d');
-                ctx.drawImage(img, 0, 0, width, height);
-                let quality = IMG_SETTINGS.IMG_QUALITY;
-                let dataUrl = canvas.toDataURL('image/webp', quality);
-                while (dataUrl.length * 0.75 / 1024 > IMG_SETTINGS.MAX_KB && quality > 0.4) {
-                    quality -= 0.05;
-                    dataUrl = canvas.toDataURL('image/webp', quality);
-                }
-                canvas.toBlob(blob => {
-                    resolve({ blob, dataUrl, sizeKb: Math.round(blob.size / 1024) });
-                }, 'image/webp', quality);
-            };
-            img.onerror = () => reject(new Error('Image invalide.'));
-            img.src = e.target.result;
-        };
-        reader.onerror = () => reject(new Error('Lecture du fichier impossible.'));
-        reader.readAsDataURL(file);
-    });
-}
+/* ═══ CARTE DES VINS ═══ */
+function initDrinksPanel(){const drinks=allDishes.filter(d=>d.is_drink);const list=document.getElementById('drinks-list');if(!drinks.length){list.innerHTML='<p style="color:var(--text-dim);padding:20px;">Aucune boisson marquée.</p>';return}list.innerHTML=drinks.map(d=>`<div style="display:flex;align-items:center;gap:12px;padding:10px 20px;border-bottom:1px solid var(--border);"><span style="font-size:1.2rem;">🍷</span><div style="flex:1;"><strong>${escapeHTML(d.name)}</strong><span style="display:block;font-size:.72rem;color:var(--text-dim);">${escapeHTML(d.category)} · ${d.price.toLocaleString()} FCFA</span></div><button class="btn btn-ghost btn-sm" onclick="toggleDrinkFlag('${d.id.replace(/'/g,"\\'")}',false)">↩ Retirer</button></div>`).join('')}
+async function toggleDrinkFlag(dishId,isDrink){await db.from('menu_items').update({is_drink:isDrink}).eq('id',dishId);const d=allDishes.find(x=>x.id===dishId);if(d)d.is_drink=isDrink;toast('Mis à jour.','success');initDrinksPanel()}
 
-function setupImgUploadZone(dropZoneId, inputId, onFile) {
-    const zone = document.getElementById(dropZoneId);
-    const input = document.getElementById(inputId);
-    input.addEventListener('change', () => { if (input.files[0]) onFile(input.files[0]); });
-    zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('dragover'); });
-    zone.addEventListener('dragleave', () => zone.classList.remove('dragover'));
-    zone.addEventListener('drop', e => {
-        e.preventDefault();
-        zone.classList.remove('dragover');
-        const f = e.dataTransfer.files[0];
-        if (f && f.type.startsWith('image/')) onFile(f);
-    });
-}
+/* ═══ MODALS PUB & ÉVÉNEMENTS ═══ */
+document.getElementById('open-add-ad-btn')?.addEventListener('click',()=>openAdModal());
+document.getElementById('open-add-event-btn')?.addEventListener('click',()=>openEventModal());
 
-setupImgUploadZone('img-drop-zone', 'dish-img-input', async (file) => {
-    try {
-        const compressed = await compressImage(file);
-        pendingImgFile = compressed;
-        document.getElementById('img-drop-zone').style.display = 'none';
-        document.getElementById('img-preview-wrap').style.display = 'block';
-        document.getElementById('img-preview').src = compressed.dataUrl;
-        document.getElementById('img-file-info').textContent = `✅ WebP · ${compressed.sizeKb} Ko`;
-    } catch (err) { toast('Impossible de lire cette image.', 'error'); }
-});
+function openAdModal(ad=null){editingAdId=ad?.id||null;let modal=document.getElementById('ad-modal-overlay');if(!modal){modal=document.createElement('div');modal.className='modal-overlay';modal.id='ad-modal-overlay';modal.innerHTML=`<div class="modal-box"><div class="modal-head"><h3 class="modal-title">${editingAdId?'Modifier':'Nouvelle'} Publicité</h3><button class="modal-close" onclick="document.getElementById('ad-modal-overlay').classList.remove('visible')">✕</button></div><div class="field-group"><label class="field-label">Nom</label><input type="text" class="field-input" id="ad-label" value="${escapeHTML(ad?.label||'')}"></div><div class="field-group"><label class="field-label">URL de l'image</label><input type="url" class="field-input" id="ad-banner" value="${escapeHTML(ad?.banner_url||'')}"></div><div class="field-group"><label class="field-label">Lien de redirection</label><input type="url" class="field-input" id="ad-redirect" value="${escapeHTML(ad?.redirect_url||'')}"></div><div class="field-group"><label class="field-label">Expire le</label><input type="date" class="field-input" id="ad-expires" value="${ad?.expires_at?.split('T')[0]||''}"></div><button class="btn btn-primary btn-full" onclick="saveAd()">💾 Enregistrer</button></div>`;document.body.appendChild(modal)}modal.classList.add('visible')}
+async function saveAd(){const data={restaurant_id:currentRestaurant.id,label:document.getElementById('ad-label').value.trim(),banner_url:document.getElementById('ad-banner').value.trim(),redirect_url:document.getElementById('ad-redirect').value.trim()||null,expires_at:document.getElementById('ad-expires').value||null};if(!data.label||!data.banner_url){toast('Nom et image requis.','error');return}if(editingAdId){await db.from('local_ads').update(data).eq('id',editingAdId)}else{await db.from('local_ads').insert(data)}document.getElementById('ad-modal-overlay').classList.remove('visible');toast('Publicité enregistrée !','success');loadAds();editingAdId=null}
 
-document.getElementById('change-img-btn').addEventListener('click', () => {
-    pendingImgFile = null;
-    document.getElementById('img-preview-wrap').style.display = 'none';
-    document.getElementById('img-drop-zone').style.display = 'block';
-    document.getElementById('dish-img-input').value = '';
-});
+function openEventModal(ev=null){editingEventId=ev?.id||null;let modal=document.getElementById('event-modal-overlay');if(!modal){modal=document.createElement('div');modal.className='modal-overlay';modal.id='event-modal-overlay';modal.innerHTML=`<div class="modal-box"><div class="modal-head"><h3 class="modal-title">${editingEventId?'Modifier':'Nouvel'} Événement</h3><button class="modal-close" onclick="document.getElementById('event-modal-overlay').classList.remove('visible')">✕</button></div><div class="field-group"><label class="field-label">Titre</label><input type="text" class="field-input" id="event-title" value="${escapeHTML(ev?.title||'')}"></div><div class="field-group"><label class="field-label">Description</label><textarea class="field-input" id="event-desc" rows="3">${escapeHTML(ev?.description||'')}</textarea></div><div class="field-group"><label class="field-label">Date</label><input type="date" class="field-input" id="event-date" value="${ev?.event_date?.split('T')[0]||''}"></div><div class="field-group"><label class="field-label">Heure</label><input type="time" class="field-input" id="event-time" value="${ev?.event_date?new Date(ev.event_date).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}):''}"></div><label class="toggle-wrap"><div class="toggle"><input type="checkbox" id="event-published" ${ev?.is_published?'checked':''}><div class="toggle-track"></div></div><span style="font-size:.8rem;">Publié</span></label><button class="btn btn-primary btn-full" onclick="saveEvent()" style="margin-top:16px;">💾 ${editingEventId?'Modifier':'Créer'} l'événement</button></div>`;document.body.appendChild(modal)}modal.classList.add('visible')}
+async function saveEvent(){const title=document.getElementById('event-title').value.trim();const date=document.getElementById('event-date').value;const time=document.getElementById('event-time').value||'19:00';if(!title||!date){toast('Titre et date requis.','error');return}const event_date=new Date(date+'T'+time).toISOString();const data={restaurant_id:currentRestaurant.id,title:title,description:document.getElementById('event-desc').value.trim()||null,event_date:event_date,is_published:document.getElementById('event-published').checked};if(editingEventId){await db.from('events').update(data).eq('id',editingEventId)}else{await db.from('events').insert(data)}document.getElementById('event-modal-overlay').classList.remove('visible');toast('Événement enregistré !','success');loadEventsAdmin();editingEventId=null}
 
-// ═══════════════════════════════════════════════════════════
-// UPLOAD VIA WORKER (SÉCURISÉ)
-// ═══════════════════════════════════════════════════════════
-async function uploadToGitHub(blob, filename) {
-    setProgress(20, 'Préparation...');
-    try {
-        const url = await CONFIG.uploadImage(blob, filename);
-        setProgress(100, 'Upload réussi !');
-        return url;
-    } catch (err) {
-        setProgress(0, 'Erreur upload');
-        throw err;
-    }
-}
+/* ═══ GESTION DES PLATS — MODALS ═══ */
+function openEditDish(dishId){const dish=allDishes.find(d=>d.id===dishId);if(!dish)return;editingDishId=dishId;let modal=document.getElementById('dish-modal-overlay');if(!modal){modal=document.createElement('div');modal.className='modal-overlay';modal.id='dish-modal-overlay';modal.innerHTML=`<div class="modal-box"><div class="modal-head"><h3 class="modal-title">Modifier le plat</h3><button class="modal-close" onclick="document.getElementById('dish-modal-overlay').classList.remove('visible')">✕</button></div><div class="field-group"><label class="field-label">Nom</label><input type="text" class="field-input" id="edit-dish-name"></div><div class="field-group"><label class="field-label">Catégorie</label><input type="text" class="field-input" id="edit-dish-cat"></div><div class="field-group"><label class="field-label">Prix (FCFA)</label><input type="number" class="field-input" id="edit-dish-price"></div><div class="field-group"><label class="field-label">Description</label><textarea class="field-input" id="edit-dish-desc" rows="2"></textarea></div><button class="btn btn-primary btn-full" onclick="saveEditDish()">💾 Enregistrer</button></div>`;document.body.appendChild(modal)}document.getElementById('edit-dish-name').value=dish.name;document.getElementById('edit-dish-cat').value=dish.category||'';document.getElementById('edit-dish-price').value=dish.price;document.getElementById('edit-dish-desc').value=dish.description||'';modal.classList.add('visible')}
+async function saveEditDish(){const updates={name:document.getElementById('edit-dish-name').value.trim(),category:document.getElementById('edit-dish-cat').value.trim(),price:parseInt(document.getElementById('edit-dish-price').value),description:document.getElementById('edit-dish-desc').value.trim()};if(!updates.name||isNaN(updates.price)){toast('Nom et prix requis.','error');return}await db.from('menu_items').update(updates).eq('id',editingDishId);const d=allDishes.find(x=>x.id===editingDishId);if(d)Object.assign(d,updates);document.getElementById('dish-modal-overlay').classList.remove('visible');toast('Plat modifié !','success');renderMenuTable();editingDishId=null}
+function openDeleteConfirm(dishId,dishName){deletePendingId=dishId;let modal=document.getElementById('delete-modal-overlay');if(!modal){modal=document.createElement('div');modal.className='modal-overlay';modal.id='delete-modal-overlay';modal.innerHTML=`<div class="confirm-dialog"><h3>🗑️ Supprimer le plat ?</h3><p id="delete-dish-name"></p><div class="confirm-actions"><button class="btn btn-danger btn-full" onclick="confirmDeleteDish()">🗑️ Oui, supprimer</button><button class="btn btn-ghost btn-full" onclick="document.getElementById('delete-modal-overlay').classList.remove('visible')">Annuler</button></div></div>`;document.body.appendChild(modal)}document.getElementById('delete-dish-name').textContent=`"${escapeHTML(dishName)}" — Cette action est irréversible.`;modal.classList.add('visible')}
+async function confirmDeleteDish(){if(!deletePendingId)return;await db.from('menu_items').delete().eq('id',deletePendingId);allDishes=allDishes.filter(d=>d.id!==deletePendingId);document.getElementById('delete-modal-overlay').classList.remove('visible');toast('Plat supprimé.','success');renderMenuTable();deletePendingId=null}
 
-function setProgress(percent, label) {
-    document.getElementById('upload-progress-wrap').style.display = 'block';
-    document.getElementById('progress-fill').style.width = `${percent}%`;
-    document.getElementById('progress-label').textContent = label;
-}
+/* ═══ AJOUTER UN PLAT ═══ */
+document.getElementById('open-add-dish-btn')?.addEventListener('click',()=>{const name=prompt('Nom du plat :');if(!name)return;const cat=prompt('Catégorie :','Plats');if(!cat)return;const price=parseInt(prompt('Prix (FCFA) :','0'));if(isNaN(price))return;db.from('menu_items').insert({restaurant_id:currentRestaurant.id,name:name,category:cat,price:price,is_available:true,display_order:allDishes.length}).then(()=>{toast('Plat ajouté !','success');loadDishes().then(()=>renderMenuTable())})});
 
-// ═══════════════════════════════════════════════════════════
-// ENREGISTRER UN PLAT
-// ═══════════════════════════════════════════════════════════
-document.getElementById('save-dish-btn').addEventListener('click', async () => {
-    const editId = document.getElementById('dish-edit-id').value;
-    const name = document.getElementById('dish-name').value.trim();
-    const category = document.getElementById('dish-category').value;
-    const price = parseInt(document.getElementById('dish-price').value, 10);
-    const description = document.getElementById('dish-description').value.trim();
-    const order = parseInt(document.getElementById('dish-order').value || '0', 10);
-    const available = document.getElementById('dish-available').checked;
-    const isDrink = document.getElementById('dish-is-drink')?.checked || false;
-
-    if (!name) { toast('Le nom du plat est obligatoire.', 'error'); return; }
-    if (!category) { toast('Choisissez une catégorie.', 'error'); return; }
-    if (isNaN(price) || price < 0) { toast('Prix invalide.', 'error'); return; }
-
-    const btn = document.getElementById('save-dish-btn');
-    btn.disabled = true;
-    btn.innerHTML = '<div class="btn-spinner"></div> Enregistrement...';
-
-    try {
-        let imageUrl = editId ? document.getElementById('current-img-url').value : null;
-
-        if (pendingImgFile) {
-            imageUrl = await uploadToGitHub(pendingImgFile.blob, name);
-        }
-
-        const dishData = {
-            restaurant_id: currentRestaurant.id,
-            name, category, price,
-            description: description || null,
-            display_order: order,
-            is_available: available,
-            is_drink: isDrink,
-            image_url: imageUrl || null,
-        };
-
-        if (editId) {
-            const { data, error } = await db.from('menu_items').update(dishData).eq('id', editId).select().single();
-            if (error) throw error;
-            const idx = allDishes.findIndex(d => d.id === editId);
-            if (idx !== -1) allDishes[idx] = data;
-            toast(`"${name}" mis à jour !`, 'success');
-        } else {
-            const { data, error } = await db.from('menu_items').insert(dishData).select().single();
-            if (error) throw error;
-            allDishes.push(data);
-            toast(`"${name}" ajouté !`, 'success');
-        }
-
-        closeDishModal();
-        renderMenuTable();
-    } catch (err) {
-        toast(err.message || 'Erreur.', 'error');
-    } finally {
-        btn.disabled = false;
-        btn.innerHTML = '💾 Enregistrer le plat';
-        document.getElementById('upload-progress-wrap').style.display = 'none';
-    }
-});
-
-// ═══════════════════════════════════════════════════════════
-// SUPPRESSION PLAT
-// ═══════════════════════════════════════════════════════════
-function openDeleteConfirm(dishId, dishName) {
-    deletePendingId = dishId;
-    document.getElementById('delete-dish-name').textContent = dishName;
-    document.getElementById('delete-modal-overlay').classList.add('visible');
-}
-
-document.getElementById('cancel-delete-btn').addEventListener('click', () => {
-    deletePendingId = null;
-    document.getElementById('delete-modal-overlay').classList.remove('visible');
-});
-
-document.getElementById('confirm-delete-btn').addEventListener('click', async () => {
-    if (!deletePendingId) return;
-    const btn = document.getElementById('confirm-delete-btn');
-    btn.disabled = true;
-    try {
-        const { error } = await db.from('menu_items').delete().eq('id', deletePendingId);
-        if (error) throw error;
-        allDishes = allDishes.filter(d => d.id !== deletePendingId);
-        toast('Plat supprimé.', 'success');
-        document.getElementById('delete-modal-overlay').classList.remove('visible');
-        renderMenuTable();
-    } catch (err) {
-        toast('Erreur.', 'error');
-    } finally {
-        btn.disabled = false;
-        deletePendingId = null;
-    }
-});
-
-// ═══════════════════════════════════════════════════════════
-// INFOS RESTAURANT
-// ═══════════════════════════════════════════════════════════
-function fillRestoForm() {
-    const r = currentRestaurant;
-    document.getElementById('r-name').value = r.name || '';
-    document.getElementById('r-address').value = r.address || '';
-    document.getElementById('r-description').value = r.description || '';
-    document.getElementById('r-whatsapp').value = r.whatsapp || '';
-    document.getElementById('r-phone').value = r.phone || '';
-    document.getElementById('r-hours').value = r.opening_hours || '';
-    document.getElementById('r-theme-color').value = r.theme_color || '#c5a059';
-    document.getElementById('r-theme-color-hex').value = r.theme_color || '#c5a059';
-    document.getElementById('r-logo-url').value = r.logo_url || '';
-    document.getElementById('r-cover-url').value = r.cover_url || '';
-}
-
-document.getElementById('r-theme-color').addEventListener('input', function() {
-    document.getElementById('r-theme-color-hex').value = this.value;
-});
-document.getElementById('r-theme-color-hex').addEventListener('input', function() {
-    if (/^#[0-9A-Fa-f]{6}$/.test(this.value)) document.getElementById('r-theme-color').value = this.value;
-});
-
-document.getElementById('save-resto-btn').addEventListener('click', async () => {
-    const btn = document.getElementById('save-resto-btn');
-    btn.disabled = true;
-    btn.innerHTML = '<div class="btn-spinner" style="border-top-color:var(--bg)"></div> Enregistrement...';
-    try {
-        const updates = {
-            name: document.getElementById('r-name').value.trim(),
-            address: document.getElementById('r-address').value.trim(),
-            description: document.getElementById('r-description').value.trim(),
-            whatsapp: document.getElementById('r-whatsapp').value.trim(),
-            phone: document.getElementById('r-phone').value.trim(),
-            opening_hours: document.getElementById('r-hours').value.trim(),
-            theme_color: document.getElementById('r-theme-color-hex').value.trim(),
-            logo_url: document.getElementById('r-logo-url').value.trim() || null,
-            cover_url: document.getElementById('r-cover-url').value.trim() || null,
-        };
-        const { data, error } = await db.from('restaurants').update(updates).eq('id', currentRestaurant.id).select().single();
-        if (error) throw error;
-        currentRestaurant = data;
-        document.getElementById('sidebar-resto-name').textContent = data.name;
-        toast('Restaurant mis à jour !', 'success');
-    } catch (err) {
-        toast(err.message || 'Erreur.', 'error');
-    } finally {
-        btn.disabled = false;
-        btn.innerHTML = '💾 Enregistrer les modifications';
-    }
-});
-
-// ═══════════════════════════════════════════════════════════
-// PUB LOCALE
-// ═══════════════════════════════════════════════════════════
-async function loadAds() {
-    const { data: ads, error } = await db.from('local_ads').select('*').eq('restaurant_id', currentRestaurant.id).order('created_at', { ascending: false });
-    const container = document.getElementById('ads-list');
-    if (error || !ads || ads.length === 0) {
-        container.innerHTML = `<div class="empty-placeholder"><div class="icon">📢</div><p>Aucune publicité locale configurée.</p></div>`;
-        return;
-    }
-    container.innerHTML = ads.map(ad => {
-        const isExpired = ad.expires_at && new Date(ad.expires_at) < new Date();
-        return `<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:20px;margin-bottom:16px;">
-            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
-                <strong>${ad.label || 'Publicité sans nom'}</strong>
-                <div style="display:flex;gap:8px;align-items:center;">
-                    ${isExpired ? '<span class="badge unavailable">Expirée</span>' : (ad.is_active ? '<span class="badge available">Active</span>' : '<span class="badge unavailable">Inactive</span>')}
-                    <button class="btn btn-danger btn-sm" onclick="deleteAd('${ad.id}')">🗑️</button>
-                </div>
-            </div>
-            <img src="${ad.banner_url}" alt="Bannière" style="width:100%;height:80px;object-fit:cover;border-radius:8px;margin-bottom:10px;">
-            <div style="font-size:0.78rem;color:var(--text-dim);">${ad.redirect_url ? `🔗 ${ad.redirect_url}` : 'Pas de lien'} ${ad.expires_at ? `· Expire le ${new Date(ad.expires_at).toLocaleDateString('fr-FR')}` : ''}</div>
-        </div>`;
-    }).join('');
-}
-
-async function deleteAd(adId) {
-    if (!confirm('Supprimer cette publicité ?')) return;
-    await db.from('local_ads').delete().eq('id', adId);
-    toast('Publicité supprimée.', 'success');
-    loadAds();
-}
-
-setupImgUploadZone('ad-drop-zone', 'ad-img-input', async (file) => {
-    try {
-        const compressed = await compressImage(file);
-        pendingAdFile = compressed;
-        document.getElementById('ad-img-preview-wrap').style.display = 'block';
-        document.getElementById('ad-img-preview').src = compressed.dataUrl;
-    } catch (e) { toast('Image invalide.', 'error'); }
-});
-
-document.getElementById('open-add-ad-btn').addEventListener('click', () => document.getElementById('ad-modal-overlay').classList.add('visible'));
-document.getElementById('close-ad-modal').addEventListener('click', () => document.getElementById('ad-modal-overlay').classList.remove('visible'));
-document.getElementById('cancel-ad-btn').addEventListener('click', () => document.getElementById('ad-modal-overlay').classList.remove('visible'));
-
-document.getElementById('save-ad-btn').addEventListener('click', async () => {
-    if (!pendingAdFile) { toast('Sélectionne une bannière.', 'error'); return; }
-    const btn = document.getElementById('save-ad-btn');
-    btn.disabled = true;
-    try {
-        const bannerUrl = await uploadToGitHub(pendingAdFile.blob, 'pub-' + currentRestaurant.slug);
-        const expires = document.getElementById('ad-expires').value;
-        const { error } = await db.from('local_ads').insert({
-            restaurant_id: currentRestaurant.id,
-            banner_url: bannerUrl,
-            redirect_url: document.getElementById('ad-link').value.trim() || null,
-            label: document.getElementById('ad-label').value.trim() || null,
-            expires_at: expires ? new Date(expires).toISOString() : null,
-            is_active: true,
-        });
-        if (error) throw error;
-        toast('Bannière publiée !', 'success');
-        document.getElementById('ad-modal-overlay').classList.remove('visible');
-        pendingAdFile = null;
-        loadAds();
-    } catch (err) {
-        toast(err.message || 'Erreur.', 'error');
-    } finally { btn.disabled = false; }
-});
-
-// ═══════════════════════════════════════════════════════════
-// ÉVÉNEMENTS
-// ═══════════════════════════════════════════════════════════
-let editingEventId = null;
-
-async function loadEventsAdmin() {
-    const { data: events, error } = await db.from('events').select('*').eq('restaurant_id', currentRestaurant.id).order('event_date', { ascending: true });
-    const container = document.getElementById('events-list-admin');
-    if (error || !events || events.length === 0) {
-        container.innerHTML = `<div class="empty-placeholder"><div class="icon">🎭</div><p>Aucun événement.</p></div>`;
-        return;
-    }
-    container.innerHTML = events.map(ev => {
-        const evDate = ev.event_date ? new Date(ev.event_date) : null;
-        const dateStr = evDate ? evDate.toLocaleDateString('fr-FR',{weekday:'short',day:'numeric',month:'short',year:'numeric'}) : 'Date non définie';
-        const isPast = evDate && evDate < new Date();
-        return `<div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden;margin-bottom:14px;">
-            <div style="display:flex;gap:0;">
-                ${ev.poster_url ? `<img src="${ev.poster_url}" alt="${ev.title}" style="width:90px;object-fit:cover;flex-shrink:0;">` : `<div style="width:90px;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:1.8rem;flex-shrink:0;">🎭</div>`}
-                <div style="padding:14px 16px;flex:1;">
-                    <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:6px;">
-                        <strong>${ev.title}</strong>
-                        <span style="background:${ev.is_published?'rgba(46,204,113,0.12)':'rgba(255,165,0,0.12)'};color:${ev.is_published?'var(--success)':'#f39c12'};font-size:0.68rem;font-weight:700;padding:2px 8px;border-radius:4px;">${ev.is_published?'Publié':'Brouillon'}</span>
-                    </div>
-                    <p style="font-size:0.75rem;color:var(--text-dim);margin-bottom:8px;">${dateStr}${isPast?' · Passé':''}</p>
-                    <div style="display:flex;gap:6px;">
-                        <button class="btn btn-ghost btn-sm" onclick="openEventModal('${ev.id}')">✏️</button>
-                        <button class="btn btn-ghost btn-sm" onclick="togglePublishEvent('${ev.id}', ${ev.is_published})">${ev.is_published?'⏸':'▶'}</button>
-                        <button class="btn btn-danger btn-sm" onclick="deleteEvent('${ev.id}')">🗑️</button>
-                    </div>
-                </div>
-            </div>
-        </div>`;
-    }).join('');
-}
-
-function openEventModal(eventId = null) {
-    editingEventId = eventId;
-    let modal = document.getElementById('event-modal-overlay');
-    if (!modal) {
-        modal = document.createElement('div');
-        modal.id = 'event-modal-overlay';
-        modal.className = 'modal-overlay';
-        modal.innerHTML = `<div class="modal-box" style="max-width:540px;">
-            <div class="modal-head"><h3 class="modal-title" id="event-modal-title">+ Ajouter un événement</h3><button class="modal-close" onclick="closeEventModal()">✕</button></div>
-            <div class="field-group"><label class="field-label">Titre *</label><input type="text" class="field-input" id="ev-title"></div>
-            <div class="field-group"><label class="field-label">Description</label><textarea class="field-input" id="ev-desc" rows="2"></textarea></div>
-            <div class="form-grid-2">
-                <div class="field-group"><label class="field-label">Date & heure *</label><input type="datetime-local" class="field-input" id="ev-date"></div>
-                <div class="field-group"><label class="field-label">Fin</label><input type="datetime-local" class="field-input" id="ev-end-date"></div>
-            </div>
-            <div class="field-group"><label class="field-label">Affiche (URL)</label><input type="url" class="field-input" id="ev-poster" placeholder="https://..."></div>
-            <div class="field-group"><label class="field-label">Lien billets</label><input type="url" class="field-input" id="ev-ticket" placeholder="https://..."></div>
-            <div style="display:flex;gap:10px;margin-top:6px;">
-                <label class="toggle-wrap" style="flex:1;cursor:pointer;padding:12px;background:var(--surface2);border-radius:var(--radius);border:1px solid var(--border2);"><div class="toggle"><input type="checkbox" id="ev-published"><div class="toggle-track"></div></div><span>Publier</span></label>
-                <label class="toggle-wrap" style="flex:1;cursor:pointer;padding:12px;background:var(--surface2);border-radius:var(--radius);border:1px solid var(--border2);"><div class="toggle"><input type="checkbox" id="ev-featured"><div class="toggle-track"></div></div><span>En avant</span></label>
-            </div>
-            <div style="display:flex;gap:12px;margin-top:16px;"><button class="btn btn-ghost" onclick="closeEventModal()" style="flex:1;">Annuler</button><button class="btn btn-primary" id="save-event-btn" style="flex:2;">💾 Enregistrer</button></div>
-        </div>`;
-        document.body.appendChild(modal);
-        document.getElementById('save-event-btn').addEventListener('click', saveEvent);
-        modal.addEventListener('click', e => { if (e.target === modal) closeEventModal(); });
-    }
-    if (eventId) {
-        document.getElementById('event-modal-title').textContent = "✏️ Modifier l'événement";
-        db.from('events').select('*').eq('id', eventId).single().then(({ data: ev }) => {
-            if (!ev) return;
-            document.getElementById('ev-title').value = ev.title || '';
-            document.getElementById('ev-desc').value = ev.description || '';
-            document.getElementById('ev-date').value = ev.event_date ? ev.event_date.slice(0,16) : '';
-            document.getElementById('ev-end-date').value = ev.event_end_date ? ev.event_end_date.slice(0,16) : '';
-            document.getElementById('ev-poster').value = ev.poster_url || '';
-            document.getElementById('ev-ticket').value = ev.ticket_url || '';
-            document.getElementById('ev-published').checked = ev.is_published;
-            document.getElementById('ev-featured').checked = ev.is_featured;
-        });
-    } else {
-        document.getElementById('event-modal-title').textContent = '+ Ajouter un événement';
-        ['ev-title','ev-desc','ev-date','ev-end-date','ev-poster','ev-ticket'].forEach(id => document.getElementById(id).value = '');
-        document.getElementById('ev-published').checked = true;
-        document.getElementById('ev-featured').checked = false;
-    }
-    modal.classList.add('visible');
-}
-
-function closeEventModal() {
-    const modal = document.getElementById('event-modal-overlay');
-    if (modal) { modal.classList.remove('visible'); editingEventId = null; }
-}
-
-async function saveEvent() {
-    const title = document.getElementById('ev-title').value.trim();
-    if (!title) { toast('Le titre est obligatoire.', 'error'); return; }
-    const btn = document.getElementById('save-event-btn');
-    btn.disabled = true; btn.innerHTML = '<div class="btn-spinner"></div> Enregistrement...';
-    try {
-        const evData = {
-            restaurant_id: currentRestaurant.id,
-            title,
-            description: document.getElementById('ev-desc').value.trim() || null,
-            event_date: document.getElementById('ev-date').value || null,
-            event_end_date: document.getElementById('ev-end-date').value || null,
-            poster_url: document.getElementById('ev-poster').value.trim() || null,
-            ticket_url: document.getElementById('ev-ticket').value.trim() || null,
-            is_published: document.getElementById('ev-published').checked,
-            is_featured: document.getElementById('ev-featured').checked,
-        };
-        let err;
-        if (editingEventId) {
-            ({ error: err } = await db.from('events').update(evData).eq('id', editingEventId));
-        } else {
-            ({ error: err } = await db.from('events').insert(evData));
-        }
-        if (err) throw err;
-        toast(editingEventId ? 'Événement mis à jour !' : 'Événement publié !', 'success');
-        closeEventModal();
-        loadEventsAdmin();
-    } catch(e) {
-        toast(e.message || "Erreur.", 'error');
-    } finally { btn.disabled = false; btn.innerHTML = '💾 Enregistrer'; }
-}
-
-async function togglePublishEvent(evId, current) {
-    const { error } = await db.from('events').update({ is_published: !current }).eq('id', evId);
-    if (!error) { toast(!current ? 'Publié !' : 'Dépublié.', 'success'); loadEventsAdmin(); }
-}
-
-async function deleteEvent(evId) {
-    if (!confirm('Supprimer cet événement ?')) return;
-    const { error } = await db.from('events').delete().eq('id', evId);
-    if (!error) { toast('Supprimé.', 'success'); loadEventsAdmin(); }
-}
-
-document.getElementById('open-add-event-btn')?.addEventListener('click', () => openEventModal(null));
-
-// ═══════════════════════════════════════════════════════════
-// GÉOLOCALISATION
-// ═══════════════════════════════════════════════════════════
-function initGeolocPanel() {
-    const r = currentRestaurant;
-    if (r.maps_embed_code) document.getElementById('geo-embed-code').value = r.maps_embed_code;
-    if (r.maps_lat) document.getElementById('geo-lat').value = r.maps_lat;
-    if (r.maps_lng) document.getElementById('geo-lng').value = r.maps_lng;
-}
-
-document.getElementById('preview-map-btn')?.addEventListener('click', () => {
-    const embedCode = document.getElementById('geo-embed-code').value.trim();
-    const lat = document.getElementById('geo-lat').value;
-    const lng = document.getElementById('geo-lng').value;
-    const preview = document.getElementById('geo-preview-map');
-    const card = document.getElementById('geo-preview-card');
-    if (embedCode) {
-        preview.innerHTML = embedCode;
-        const iframe = preview.querySelector('iframe');
-        if (iframe) { iframe.style.width='100%'; iframe.style.height='280px'; iframe.style.border='none'; }
-        card.style.display = 'block';
-    } else if (lat && lng) {
-        preview.innerHTML = `<iframe src="https://www.openstreetmap.org/export/embed.html?bbox=${parseFloat(lng)-0.005},${parseFloat(lat)-0.005},${parseFloat(lng)+0.005},${parseFloat(lat)+0.005}&layer=mapnik&marker=${lat},${lng}" style="width:100%;height:280px;border:none;border-radius:10px" loading="lazy"></iframe>`;
-        card.style.display = 'block';
-    } else { toast("Entrer un code ou des coordonnées.", 'info'); }
-});
-
-document.getElementById('save-geoloc-btn')?.addEventListener('click', async () => {
-    const btn = document.getElementById('save-geoloc-btn');
-    btn.disabled = true;
-    btn.innerHTML = '<div class="btn-spinner" style="border-top-color:var(--bg)"></div> Enregistrement...';
-    try {
-        const updates = {
-            maps_embed_code: document.getElementById('geo-embed-code').value.trim() || null,
-            maps_lat: document.getElementById('geo-lat').value || null,
-            maps_lng: document.getElementById('geo-lng').value || null,
-        };
-        const { error } = await db.from('restaurants').update(updates).eq('id', currentRestaurant.id);
-        if (error) throw error;
-        currentRestaurant = { ...currentRestaurant, ...updates };
-        toast('Localisation enregistrée !', 'success');
-    } catch(e) { toast(e.message || 'Erreur.', 'error'); }
-    finally { btn.disabled = false; btn.innerHTML = '💾 Enregistrer la localisation'; }
-});
-
-// ═══════════════════════════════════════════════════════════
-// RÉSERVATIONS
-// ═══════════════════════════════════════════════════════════
-async function loadReservations() {
-    const { data: res } = await db.from('reservations').select('*').eq('restaurant_id', currentRestaurant.id).order('date_time', { ascending: false }).limit(50);
-    const el = document.getElementById('reservations-list');
-    if (!res?.length) { el.innerHTML = '<div class="empty-placeholder"><div class="icon">📅</div><p>Aucune réservation.</p></div>'; return; }
-    el.innerHTML = `<table><thead><tr><th>Nom</th><th>Date</th><th>Heure</th><th>Pers.</th><th>Téléphone</th><th>Note</th><th>Action</th></tr></thead><tbody>` + res.map(r => {
-        const dt = new Date(r.date_time);
-        const date = dt.toLocaleDateString('fr-FR', {day:'numeric',month:'short'});
-        const time = dt.toLocaleTimeString('fr-FR', {hour:'2-digit',minute:'2-digit'});
-        return `<tr><td><strong>${r.guest_name}</strong></td><td>${date}</td><td>${time}</td><td>👥 ${r.guest_count}</td><td><a href="tel:${r.guest_phone}" style="color:var(--gold)">${r.guest_phone}</a></td><td style="font-size:.8rem;color:var(--text-dim)">${r.note||'—'}</td><td><a href="https://wa.me/${r.guest_phone?.replace(/[^0-9]/g,'')}?text=${encodeURIComponent('Bonjour '+r.guest_name+', votre réservation du '+date+' à '+time+' est confirmée.')}" target="_blank" class="btn btn-ghost btn-sm">✅ WA</a></td></tr>`;
-    }).join('') + '</tbody></table>';
-}
-
-document.getElementById('refresh-res-btn')?.addEventListener('click', loadReservations);
-
-// ═══════════════════════════════════════════════════════════
-// CHEF
-// ═══════════════════════════════════════════════════════════
-function initChefPanel() {
-    const r = currentRestaurant;
-    document.getElementById('chef-name').value = r.chef_name || '';
-    document.getElementById('chef-title').value = r.chef_title || '';
-    document.getElementById('chef-photo').value = r.chef_photo || '';
-    document.getElementById('chef-bio').value = r.chef_bio || '';
-    if (r.chef_photo) { document.getElementById('chef-photo-preview').style.display = 'block'; document.getElementById('chef-img-preview').src = r.chef_photo; }
-}
-
-document.getElementById('chef-photo')?.addEventListener('input', function() {
-    const v = this.value.trim();
-    const preview = document.getElementById('chef-photo-preview');
-    const img = document.getElementById('chef-img-preview');
-    if (v) { img.src = v; preview.style.display = 'block'; }
-    else preview.style.display = 'none';
-});
-
-document.getElementById('save-chef-btn')?.addEventListener('click', async () => {
-    const btn = document.getElementById('save-chef-btn');
-    btn.disabled = true;
-    try {
-        const { error } = await db.from('restaurants').update({
-            chef_name: document.getElementById('chef-name').value.trim() || null,
-            chef_title: document.getElementById('chef-title').value.trim() || null,
-            chef_photo: document.getElementById('chef-photo').value.trim() || null,
-            chef_bio: document.getElementById('chef-bio').value.trim() || null,
-        }).eq('id', currentRestaurant.id);
-        if (error) throw error;
-        toast('Profil Chef enregistré !', 'success');
-    } catch(e) { toast(e.message || 'Erreur', 'error'); }
-    finally { btn.disabled = false; }
-});
-
-// ═══════════════════════════════════════════════════════════
-// GALERIE
-// ═══════════════════════════════════════════════════════════
-async function loadGalleryAdmin() {
-    const { data: photos } = await db.from('gallery_photos').select('*').eq('restaurant_id', currentRestaurant.id).order('display_order', { ascending: true });
-    const list = document.getElementById('gallery-photos-list');
-    if (!photos?.length) { list.innerHTML = '<p style="color:var(--text-dim);">Aucune photo.</p>'; return; }
-    list.innerHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px;">` + photos.map(p => `
-        <div style="position:relative;border-radius:10px;overflow:hidden;border:1px solid var(--border);">
-            <img src="${p.photo_url}" alt="${p.caption||''}" style="width:100%;height:110px;object-fit:cover;">
-            <div style="padding:8px;background:var(--surface2);"><p style="font-size:.72rem;color:var(--text-dim);margin-bottom:6px;">${p.caption||'Sans légende'}</p><button class="btn btn-danger btn-sm" style="width:100%;" onclick="deleteGalleryPhoto('${p.id}', this)">🗑️</button></div>
-        </div>`).join('') + '</div>';
-}
-
-document.getElementById('gal-url')?.addEventListener('input', function() {
-    const v = this.value.trim();
-    const p = document.getElementById('gal-preview');
-    const i = document.getElementById('gal-img-preview');
-    if (v) { i.src=v; p.style.display='block'; } else p.style.display='none';
-});
-
-document.getElementById('add-photo-btn')?.addEventListener('click', async () => {
-    const url = document.getElementById('gal-url').value.trim();
-    const caption = document.getElementById('gal-caption').value.trim();
-    if (!url) { toast('Entrer une URL.', 'error'); return; }
-    const btn = document.getElementById('add-photo-btn');
-    btn.disabled = true;
-    try {
-        const { error } = await db.from('gallery_photos').insert({ restaurant_id: currentRestaurant.id, photo_url: url, caption: caption || null, display_order: 0 });
-        if (error) throw error;
-        document.getElementById('gal-url').value = '';
-        document.getElementById('gal-caption').value = '';
-        document.getElementById('gal-preview').style.display = 'none';
-        toast('Photo ajoutée !', 'success');
-        loadGalleryAdmin();
-    } catch(e) { toast(e.message || 'Erreur', 'error'); }
-    finally { btn.disabled = false; }
-});
-
-async function deleteGalleryPhoto(id, btnEl) {
-    if (!confirm('Supprimer ?')) return;
-    btnEl.disabled = true;
-    const { error } = await db.from('gallery_photos').delete().eq('id', id);
-    if (!error) { toast('Supprimée.', 'success'); loadGalleryAdmin(); }
-    else { toast('Erreur', 'error'); btnEl.disabled = false; }
-}
-
-// ═══════════════════════════════════════════════════════════
-// FORMULE DU JOUR
-// ═══════════════════════════════════════════════════════════
-function initFormulaPanel() {
-    const r = currentRestaurant;
-    const toggle = document.getElementById('formula-active');
-    toggle.checked = r.formula_active || false;
-    document.getElementById('formula-toggle-lbl').textContent = toggle.checked ? 'Formule activée' : 'Formule désactivée';
-    document.getElementById('formula-title-inp').value = r.formula_title || '';
-    document.getElementById('formula-desc-inp').value = r.formula_description || '';
-    document.getElementById('formula-price-inp').value = r.formula_price || '';
-    if (r.formula_expires_at) {
-        const d = new Date(r.formula_expires_at);
-        d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
-        document.getElementById('formula-expires-inp').value = d.toISOString().slice(0,16);
-    }
-}
-
-document.getElementById('formula-active')?.addEventListener('change', function() {
-    document.getElementById('formula-toggle-lbl').textContent = this.checked ? 'Formule activée ✅' : 'Formule désactivée';
-});
-
-document.getElementById('save-formula-btn')?.addEventListener('click', async () => {
-    const btn = document.getElementById('save-formula-btn');
-    btn.disabled = true;
-    const expiresVal = document.getElementById('formula-expires-inp').value;
-    try {
-        const { error } = await db.from('restaurants').update({
-            formula_active: document.getElementById('formula-active').checked,
-            formula_title: document.getElementById('formula-title-inp').value.trim() || null,
-            formula_description: document.getElementById('formula-desc-inp').value.trim() || null,
-            formula_price: parseInt(document.getElementById('formula-price-inp').value) || null,
-            formula_expires_at: expiresVal ? new Date(expiresVal).toISOString() : null,
-        }).eq('id', currentRestaurant.id);
-        if (error) throw error;
-        toast('Formule enregistrée !', 'success');
-    } catch(e) { toast(e.message || 'Erreur', 'error'); }
-    finally { btn.disabled = false; }
-});
-
-// ═══════════════════════════════════════════════════════════
-// CARTE DES VINS
-// ═══════════════════════════════════════════════════════════
-function initDrinksPanel() {
-    const drinks = allDishes.filter(d => d.is_drink);
-    const list = document.getElementById('drinks-list');
-    if (!drinks.length) { list.innerHTML = '<div class="empty-placeholder"><div class="icon">🍷</div><p>Aucune boisson marquée.</p></div>'; return; }
-    list.innerHTML = drinks.map(d => `
-        <div style="display:flex;align-items:center;gap:12px;padding:12px 20px;border-bottom:1px solid var(--border);">
-            <span>🍷</span>
-            <div style="flex:1;"><strong>${d.name}</strong><span style="display:block;font-size:.75rem;color:var(--text-dim);">${d.category} · ${d.price.toLocaleString()} FCFA</span></div>
-            <button class="btn btn-ghost btn-sm" onclick="toggleDrinkFlag('${d.id}', false)">↩ Retirer</button>
-        </div>`).join('');
-}
-
-async function toggleDrinkFlag(dishId, isDrink) {
-    const { error } = await db.from('menu_items').update({ is_drink: isDrink }).eq('id', dishId);
-    if (!error) {
-        const d = allDishes.find(x => x.id === dishId);
-        if (d) d.is_drink = isDrink;
-        toast(`Plat ${isDrink ? 'ajouté' : 'retiré'} de la carte des vins.`, 'success');
-        initDrinksPanel();
-    }
-}
+// Fermer les modals
+document.addEventListener('click',(e)=>{if(e.target.classList.contains('modal-overlay')){e.target.classList.remove('visible')}});
 </script>
-
 </body>
 </html>

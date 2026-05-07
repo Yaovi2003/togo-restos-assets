@@ -1,0 +1,18 @@
+{
+    "name": "Restos Lomé",
+    "short_name": "Restos Lomé",
+    "description": "Menus digitaux des meilleurs restaurants de Lomé",
+    "start_url": "/",
+    "display": "standalone",
+    "background_color": "#080808",
+    "theme_color": "#c5a059",
+    "orientation": "portrait-primary",
+    "icons": [
+        {
+            "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%23c5a059'/><text y='.75em' font-size='60' text-anchor='middle' x='50'>🍽️</text></svg>",
+            "sizes": "192x192",
+            "type": "image/svg+xml",
+            "purpose": "any maskable"
+        }
+    ]
+}

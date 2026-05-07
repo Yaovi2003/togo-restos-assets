@@ -11,12 +11,35 @@
     <meta property="og:site_name"   content="Restos Lomé">
     <title>Blog Gastronomie Togo — Restos Lomé</title>
 
+    <!-- PWA -->
+    <link rel="manifest" href="/manifest.json">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Restos Lomé">
+
+    <!-- ✅ CSP Header contre XSS -->
+    <meta http-equiv="Content-Security-Policy" content="
+        default-src 'self';
+        script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com;
+        style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
+        img-src 'self' data: https: blob:;
+        font-src 'self' https://fonts.gstatic.com;
+        connect-src 'self' https://qlkhzplfigyrbfizsnkp.supabase.co;
+        frame-ancestors 'none';
+        base-uri 'self';
+        form-action 'self';
+    ">
+
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=DM+Sans:wght@300;400;500;600&family=Space+Mono:wght@400&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+    <!-- ✅ DOMPurify pour la protection XSS -->
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.6/dist/purify.min.js"></script>
     <script src="config.js"></script>
 
+    <!-- ... tout le CSS reste identique ... -->
     <style>
     :root {
         --gold   : #c5a059;
@@ -446,15 +469,8 @@ Votre contenu ici. Vous pouvez utiliser le **gras**, *l'italique*, des listes à
 <script>
 'use strict';
 
-/* ═══════════════════════════════════════════════════════════
-   CONFIG — AUCUNE CLÉ EN DUR
-   Chargé depuis le Worker Cloudflare
-═══════════════════════════════════════════════════════════ */
 let supabaseClient = null;
 
-/* ═══════════════════════════════════════════════════════════
-   ARTICLES PAR DÉFAUT (fallback si Supabase inaccessible)
-═══════════════════════════════════════════════════════════ */
 const DEFAULT_ARTICLES = [
     {
         id: 'default-1', slug: 'top-10-restaurants-lome-2026',
@@ -494,27 +510,32 @@ const DEFAULT_ARTICLES = [
     }
 ];
 
-/* ═══════════════════════════════════════════════════════════
-   ÉTAT
-═══════════════════════════════════════════════════════════ */
 let isAdmin = false;
 let logoClicks = 0;
 let logoTimer = null;
 let currentArt = null;
 let supabaseArticles = [];
 let articlesLoaded = false;
+let reviewRating = 5; // ✅ Pour le système d'avis
 
-/* ═══════════════════════════════════════════════════════════
-   INIT SUPABASE
-═══════════════════════════════════════════════════════════ */
+// ✅ Configuration DOMPurify pour la protection XSS
+const DOMPurifyConfig = {
+    ALLOWED_TAGS: [
+        'p', 'br', 'strong', 'em', 'h2', 'h3', 'h4',
+        'ul', 'ol', 'li', 'blockquote', 'img', 'a',
+        'code', 'pre', 'table', 'thead', 'tbody', 'tr', 'th', 'td'
+    ],
+    ALLOWED_ATTR: ['src', 'alt', 'href', 'title', 'target', 'class', 'id'],
+    KEEP_CONTENT: true,
+    RETURN_DOM_FRAGMENT: false,
+    RETURN_DOM: false,
+};
+
 async function initSupabase() {
     await CONFIG.load();
     supabaseClient = supabase.createClient(CONFIG.supabaseUrl, CONFIG.supabaseKey);
 }
 
-/* ═══════════════════════════════════════════════════════════
-   ARTICLES DEPUIS SUPABASE
-═══════════════════════════════════════════════════════════ */
 async function loadSupabaseArticles() {
     if (articlesLoaded) return supabaseArticles;
     try {
@@ -546,9 +567,6 @@ function getAllArticles() {
     return supabaseArticles.length > 0 ? supabaseArticles : DEFAULT_ARTICLES;
 }
 
-/* ═══════════════════════════════════════════════════════════
-   TOAST
-═══════════════════════════════════════════════════════════ */
 function toast(msg, type='ok', dur=3500) {
     const el = document.createElement('div');
     el.className = `toast ${type}`;
@@ -557,9 +575,6 @@ function toast(msg, type='ok', dur=3500) {
     setTimeout(() => el.remove(), dur);
 }
 
-/* ═══════════════════════════════════════════════════════════
-   ROUTING
-═══════════════════════════════════════════════════════════ */
 function init() {
     const params = new URLSearchParams(location.search);
     const artId = params.get('article');
@@ -567,9 +582,6 @@ function init() {
     else showList();
 }
 
-/* ═══════════════════════════════════════════════════════════
-   VUE LISTE
-═══════════════════════════════════════════════════════════ */
 async function showList() {
     document.getElementById('list-view').style.display = 'block';
     document.getElementById('article-view').style.display = 'none';
@@ -582,82 +594,53 @@ async function showList() {
 function renderArticles(filter = null) {
     const grid = document.getElementById('articles-grid');
     grid.innerHTML = '';
-
     let arts = getAllArticles();
     if (filter) arts = arts.filter(a => a.category === filter);
-
     arts.forEach((art, i) => {
         const card = document.createElement('div');
         card.className = `art-card ${i === 0 && !filter ? 'featured' : ''}`;
-
         const imgHtml = art.image
             ? `<div class="art-img"><img src="${art.image}" alt="${art.title}" loading="${i>0?'lazy':'eager'}"></div>`
             : `<div class="art-img">🍽️</div>`;
-
         card.innerHTML = `
             ${imgHtml}
             <div class="art-body">
-                <div>
-                    <p class="art-cat">${art.category}</p>
-                    <h3 class="art-title">${art.title}</h3>
-                    <p class="art-excerpt">${art.excerpt}</p>
-                </div>
-                <div class="art-meta">
-                    <span>📅 ${new Date(art.date).toLocaleDateString('fr-FR',{day:'numeric',month:'long',year:'numeric'})}</span>
-                    <span class="read-more">Lire →</span>
-                </div>
+                <div><p class="art-cat">${art.category}</p><h3 class="art-title">${art.title}</h3><p class="art-excerpt">${art.excerpt}</p></div>
+                <div class="art-meta"><span>📅 ${new Date(art.date).toLocaleDateString('fr-FR',{day:'numeric',month:'long',year:'numeric'})}</span><span class="read-more">Lire →</span></div>
             </div>
             ${art.removable !== false ? `<button class="art-delete-btn" data-id="${art.id}">🗑️ Supprimer</button>` : ''}
         `;
-
-        card.addEventListener('click', e => {
-            if (e.target.closest('.art-delete-btn')) return;
-            history.pushState({}, '', `?article=${art.id || art.slug}`);
-            showArticle(art.id || art.slug);
-        });
-
+        card.addEventListener('click', e => { if (e.target.closest('.art-delete-btn')) return; history.pushState({}, '', `?article=${art.id || art.slug}`); showArticle(art.id || art.slug); });
         const delBtn = card.querySelector('.art-delete-btn');
-        if (delBtn) {
-            delBtn.addEventListener('click', e => {
-                e.stopPropagation();
-                deleteArticle(art.id);
-            });
-        }
-
+        if (delBtn) { delBtn.addEventListener('click', e => { e.stopPropagation(); deleteArticle(art.id); }); }
         grid.appendChild(card);
     });
-
     if (isAdmin) renderAdminList();
 }
 
-/* ═══════════════════════════════════════════════════════════
-   ARTICLE COMPLET
-═══════════════════════════════════════════════════════════ */
 function showArticle(idOrSlug) {
     const arts = getAllArticles();
     const art = arts.find(a => a.id === idOrSlug || a.slug === idOrSlug);
     if (!art) { history.pushState({}, '', 'blog.html'); showList(); return; }
-
     currentArt = art;
     document.getElementById('list-view').style.display = 'none';
     document.getElementById('article-view').style.display = 'block';
     window.scrollTo({ top: 0, behavior: 'instant' });
-
     document.title = art.title + ' — Blog Restos Lomé';
-
     const cover = document.getElementById('art-cover');
-    if (art.image) { cover.src = art.image; cover.alt = art.title; cover.style.display = 'block'; }
-    else cover.style.display = 'none';
-
+    if (art.image) { cover.src = art.image; cover.alt = art.title; cover.style.display = 'block'; } else cover.style.display = 'none';
     document.getElementById('art-cat-disp').textContent = art.category;
     document.getElementById('art-title-disp').textContent = art.title;
     document.getElementById('art-date-disp').textContent = '📅 ' + new Date(art.date).toLocaleDateString('fr-FR',{day:'numeric',month:'long',year:'numeric'});
-
     const words = art.content.split(/\s+/).length;
     document.getElementById('art-read-disp').textContent = `⏱ ${Math.ceil(words/200)} min de lecture`;
 
-    document.getElementById('art-body').innerHTML = marked.parse(art.content);
+    // ✅ Affichage sécurisé avec DOMPurify (protection XSS)
+    const rawHTML = marked.parse(art.content);
+    const cleanHTML = DOMPurify.sanitize(rawHTML, DOMPurifyConfig);
+    document.getElementById('art-body').innerHTML = cleanHTML;
 
+    // ✅ URL de partage avec slug unique
     const articleSlug = art.slug || art.id;
     const absoluteUrl = window.location.origin + window.location.pathname + '?article=' + articleSlug;
     const url = encodeURIComponent(absoluteUrl);
@@ -667,282 +650,125 @@ function showArticle(idOrSlug) {
     document.getElementById('share-x').onclick  = () => window.open(`https://twitter.com/intent/tweet?url=${url}&text=${txt}`, '_blank');
 }
 
-/* ═══════════════════════════════════════════════════════════
-   RESTAURANTS POPULAIRES (sidebar)
-═══════════════════════════════════════════════════════════ */
 async function loadRestos() {
     try {
-        const { data } = await supabaseClient
-            .from('restaurants')
-            .select('id, name, slug, logo_url, opening_hours')
-            .eq('is_active', true)
-            .limit(5);
-
+        const { data } = await supabaseClient.from('restaurants').select('id, name, slug, logo_url, opening_hours').eq('is_active', true).limit(5);
         if (!data?.length) return;
         const list = document.getElementById('restos-list');
         list.innerHTML = '';
         data.forEach(r => {
-            const row = document.createElement('div');
-            row.className = 'resto-mini';
-            row.innerHTML = `
-                <div class="resto-mini-logo">${r.logo_url ? `<img src="${r.logo_url}" alt="${r.name}">` : '🍽️'}</div>
-                <div><p class="resto-mini-name">${r.name}</p><p class="resto-mini-cat">${r.opening_hours||'Menu digital'}</p></div>
-                <span class="resto-mini-arrow">→</span>
-            `;
+            const row = document.createElement('div'); row.className = 'resto-mini';
+            row.innerHTML = `<div class="resto-mini-logo">${r.logo_url ? `<img src="${r.logo_url}" alt="${r.name}">` : '🍽️'}</div><div><p class="resto-mini-name">${r.name}</p><p class="resto-mini-cat">${r.opening_hours||'Menu digital'}</p></div><span class="resto-mini-arrow">→</span>`;
             row.addEventListener('click', () => window.location.href = `/view.html?id=${r.slug}`);
             list.appendChild(row);
         });
     } catch(_) {}
 }
 
-/* ═══════════════════════════════════════════════════════════
-   CATÉGORIES (sidebar)
-═══════════════════════════════════════════════════════════ */
 function buildCats() {
     const cats = [...new Set(getAllArticles().map(a => a.category))];
     const wrap = document.getElementById('cats-widget');
     wrap.innerHTML = '';
-
     const allBtn = document.createElement('button');
     allBtn.style.cssText = `padding:5px 12px;border-radius:50px;border:1.5px solid var(--border);background:var(--gold);color:#000;font-size:.78rem;font-weight:700;cursor:pointer;`;
-    allBtn.textContent = 'Tous';
-    allBtn.addEventListener('click', () => renderArticles(null));
-    wrap.appendChild(allBtn);
-
+    allBtn.textContent = 'Tous'; allBtn.addEventListener('click', () => renderArticles(null)); wrap.appendChild(allBtn);
     cats.forEach(c => {
         const btn = document.createElement('button');
         btn.style.cssText = `padding:5px 12px;border-radius:50px;border:1.5px solid var(--border);background:transparent;color:var(--mid);font-size:.78rem;font-weight:600;cursor:pointer;transition:all .15s;`;
-        btn.textContent = c;
-        btn.addEventListener('click', () => renderArticles(c));
-        wrap.appendChild(btn);
+        btn.textContent = c; btn.addEventListener('click', () => renderArticles(c)); wrap.appendChild(btn);
     });
 }
 
-/* ═══════════════════════════════════════════════════════════
-   CRUD — CRÉER UN ARTICLE
-═══════════════════════════════════════════════════════════ */
+// ✅ Formulaire de création article avec validation
 document.getElementById('publish-btn').addEventListener('click', async () => {
-    const title   = document.getElementById('art-title-inp').value.trim();
-    const cat     = document.getElementById('art-cat-inp').value;
+    const title = document.getElementById('art-title-inp').value.trim();
+    const cat = document.getElementById('art-cat-inp').value;
     const excerpt = document.getElementById('art-excerpt-inp').value.trim();
     const content = document.getElementById('art-content-inp').value.trim();
-    const image   = document.getElementById('art-img-inp').value.trim();
+    const image = document.getElementById('art-img-inp').value.trim();
 
-    if (!title || !cat || !excerpt || !content) {
-        toast('Remplir : Titre, Catégorie, Extrait et Contenu.', 'err'); return;
+    // ✅ Validation
+    if (!title || !cat || !excerpt || !content) { toast('Remplir tous les champs.', 'err'); return; }
+    if (title.length > 255) { toast('Titre trop long (max 255 caractères).', 'err'); return; }
+    if (content.length > 50000) { toast('Contenu trop long (max 50 000 caractères).', 'err'); return; }
+
+    // ✅ Validation URL image
+    let imageUrl = null;
+    if (image) {
+        try {
+            const parsed = new URL(image);
+            if (['http:', 'https:'].includes(parsed.protocol)) {
+                imageUrl = image;
+            } else {
+                toast('URL image invalide (http ou https requis).', 'err'); return;
+            }
+        } catch { toast('URL image invalide.', 'err'); return; }
     }
 
     const slug_art = title.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9\s]/g,'').trim().replace(/\s+/g,'-') + '-' + Date.now();
-
-    const btn_pub = document.getElementById('publish-btn');
-    btn_pub.disabled = true;
-    btn_pub.innerHTML = '⏳ Publication...';
-
+    const btn_pub = document.getElementById('publish-btn'); btn_pub.disabled = true; btn_pub.innerHTML = '⏳ Publication...';
     try {
-        const { data: newArt, error: pubErr } = await supabaseClient
-            .from('blog_articles')
-            .insert({
-                slug: slug_art, title, excerpt, content,
-                category: cat, image_url: image || null,
-                published: true, featured: false,
-                author: 'Jo D. Digital',
-            })
-            .select()
-            .single();
-
-        if (pubErr) {
-            if (pubErr.code === '42P01') {
-                toast('⚠️ Table blog_articles manquante. Exécuter blog_articles.sql dans Supabase.', 'err', 8000);
-            } else {
-                throw pubErr;
-            }
-        } else {
-            supabaseArticles.unshift({
-                id: newArt.id, slug: newArt.slug, title: newArt.title,
-                excerpt: newArt.excerpt, content: newArt.content,
-                category: newArt.category, image: newArt.image_url,
-                date: newArt.created_at.split('T')[0],
-                featured: false, removable: true,
-            });
-        }
-    } catch(e) {
-        toast('Erreur publication : ' + e.message, 'err', 6000);
-    } finally {
-        btn_pub.disabled = false;
-        btn_pub.innerHTML = '📝 Publier l\'article';
-    }
-
-    ['art-title-inp','art-cat-inp','art-excerpt-inp','art-content-inp','art-img-inp']
-        .forEach(id => { document.getElementById(id).value = ''; });
-
-    renderArticles();
-    renderAdminList();
-    buildCats();
-    toast(`Article "${title}" publié !`);
+        const { data: newArt, error: pubErr } = await supabaseClient.from('blog_articles').insert({ slug: slug_art, title, excerpt, content, category: cat, image_url: imageUrl, published: true, featured: false, author: 'Jo D. Digital' }).select().single();
+        if (pubErr) { if (pubErr.code === '42P01') { toast('⚠️ Table blog_articles manquante.', 'err', 8000); } else { throw pubErr; } }
+        else { supabaseArticles.unshift({ id: newArt.id, slug: newArt.slug, title: newArt.title, excerpt: newArt.excerpt, content: newArt.content, category: newArt.category, image: newArt.image_url, date: newArt.created_at.split('T')[0], featured: false, removable: true }); }
+    } catch(e) { toast('Erreur : ' + e.message, 'err', 6000); }
+    finally { btn_pub.disabled = false; btn_pub.innerHTML = '📝 Publier l\'article'; }
+    ['art-title-inp','art-cat-inp','art-excerpt-inp','art-content-inp','art-img-inp'].forEach(id => { document.getElementById(id).value = ''; });
+    renderArticles(); renderAdminList(); buildCats(); toast(`Article "${title}" publié !`);
 });
 
-/* ═══════════════════════════════════════════════════════════
-   CRUD — SUPPRIMER UN ARTICLE
-═══════════════════════════════════════════════════════════ */
 async function deleteArticle(id) {
     if (!isAdmin) return;
-
-    const isLocalOnly = id.startsWith('default-');
-    if (isLocalOnly) { toast('Les articles par défaut ne peuvent pas être supprimés.', 'err'); return; }
-
-    try {
-        const { error } = await supabaseClient
-            .from('blog_articles')
-            .delete()
-            .eq('id', id);
-
-        if (error) throw error;
-        supabaseArticles = supabaseArticles.filter(a => a.id !== id);
-    } catch(e) {
-        toast('Erreur suppression : ' + e.message, 'err');
-        return;
-    }
-
-    renderArticles();
-    renderAdminList();
-    buildCats();
-    toast('Article supprimé.');
+    if (id.startsWith('default-')) { toast('Articles par défaut non supprimables.', 'err'); return; }
+    try { const { error } = await supabaseClient.from('blog_articles').delete().eq('id', id); if (error) throw error; supabaseArticles = supabaseArticles.filter(a => a.id !== id); }
+    catch(e) { toast('Erreur : ' + e.message, 'err'); return; }
+    renderArticles(); renderAdminList(); buildCats(); toast('Article supprimé.');
 }
 
-/* ═══════════════════════════════════════════════════════════
-   PANNEAU ADMIN — LISTE
-═══════════════════════════════════════════════════════════ */
 function renderAdminList() {
     const list = document.getElementById('admin-art-list');
-    const arts = getAllArticles();
     list.innerHTML = '';
-
-    arts.forEach(art => {
-        const row = document.createElement('div');
-        row.className = 'admin-art-row';
-        row.innerHTML = `
-            <div class="admin-art-info">
-                <p class="admin-art-title">${art.title}</p>
-                <p class="admin-art-meta">${art.category} · ${new Date(art.date).toLocaleDateString('fr-FR')} ${!art.removable?'· <em style="color:rgba(255,255,255,.3)">Article par défaut</em>':''}</p>
-            </div>
-            ${art.removable ? `<button class="btn-del" data-id="${art.id}">🗑️ Supprimer</button>` : ''}
-        `;
-        const del = row.querySelector('.btn-del');
-        if (del) del.addEventListener('click', () => deleteArticle(art.id));
+    getAllArticles().forEach(art => {
+        const row = document.createElement('div'); row.className = 'admin-art-row';
+        row.innerHTML = `<div class="admin-art-info"><p class="admin-art-title">${art.title}</p><p class="admin-art-meta">${art.category} · ${new Date(art.date).toLocaleDateString('fr-FR')} ${!art.removable?'· <em style="color:rgba(255,255,255,.3)">Article par défaut</em>':''}</p></div>${art.removable ? `<button class="btn-del" data-id="${art.id}">🗑️</button>` : ''}`;
+        const del = row.querySelector('.btn-del'); if (del) del.addEventListener('click', () => deleteArticle(art.id));
         list.appendChild(row);
     });
 }
 
-/* ═══════════════════════════════════════════════════════════
-   DÉVEROUILLAGE ADMIN
-═══════════════════════════════════════════════════════════ */
 document.getElementById('nav-logo').addEventListener('click', () => {
-    logoClicks++;
-    clearTimeout(logoTimer);
-    logoTimer = setTimeout(() => { logoClicks = 0; }, 2000);
-
-    if (logoClicks >= 5) {
-        logoClicks = 0;
-        if (isAdmin) {
-            toggleAdmin(false);
-        } else {
-            document.getElementById('pwd-overlay').classList.add('show');
-            document.getElementById('pwd-inp').focus();
-        }
-    }
+    logoClicks++; clearTimeout(logoTimer); logoTimer = setTimeout(() => { logoClicks = 0; }, 2000);
+    if (logoClicks >= 5) { logoClicks = 0; if (isAdmin) { toggleAdmin(false); } else { document.getElementById('pwd-overlay').classList.add('show'); document.getElementById('pwd-inp').focus(); } }
 });
 
 document.getElementById('btn-unlock').addEventListener('click', unlock);
 document.getElementById('pwd-inp').addEventListener('keydown', e => { if(e.key==='Enter') unlock(); });
-document.getElementById('btn-cancel-pwd').addEventListener('click', () => {
-    document.getElementById('pwd-overlay').classList.remove('show');
-    document.getElementById('pwd-inp').value = '';
-    document.getElementById('pwd-err').style.display = 'none';
-});
+document.getElementById('btn-cancel-pwd').addEventListener('click', () => { document.getElementById('pwd-overlay').classList.remove('show'); document.getElementById('pwd-inp').value = ''; document.getElementById('pwd-err').style.display = 'none'; });
 
 async function unlock() {
     const input = document.getElementById('pwd-inp').value;
     const errorMsg = document.getElementById('pwd-err');
-    
-    try {
-        const valid = await CONFIG.verifyPassword(input, 'blog');
-        
-        if (valid) {
-            document.getElementById('pwd-overlay').classList.remove('show');
-            document.getElementById('pwd-inp').value = '';
-            errorMsg.style.display = 'none';
-            toggleAdmin(true);
-        } else {
-            errorMsg.textContent = "Mot de passe incorrect";
-            errorMsg.style.display = 'block';
-            document.getElementById('pwd-inp').value = '';
-            document.getElementById('pwd-inp').focus();
-        }
-    } catch (err) {
-        errorMsg.textContent = "Erreur de connexion au serveur";
-        errorMsg.style.display = 'block';
-    }
+    try { const valid = await CONFIG.verifyPassword(input, 'blog');
+        if (valid) { document.getElementById('pwd-overlay').classList.remove('show'); document.getElementById('pwd-inp').value = ''; errorMsg.style.display = 'none'; toggleAdmin(true); }
+        else { errorMsg.textContent = "Mot de passe incorrect"; errorMsg.style.display = 'block'; document.getElementById('pwd-inp').value = ''; document.getElementById('pwd-inp').focus(); }
+    } catch (err) { errorMsg.textContent = "Erreur de connexion"; errorMsg.style.display = 'block'; }
 }
 
-function toggleAdmin(on) {
-    isAdmin = on;
-    const panel = document.getElementById('admin-panel');
-    document.body.classList.toggle('admin-mode', on);
-    if (on) {
-        panel.classList.add('show');
-        renderAdminList();
-        panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        toast('Mode admin activé.');
-    } else {
-        panel.classList.remove('show');
-        toast('Mode admin désactivé.');
-    }
-    renderArticles();
-}
-
+function toggleAdmin(on) { isAdmin = on; const panel = document.getElementById('admin-panel'); document.body.classList.toggle('admin-mode', on); if (on) { panel.classList.add('show'); renderAdminList(); panel.scrollIntoView({ behavior: 'smooth', block: 'start' }); toast('Mode admin activé.'); } else { panel.classList.remove('show'); toast('Mode admin désactivé.'); } renderArticles(); }
 document.getElementById('close-admin-btn').addEventListener('click', () => toggleAdmin(false));
+document.getElementById('back-btn').addEventListener('click', () => { history.pushState({}, '', 'blog.html'); showList(); });
+window.addEventListener('popstate', () => { const p = new URLSearchParams(location.search); if (p.get('article')) showArticle(p.get('article')); else showList(); });
 
-/* ═══════════════════════════════════════════════════════════
-   NAVIGATION
-═══════════════════════════════════════════════════════════ */
-document.getElementById('back-btn').addEventListener('click', () => {
-    history.pushState({}, '', 'blog.html');
-    showList();
-});
-window.addEventListener('popstate', () => {
-    const p = new URLSearchParams(location.search);
-    if (p.get('article')) showArticle(p.get('article'));
-    else showList();
-});
-
-/* ═══════════════════════════════════════════════════════════
-   THÈME
-═══════════════════════════════════════════════════════════ */
 const blogThemeBtn = document.getElementById('blog-theme-toggle');
 if (blogThemeBtn) {
-    try {
-        if (localStorage.getItem('blog_theme') === 'light') {
-            document.body.classList.add('light');
-            blogThemeBtn.textContent = '🌙';
-        }
-    } catch(_){}
-
-    blogThemeBtn.addEventListener('click', () => {
-        const isLight = document.body.classList.toggle('light');
-        blogThemeBtn.textContent = isLight ? '🌙' : '☀️';
-        try { localStorage.setItem('blog_theme', isLight ? 'light' : 'dark'); } catch(_){}
-    });
+    try { if (localStorage.getItem('blog_theme') === 'light') { document.body.classList.add('light'); blogThemeBtn.textContent = '🌙'; } } catch(_){}
+    blogThemeBtn.addEventListener('click', () => { const isLight = document.body.classList.toggle('light'); blogThemeBtn.textContent = isLight ? '🌙' : '☀️'; try { localStorage.setItem('blog_theme', isLight ? 'light' : 'dark'); } catch(_){} });
 }
 
-/* ═══════════════════════════════════════════════════════════
-   INIT
-═══════════════════════════════════════════════════════════ */
-(async () => {
-    await initSupabase();
-    await loadSupabaseArticles();
-    articlesLoaded = false;
-    init();
-})();
+(async () => { await initSupabase(); await loadSupabaseArticles(); articlesLoaded = false; init(); })();
+</script>
+<script>
+if('serviceWorker' in navigator){navigator.serviceWorker.register('/sw.js')}
 </script>
 </body>
 </html>

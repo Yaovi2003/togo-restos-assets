@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Commander — Restos Lomé</title>
+
+    <!-- ✅ Content Security Policy (AJOUTÉ) -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com 'unsafe-inline'; style-src 'self' https://fonts.googleapis.com 'unsafe-inline'; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://*.supabase.co;">
+
+    <link rel="manifest" href="/manifest.json">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="config.js"></script>
+    <style>
+        :root{--gold:#c5a059;--bg:#080808;--s:#141414;--s2:#1c1c1c;--b:rgba(255,255,255,.08);--b2:rgba(255,255,255,.14);--t:#f0ece4;--td:#6e6a64;--success:#22c55e;--danger:#ef4444;--r:12px}
+        *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+        body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--t);min-height:100vh;padding:20px;-webkit-font-smoothing:antialiased}
+        .container{max-width:520px;margin:0 auto}
+        h1{font-family:'Syne',sans-serif;font-size:1.5rem;margin-bottom:24px;color:var(--gold);text-align:center}
+        .card{background:var(--s);border:1px solid var(--b);border-radius:var(--r);padding:20px;margin-bottom:16px}
+        .card-title{font-family:'Syne',sans-serif;font-size:1rem;font-weight:700;margin-bottom:16px;padding-bottom:10px;border-bottom:1px solid var(--b)}
+        .field{display:flex;flex-direction:column;gap:5px;margin-bottom:14px}
+        .field label{font-size:.73rem;font-weight:600;color:var(--td);text-transform:uppercase;letter-spacing:.06em}
+        .field input,.field select,.field textarea{background:var(--s2);border:1.5px solid var(--b2);color:var(--t);padding:10px 12px;border-radius:8px;font-size:.9rem;outline:none;font-family:'DM Sans',sans-serif;width:100%}
+        .field input:focus,.field select:focus{border-color:var(--gold)}
+        .item-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--b)}
+        .item-name{flex:1;font-size:.85rem}
+        .item-qty{font-family:'IBM Plex Mono',monospace;font-size:.8rem;color:var(--gold)}
+        .item-price{font-family:'IBM Plex Mono',monospace;font-size:.85rem;color:var(--gold);font-weight:700}
+        .total-row{display:flex;justify-content:space-between;padding:10px 0;font-weight:700}
+        .total-row.big{font-size:1.2rem;color:var(--gold)}
+        .btn{display:flex;align-items:center;justify-content:center;gap:8px;padding:14px;border-radius:var(--r);font-size:.9rem;font-weight:700;border:none;cursor:pointer;width:100%;transition:all .2s}
+        .btn-primary{background:var(--gold);color:#000}
+        .btn-primary:hover{background:#d4ae6a}
+        .btn:disabled{opacity:.5;pointer-events:none}
+        .spinner{width:16px;height:16px;border:2px solid rgba(0,0,0,.2);border-top-color:#000;border-radius:50%;animation:spin .7s linear infinite}
+        @keyframes spin{to{transform:rotate(360deg)}}
+        .alert{padding:12px;border-radius:8px;font-size:.82rem;margin-bottom:12px;display:none}
+        .alert-ok{background:rgba(34,197,94,.1);color:var(--success);border:1px solid rgba(34,197,94,.2)}
+        .alert-err{background:rgba(239,68,68,.1);color:var(--danger);border:1px solid rgba(239,68,68,.2)}
+        .delivery-option{padding:12px;border:1.5px solid var(--b2);border-radius:8px;margin-bottom:8px;cursor:pointer;transition:all .2s}
+        .delivery-option.selected{border-color:var(--gold);background:rgba(197,160,89,.05)}
+        .payment-option{padding:12px;border:1.5px solid var(--b2);border-radius:8px;margin-bottom:8px;cursor:pointer;transition:all .2s;display:flex;align-items:center;gap:10px}
+        .payment-option.selected{border-color:var(--gold);background:rgba(197,160,89,.05)}
+        .payment-option .pay-icon{font-size:1.5rem}
+        .payment-info{display:none;background:rgba(197,160,89,.05);border:1px solid rgba(197,160,89,.25);border-radius:8px;padding:12px;margin-top:4px;margin-bottom:12px;font-size:.8rem;color:var(--td);line-height:1.5}
+        .payment-info.show{display:block}
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>🛒 Finaliser ma commande</h1>
+
+    <!-- ✅ Message d'erreur (AJOUTÉ) -->
+    <div id="error-msg" class="alert alert-err"></div>
+
+    <div id="loading-state" style="text-align:center;padding:40px;"><p style="color:var(--td);">Chargement...</p></div>
+
+    <div id="checkout-form" style="display:none;">
+        <div class="card">
+            <h2 class="card-title">📋 Résumé</h2>
+            <div id="items-summary"></div>
+            <div class="total-row" style="color:var(--td);"><span>Sous-total</span><span id="subtotal-display">0 FCFA</span></div>
+            <div class="total-row" style="color:var(--td);"><span>Livraison</span><span id="delivery-display">0 FCFA</span></div>
+            <div class="total-row" style="color:var(--success);" id="discount-row" hidden><span>Réduction</span><span id="discount-display">-0 FCFA</span></div>
+            <div class="total-row big"><span>TOTAL</span><span id="total-display">0 FCFA</span></div>
+        </div>
+
+        <div class="card">
+            <h2 class="card-title">🏍️ Type de commande</h2>
+            <div class="delivery-option selected" data-type="sur_place" onclick="selectDelivery('sur_place')"><strong>🏪 Sur place</strong> — Gratuit</div>
+            <div class="delivery-option" data-type="livraison" onclick="selectDelivery('livraison')"><strong>🛵 Livraison</strong> — +500 FCFA</div>
+            <div id="address-field" style="display:none;"><div class="field"><label>Adresse de livraison</label><input type="text" id="customer-address" placeholder="Rue, quartier, Lomé" maxlength="200"></div></div>
+        </div>
+
+        <div class="card">
+            <h2 class="card-title">💳 Mode de paiement</h2>
+            <div class="payment-option selected" data-payment="especes" onclick="selectPayment('especes')">
+                <span class="pay-icon">💵</span><strong>Espèces</strong> — Paiement à la livraison/retrait
+            </div>
+            <div class="payment-option" data-payment="tmoney" onclick="selectPayment('tmoney')">
+                <span class="pay-icon">📱</span><strong>TMoney</strong> — Transfert mobile
+            </div>
+            <div id="tmoney-info" class="payment-info">
+                📱 Envoyez le montant au <strong id="tmoney-number">—</strong><br>
+                🏷️ Référence : <strong id="tmoney-ref">CMD-XXX</strong>
+            </div>
+            <div class="payment-option" data-payment="flooz" onclick="selectPayment('flooz')">
+                <span class="pay-icon">📱</span><strong>Flooz</strong> — Transfert mobile
+            </div>
+            <div id="flooz-info" class="payment-info">
+                📱 Envoyez le montant au <strong id="flooz-number">—</strong><br>
+                🏷️ Référence : <strong id="flooz-ref">CMD-XXX</strong>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2 class="card-title">👤 Vos informations</h2>
+            <div class="field"><label>Nom complet *</label><input type="text" id="customer-name" placeholder="Jean-Michel Kodjo" maxlength="100"></div>
+            <div class="field"><label>Numéro WhatsApp *</label><input type="tel" id="customer-phone" placeholder="22890010203" maxlength="20"></div>
+            <div class="field"><label>Note (optionnel)</label><textarea id="order-notes" rows="2" placeholder="Allergies, préférences..." maxlength="500"></textarea></div>
+        </div>
+
+        <button class="btn btn-primary" id="submit-order-btn" style="font-size:1rem;padding:16px;">✅ Confirmer la commande</button>
+    </div>
+
+    <div id="success-state" style="display:none;text-align:center;padding:40px;">
+        <div style="font-size:3rem;margin-bottom:16px;">🎉</div>
+        <h2 style="font-family:'Syne',sans-serif;color:var(--gold);">Commande confirmée !</h2>
+        <p style="color:var(--td);margin:16px 0;line-height:1.6;" id="success-msg"></p>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center;">
+            <button class="btn btn-primary" style="width:auto;" onclick="downloadInvoice()">🧾 Télécharger la facture</button>
+            <button class="btn" style="width:auto;background:var(--s2);color:var(--t);border:1px solid var(--b2);" onclick="trackOrder()">📦 Suivre</button>
+            <a href="/" class="btn" style="width:auto;background:var(--s2);color:var(--t);border:1px solid var(--b2);text-decoration:none;">← Retour</a>
+        </div>
+    </div>
+</div>
+
+<script>
+'use strict';
+
+let supabaseClient = null;
+let cartData = {};
+let restaurantData = null;
+let orderId = null;
+let deliveryType = 'sur_place';
+let deliveryFee = 0;
+let discountAmount = 0;
+let paymentMethod = 'especes';
+
+const $ = id => document.getElementById(id);
+const fmt = n => n.toLocaleString('fr-FR').replace(/\u202F/g, ' ') + ' FCFA';
+const fmtPDF = n => n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ') + ' FCFA';
+
+// ✅ FONCTIONS DE SÉCURITÉ (AJOUTÉES)
+
+// Échappement HTML pour prévenir XSS
+function escapeHTML(str) {
+    if (!str && str !== 0) return '';
+    const div = document.createElement('div');
+    div.textContent = String(str);
+    return div.innerHTML;
+}
+
+// Validation de numéro de téléphone
+function sanitizePhone(phone) {
+    if (!phone) return '';
+    return String(phone).replace(/[^0-9+]/g, '').substring(0, 20);
+}
+
+// Validation d'URL
+function sanitizeURL(url) {
+    if (!url) return '#';
+    try {
+        const parsed = new URL(url);
+        if (!['http:', 'https:', 'tel:', 'mailto:'].includes(parsed.protocol)) return '#';
+        return url;
+    } catch {
+        if (url.startsWith('tel:') || url.startsWith('mailto:')) return url;
+        return '#';
+    }
+}
+
+// Afficher une erreur
+function showError(msg) {
+    const el = $('error-msg');
+    el.textContent = msg;
+    el.style.display = 'block';
+    setTimeout(() => { el.style.display = 'none'; }, 5000);
+}
+
+function hideError() {
+    $('error-msg').style.display = 'none';
+}
+
+async function init() {
+    await CONFIG.load();
+    supabaseClient = supabase.createClient(CONFIG.supabaseUrl, CONFIG.supabaseKey);
+
+    const params = new URLSearchParams(location.search);
+    const slug = params.get('id') || params.get('slug');
+    if (!slug) { showError('Restaurant non spécifié.'); return; }
+
+    const cartKey = `c_${slug}`;
+    const stored = localStorage.getItem(cartKey);
+    if (!stored) { showError('Panier vide.'); return; }
+    
+    try {
+        cartData = JSON.parse(stored);
+    } catch(e) {
+        showError('Erreur lecture panier.');
+        return;
+    }
+
+    if (!Object.keys(cartData).length) {
+        showError('Panier vide.');
+        return;
+    }
+
+    // ✅ VÉRIFIER QUE LE SLUG EST VALIDE
+    if (!/^[a-z0-9-]+$/.test(slug)) {
+        showError('Restaurant invalide.');
+        return;
+    }
+
+    const { data: r } = await supabaseClient.from('restaurants').select('*').eq('slug', slug).single();
+    if (!r) { showError('Restaurant introuvable.'); return; }
+    restaurantData = r;
+
+    // Mettre à jour les numéros TMoney/Flooz avec sanitization
+    if (r.whatsapp) {
+        const sanitizedWA = sanitizePhone(r.whatsapp);
+        $('tmoney-number').textContent = sanitizedWA;
+        $('flooz-number').textContent = sanitizedWA;
+    }
+    $('tmoney-ref').textContent = 'CMD-' + Date.now().toString(36).toUpperCase();
+    $('flooz-ref').textContent = 'CMD-' + Date.now().toString(36).toUpperCase();
+
+    displaySummary();
+    $('loading-state').style.display = 'none';
+    $('checkout-form').style.display = 'block';
+}
+
+function displaySummary() {
+    const items = Object.values(cartData);
+    let subtotal = items.reduce((s, i) => s + i.price * i.qty, 0);
+    $('items-summary').innerHTML = items.map(i => 
+        `<div class="item-row"><span class="item-name">${escapeHTML(i.name)}</span><span class="item-qty">×${i.qty}</span><span class="item-price">${fmt(i.price * i.qty)}</span></div>`
+    ).join('');
+    updateTotals(subtotal);
+}
+
+function selectDelivery(type) {
+    deliveryType = type;
+    document.querySelectorAll('.delivery-option').forEach(d => d.classList.remove('selected'));
+    document.querySelector(`[data-type="${type}"]`).classList.add('selected');
+    deliveryFee = type === 'livraison' ? 500 : 0;
+    $('address-field').style.display = type === 'livraison' ? 'block' : 'none';
+    const items = Object.values(cartData);
+    updateTotals(items.reduce((s, i) => s + i.price * i.qty, 0));
+}
+
+function selectPayment(method) {
+    paymentMethod = method;
+    document.querySelectorAll('.payment-option').forEach(p => p.classList.remove('selected'));
+    document.querySelector(`[data-payment="${method}"]`).classList.add('selected');
+    document.querySelectorAll('.payment-info').forEach(p => p.classList.remove('show'));
+    if (method === 'tmoney') $('tmoney-info').classList.add('show');
+    if (method === 'flooz') $('flooz-info').classList.add('show');
+}
+
+function updateTotals(subtotal) {
+    const total = subtotal + deliveryFee - discountAmount;
+    $('subtotal-display').textContent = fmt(subtotal);
+    $('delivery-display').textContent = fmt(deliveryFee);
+    $('total-display').textContent = fmt(total);
+}
+
+$('submit-order-btn').addEventListener('click', async () => {
+    hideError();
+    
+    const name = $('customer-name').value.trim();
+    const phone = sanitizePhone($('customer-phone').value.trim());
+    const address = deliveryType === 'livraison' ? $('customer-address').value.trim() : null;
+    const notes = $('order-notes').value.trim();
+
+    // ✅ VALIDATION RENFORCÉE
+    if (!name) { showError('Veuillez entrer votre nom.'); $('customer-name').focus(); return; }
+    if (name.length < 2) { showError('Nom trop court.'); return; }
+    if (name.length > 100) { showError('Nom trop long (max 100 caractères).'); return; }
+    
+    if (!phone) { showError('Veuillez entrer votre numéro WhatsApp.'); $('customer-phone').focus(); return; }
+    if (phone.length < 8) { showError('Numéro de téléphone invalide.'); return; }
+    
+    if (deliveryType === 'livraison' && !address) { 
+        showError('Veuillez entrer votre adresse de livraison.'); 
+        $('customer-address').focus(); 
+        return; 
+    }
+    if (address && address.length > 200) { showError('Adresse trop longue (max 200 caractères).'); return; }
+    if (notes && notes.length > 500) { showError('Note trop longue (max 500 caractères).'); return; }
+
+    const btn = $('submit-order-btn');
+    btn.disabled = true; btn.innerHTML = '<div class="spinner"></div> Confirmation...';
+
+    const items = Object.values(cartData);
+    const subtotal = items.reduce((s, i) => s + i.price * i.qty, 0);
+    const total = subtotal + deliveryFee - discountAmount;
+
+    // ✅ VÉRIFICATION QUE LE TOTAL EST POSITIF
+    if (total <= 0) {
+        showError('Erreur : total de commande invalide.');
+        btn.disabled = false;
+        btn.innerHTML = '✅ Confirmer la commande';
+        return;
+    }
+
+    try {
+        const { data: order } = await supabaseClient.from('orders').insert({
+            restaurant_id: restaurantData.id,
+            customer_name: escapeHTML(name), 
+            customer_phone: phone,
+            customer_address: address ? escapeHTML(address) : null, 
+            delivery_type: deliveryType,
+            delivery_fee: deliveryFee, 
+            subtotal: subtotal, 
+            discount: discountAmount,
+            total: total, 
+            status: 'confirmé', 
+            notes: notes ? escapeHTML(notes) : null,
+            payment_method: paymentMethod
+        }).select().single();
+
+        orderId = order.id;
+
+        const orderItems = items.map(i => ({ 
+            order_id: order.id, 
+            item_name: escapeHTML(i.name), 
+            item_price: i.price, 
+            quantity: i.qty 
+        }));
+        await supabaseClient.from('order_items').insert(orderItems);
+
+        // Enregistrer la transaction pour la comptabilité
+        await supabaseClient.from('transactions').insert({
+            restaurant_id: restaurantData.id,
+            order_id: order.id,
+            amount: total,
+            payment_method: paymentMethod,
+            type: deliveryType === 'livraison' ? 'livraison' : 'sur_place',
+            description: `Commande ${escapeHTML(name)}`
+        });
+
+        let waMsg = `*NOUVELLE COMMANDE — ${escapeHTML(restaurantData.name)}*\n\n👤 ${escapeHTML(name)}\n📞 ${phone}`;
+        if (address) waMsg += `\n📍 ${escapeHTML(address)}`;
+        waMsg += `\n💳 Paiement : ${paymentMethod === 'tmoney' ? 'TMoney' : paymentMethod === 'flooz' ? 'Flooz' : 'Espèces'}`;
+        waMsg += `\n\n📋 *Plats :*\n`;
+        items.forEach((i, n) => waMsg += `  ${n+1}. ${escapeHTML(i.name)} ×${i.qty} = ${fmt(i.price * i.qty)}\n`);
+        waMsg += `\n💰 *TOTAL : ${fmt(total)}*`;
+        if (notes) waMsg += `\n📝 Note : ${escapeHTML(notes)}`;
+        
+        if (restaurantData.whatsapp) {
+            window.open(sanitizeURL(`https://wa.me/${sanitizePhone(restaurantData.whatsapp)}?text=${encodeURIComponent(waMsg)}`), '_blank', 'noopener,noreferrer');
+        }
+
+        localStorage.removeItem(`c_${restaurantData.slug}`);
+        $('checkout-form').style.display = 'none';
+        $('success-state').style.display = 'block';
+        $('success-msg').innerHTML = `Votre commande <strong>#${escapeHTML(order.id?.substring(0, 8) || 'N/A')}</strong> a été envoyée.<br>Le restaurant vous contactera via WhatsApp.`;
+    } catch(e) { 
+        console.error('Erreur commande:', e);
+        showError('Erreur lors de la commande : ' + escapeHTML(e.message)); 
+        btn.disabled = false; 
+        btn.innerHTML = '✅ Confirmer la commande'; 
+    }
+});
+
+function downloadInvoice() {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+    const items = Object.values(cartData);
+    const subtotal = items.reduce((s, i) => s + i.price * i.qty, 0);
+    const total = subtotal + deliveryFee - discountAmount;
+
+    doc.setFontSize(18); doc.text('FACTURE', 105, 20, { align: 'center' });
+    doc.setFontSize(12); doc.text(escapeHTML(restaurantData?.name || ''), 105, 30, { align: 'center' });
+    doc.setFontSize(10); doc.text(`Commande #${orderId?.substring(0, 8) || 'N/A'}`, 105, 38, { align: 'center' });
+    doc.text(`Date : ${new Date().toLocaleDateString('fr-FR')}`, 105, 45, { align: 'center' });
+    doc.text(`Paiement : ${paymentMethod === 'tmoney' ? 'TMoney' : paymentMethod === 'flooz' ? 'Flooz' : 'Espèces'}`, 105, 52, { align: 'center' });
+
+    let y = 66;
+    doc.text('Plat', 15, y); doc.text('Qté', 110, y); doc.text('Prix', 150, y); doc.line(15, y+3, 195, y+3);
+    y += 12;
+    items.forEach(i => { 
+        doc.text(escapeHTML(i.name).substring(0, 30), 15, y); 
+        doc.text(`×${i.qty}`, 110, y); 
+        doc.text(fmtPDF(i.price * i.qty), 150, y); 
+        y += 8; 
+    });
+    y += 8; doc.line(15, y, 195, y); y += 8;
+    if (deliveryFee > 0) { doc.text(`Livraison : ${fmtPDF(deliveryFee)}`, 15, y); y += 6; }
+    doc.setFontSize(12); doc.text(`TOTAL : ${fmtPDF(total)}`, 15, y);
+
+    doc.save(`facture-${orderId?.substring(0, 8) || 'commande'}.pdf`);
+}
+
+function trackOrder() { 
+    if (orderId) window.location.href = `/tracking.html?id=${encodeURIComponent(orderId)}`; 
+}
+
+init();
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js');
+</script>
+</body>
+</html>

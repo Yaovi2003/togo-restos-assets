@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Suivi de commande — Restos Lomé</title>
+
+    <!-- ✅ Content Security Policy (AJOUTÉ) -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net 'unsafe-inline'; style-src 'self' https://fonts.googleapis.com 'unsafe-inline'; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https://*.supabase.co;">
+
+    <link rel="manifest" href="/manifest.json">
+    <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+    <script src="config.js"></script>
+    <style>
+        :root{--gold:#c5a059;--bg:#080808;--s:#141414;--s2:#1c1c1c;--b:rgba(255,255,255,.08);--b2:rgba(255,255,255,.14);--t:#f0ece4;--td:#6e6a64;--success:#22c55e;--r:12px}
+        *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+        body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--t);min-height:100vh;padding:20px;-webkit-font-smoothing:antialiased}
+        .container{max-width:480px;margin:0 auto;text-align:center}
+        h1{font-family:'Syne',sans-serif;font-size:1.5rem;margin-bottom:24px;color:var(--gold)}
+        .status-tracker{display:flex;flex-direction:column;gap:0;margin-bottom:32px}
+        .status-step{display:flex;align-items:center;gap:12px;padding:16px;position:relative}
+        .status-step::before{content:'';position:absolute;left:28px;top:100%;width:2px;height:calc(100% - 32px);background:var(--b2)}
+        .status-step:last-child::before{display:none}
+        .status-dot{width:16px;height:16px;border-radius:50%;flex-shrink:0;border:3px solid var(--b2);z-index:1}
+        .status-dot.done{background:var(--success);border-color:var(--success)}
+        .status-dot.current{background:var(--gold);border-color:var(--gold);animation:pulse 1.5s infinite}
+        @keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(197,160,89,.4)}50%{box-shadow:0 0 0 12px rgba(197,160,89,0)}}
+        .status-label{font-size:.9rem;font-weight:600}
+        .status-label.done{color:var(--success)}
+        .status-label.current{color:var(--gold)}
+        .status-label.pending{color:var(--td)}
+        .info-card{background:var(--s);border:1px solid var(--b);border-radius:var(--r);padding:20px;margin-bottom:16px;text-align:left}
+        .info-row{display:flex;justify-content:space-between;padding:6px 0;font-size:.85rem}
+        .info-row .label{color:var(--td)}
+        .info-row .value{font-family:'IBM Plex Mono',monospace;font-weight:600}
+        .btn{display:inline-flex;align-items:center;gap:8px;padding:12px 24px;border-radius:8px;font-weight:700;text-decoration:none;cursor:pointer;transition:all .2s;border:none;font-size:.9rem}
+        .btn-primary{background:var(--gold);color:#000}
+        .btn-secondary{background:var(--s2);color:var(--t);border:1px solid var(--b2)}
+        #error-msg{display:none;background:rgba(239,68,68,.1);color:#ef4444;border:1px solid rgba(239,68,68,.2);padding:12px;border-radius:8px;margin-bottom:16px;font-size:.85rem}
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>📦 Suivi de commande</h1>
+
+    <!-- ✅ Message d'erreur (AJOUTÉ) -->
+    <div id="error-msg"></div>
+
+    <div id="loading-state" style="padding:40px;color:var(--td);">Chargement...</div>
+    <div id="tracking-content" style="display:none;">
+        <div class="status-tracker" id="status-tracker"></div>
+        <div class="info-card">
+            <h2 style="font-family:'Syne',sans-serif;font-size:1rem;margin-bottom:12px;">📋 Détails</h2>
+            <div class="info-row"><span class="label">Commande</span><span class="value" id="order-id-display"></span></div>
+            <div class="info-row"><span class="label">Date</span><span class="value" id="order-date"></span></div>
+            <div class="info-row"><span class="label">Type</span><span class="value" id="order-type"></span></div>
+            <div class="info-row"><span class="label">Client</span><span class="value" id="order-customer"></span></div>
+            <div class="info-row"><span class="label">Total</span><span class="value" style="color:var(--gold);" id="order-total"></span></div>
+            <div class="info-row"><span class="label">Statut</span><span class="value" style="color:var(--gold);" id="order-status"></span></div>
+        </div>
+        <div style="display:flex;gap:10px;justify-content:center;">
+            <a href="/" class="btn btn-secondary">← Accueil</a>
+        </div>
+    </div>
+</div>
+
+<script>
+'use strict';
+
+let supabaseClient = null;
+const statuses = ['confirmé', 'préparé', 'prêt', 'livré'];
+const statusLabels = { 'confirmé': 'Confirmé', 'préparé': 'En préparation', 'prêt': 'Prêt', 'livré': 'Livré' };
+
+// ✅ FONCTIONS DE SÉCURITÉ (AJOUTÉES)
+
+function escapeHTML(str) {
+    if (!str && str !== 0) return '';
+    const div = document.createElement('div');
+    div.textContent = String(str);
+    return div.innerHTML;
+}
+
+function showError(msg) {
+    const el = document.getElementById('error-msg');
+    el.textContent = msg;
+    el.style.display = 'block';
+    document.getElementById('loading-state').style.display = 'none';
+}
+
+async function init() {
+    await CONFIG.load();
+    supabaseClient = supabase.createClient(CONFIG.supabaseUrl, CONFIG.supabaseKey);
+
+    const params = new URLSearchParams(location.search);
+    const orderId = params.get('id');
+    
+    if (!orderId) { 
+        showError('Aucune commande spécifiée. Veuillez utiliser le lien de suivi fourni.'); 
+        return; 
+    }
+
+    // ✅ VALIDATION DE L'ID DE COMMANDE (format UUID)
+    if (!/^[a-f0-9-]{36}$/i.test(orderId) && !/^[a-f0-9-]+$/i.test(orderId)) {
+        showError('Identifiant de commande invalide.');
+        return;
+    }
+
+    const { data: order } = await supabaseClient.from('orders')
+        .select('*, restaurant:restaurant_id(name)')
+        .eq('id', orderId)
+        .single();
+    
+    if (!order) { 
+        showError('Commande introuvable. Vérifiez le numéro de commande.'); 
+        return; 
+    }
+
+    document.getElementById('loading-state').style.display = 'none';
+    document.getElementById('tracking-content').style.display = 'block';
+
+    // ✅ ÉCHAPPEMENT DE TOUTES LES DONNÉES
+    document.getElementById('order-id-display').textContent = '#' + (order.id?.substring(0, 8) || 'N/A');
+    document.getElementById('order-date').textContent = new Date(order.created_at).toLocaleDateString('fr-FR', {
+        day:'numeric', month:'long', year:'numeric', hour:'2-digit', minute:'2-digit'
+    });
+    document.getElementById('order-type').textContent = order.delivery_type === 'livraison' ? '🛵 Livraison' : '🏪 Sur place';
+    document.getElementById('order-customer').textContent = escapeHTML(order.customer_name || '—');
+    document.getElementById('order-total').textContent = new Intl.NumberFormat('fr-FR').format(order.total) + ' FCFA';
+    document.getElementById('order-status').textContent = statusLabels[order.status] || escapeHTML(order.status || '—');
+
+    const tracker = document.getElementById('status-tracker');
+    const currentIdx = statuses.indexOf(order.status);
+
+    tracker.innerHTML = statuses.map((s, i) => {
+        let dotClass = 'status-dot ';
+        let labelClass = 'status-label ';
+        if (i < currentIdx || (currentIdx === 3 && i === 3)) { 
+            dotClass += 'done'; labelClass += 'done'; 
+        } else if (i === currentIdx) { 
+            dotClass += 'current'; labelClass += 'current'; 
+        } else { 
+            labelClass += 'pending'; 
+        }
+        return `<div class="status-step"><div class="${dotClass}"></div><span class="${labelClass}">${escapeHTML(statusLabels[s])}</span></div>`;
+    }).join('');
+}
+
+init();
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js');
+</script>
+</body>
+</html>
