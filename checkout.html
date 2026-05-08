@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Commander — Restos Lomé</title>
 
-    <!-- ✅ Content Security Policy (AJOUTÉ) -->
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com 'unsafe-inline'; style-src 'self' https://fonts.googleapis.com 'unsafe-inline'; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://*.supabase.co;">
+    <!-- CSP — BUG-FIX: suppression frame-ancestors (ignoré en meta), ajout cdn.jsdelivr.net dans connect-src -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com 'unsafe-inline'; style-src 'self' https://fonts.googleapis.com 'unsafe-inline'; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://*.supabase.co https://cdn.jsdelivr.net;">
 
     <link rel="manifest" href="/manifest.json">
     <meta name="mobile-web-app-capable" content="yes">
@@ -55,7 +55,6 @@
 <div class="container">
     <h1>🛒 Finaliser ma commande</h1>
 
-    <!-- ✅ Message d'erreur (AJOUTÉ) -->
     <div id="error-msg" class="alert alert-err"></div>
 
     <div id="loading-state" style="text-align:center;padding:40px;"><p style="color:var(--td);">Chargement...</p></div>
@@ -136,9 +135,6 @@ const $ = id => document.getElementById(id);
 const fmt = n => n.toLocaleString('fr-FR').replace(/\u202F/g, ' ') + ' FCFA';
 const fmtPDF = n => n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ') + ' FCFA';
 
-// ✅ FONCTIONS DE SÉCURITÉ (AJOUTÉES)
-
-// Échappement HTML pour prévenir XSS
 function escapeHTML(str) {
     if (!str && str !== 0) return '';
     const div = document.createElement('div');
@@ -146,13 +142,11 @@ function escapeHTML(str) {
     return div.innerHTML;
 }
 
-// Validation de numéro de téléphone
 function sanitizePhone(phone) {
     if (!phone) return '';
     return String(phone).replace(/[^0-9+]/g, '').substring(0, 20);
 }
 
-// Validation d'URL
 function sanitizeURL(url) {
     if (!url) return '#';
     try {
@@ -165,7 +159,6 @@ function sanitizeURL(url) {
     }
 }
 
-// Afficher une erreur
 function showError(msg) {
     const el = $('error-msg');
     el.textContent = msg;
@@ -201,7 +194,6 @@ async function init() {
         return;
     }
 
-    // ✅ VÉRIFIER QUE LE SLUG EST VALIDE
     if (!/^[a-z0-9-]+$/.test(slug)) {
         showError('Restaurant invalide.');
         return;
@@ -211,14 +203,17 @@ async function init() {
     if (!r) { showError('Restaurant introuvable.'); return; }
     restaurantData = r;
 
-    // Mettre à jour les numéros TMoney/Flooz avec sanitization
-    if (r.whatsapp) {
-        const sanitizedWA = sanitizePhone(r.whatsapp);
-        $('tmoney-number').textContent = sanitizedWA;
-        $('flooz-number').textContent = sanitizedWA;
-    }
-    $('tmoney-ref').textContent = 'CMD-' + Date.now().toString(36).toUpperCase();
-    $('flooz-ref').textContent = 'CMD-' + Date.now().toString(36).toUpperCase();
+    // ✅ BUG-15 CORRIGÉ : TMoney et Flooz utilisent leurs propres numéros dédiés
+    // avec fallback sur whatsapp si les champs tmoney_number / flooz_number ne sont pas renseignés
+    const tmoneyNum = sanitizePhone(r.tmoney_number || r.whatsapp || '');
+    const floozNum  = sanitizePhone(r.flooz_number  || r.whatsapp || '');
+
+    $('tmoney-number').textContent = tmoneyNum || '—';
+    $('flooz-number').textContent  = floozNum  || '—';
+
+    const cmdRef = 'CMD-' + Date.now().toString(36).toUpperCase();
+    $('tmoney-ref').textContent = cmdRef;
+    $('flooz-ref').textContent  = cmdRef;
 
     displaySummary();
     $('loading-state').style.display = 'none';
@@ -268,14 +263,11 @@ $('submit-order-btn').addEventListener('click', async () => {
     const address = deliveryType === 'livraison' ? $('customer-address').value.trim() : null;
     const notes = $('order-notes').value.trim();
 
-    // ✅ VALIDATION RENFORCÉE
     if (!name) { showError('Veuillez entrer votre nom.'); $('customer-name').focus(); return; }
     if (name.length < 2) { showError('Nom trop court.'); return; }
     if (name.length > 100) { showError('Nom trop long (max 100 caractères).'); return; }
-    
     if (!phone) { showError('Veuillez entrer votre numéro WhatsApp.'); $('customer-phone').focus(); return; }
     if (phone.length < 8) { showError('Numéro de téléphone invalide.'); return; }
-    
     if (deliveryType === 'livraison' && !address) { 
         showError('Veuillez entrer votre adresse de livraison.'); 
         $('customer-address').focus(); 
@@ -291,7 +283,6 @@ $('submit-order-btn').addEventListener('click', async () => {
     const subtotal = items.reduce((s, i) => s + i.price * i.qty, 0);
     const total = subtotal + deliveryFee - discountAmount;
 
-    // ✅ VÉRIFICATION QUE LE TOTAL EST POSITIF
     if (total <= 0) {
         showError('Erreur : total de commande invalide.');
         btn.disabled = false;
@@ -325,7 +316,6 @@ $('submit-order-btn').addEventListener('click', async () => {
         }));
         await supabaseClient.from('order_items').insert(orderItems);
 
-        // Enregistrer la transaction pour la comptabilité
         await supabaseClient.from('transactions').insert({
             restaurant_id: restaurantData.id,
             order_id: order.id,
@@ -367,7 +357,7 @@ function downloadInvoice() {
     const total = subtotal + deliveryFee - discountAmount;
 
     doc.setFontSize(18); doc.text('FACTURE', 105, 20, { align: 'center' });
-    doc.setFontSize(12); doc.text(escapeHTML(restaurantData?.name || ''), 105, 30, { align: 'center' });
+    doc.setFontSize(12); doc.text(restaurantData?.name || '', 105, 30, { align: 'center' });
     doc.setFontSize(10); doc.text(`Commande #${orderId?.substring(0, 8) || 'N/A'}`, 105, 38, { align: 'center' });
     doc.text(`Date : ${new Date().toLocaleDateString('fr-FR')}`, 105, 45, { align: 'center' });
     doc.text(`Paiement : ${paymentMethod === 'tmoney' ? 'TMoney' : paymentMethod === 'flooz' ? 'Flooz' : 'Espèces'}`, 105, 52, { align: 'center' });
@@ -376,7 +366,7 @@ function downloadInvoice() {
     doc.text('Plat', 15, y); doc.text('Qté', 110, y); doc.text('Prix', 150, y); doc.line(15, y+3, 195, y+3);
     y += 12;
     items.forEach(i => { 
-        doc.text(escapeHTML(i.name).substring(0, 30), 15, y); 
+        doc.text((i.name || '').substring(0, 30), 15, y); 
         doc.text(`×${i.qty}`, 110, y); 
         doc.text(fmtPDF(i.price * i.qty), 150, y); 
         y += 8; 
