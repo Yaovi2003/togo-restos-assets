@@ -13,15 +13,14 @@
     <meta name="geo.position" content="6.1375;1.2123">
     <meta name="ICBM" content="6.1375, 1.2123">
 
-    <!-- ✅ CSP Header -->
+    <!-- CSP — BUG-FIX: suppression frame-ancestors (ignoré en meta), ajout cdn.jsdelivr.net dans connect-src -->
     <meta http-equiv="Content-Security-Policy" content="
         default-src 'self';
         script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net;
         style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
         img-src 'self' data: https: blob:;
         font-src 'self' https://fonts.gstatic.com;
-        connect-src 'self' https://qlkhzplfigyrbfizsnkp.supabase.co;
-        frame-ancestors 'none';
+        connect-src 'self' https://qlkhzplfigyrbfizsnkp.supabase.co https://cdn.jsdelivr.net;
         base-uri 'self';
         form-action 'self';
     ">
@@ -47,8 +46,9 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
     <script src="config.js"></script>
 
-    <!-- PWA -->
+    <!-- PWA — BUG-FIX: ajout mobile-web-app-capable (standard), conservation apple pour compatibilité iOS -->
     <link rel="manifest" href="/manifest.json">
+    <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Restos Lomé">
@@ -588,7 +588,6 @@
     document.querySelectorAll('.filter-pill').forEach(pill => {
         pill.addEventListener('click', function() {
             const filter = this.dataset.filter;
-            // ✅ Validation : seuls les filtres autorisés sont acceptés
             if (!ALLOWED_FILTERS.includes(filter)) return;
             
             document.querySelectorAll('.filter-pill').forEach(p => p.classList.remove('on'));
@@ -603,13 +602,11 @@
         const searchInput = document.getElementById('search-input');
         const searchQuery = searchInput.value.toLowerCase().trim();
 
-        // ✅ Validation de la recherche : longueur max 100 caractères
         if (searchQuery.length > 100) {
             searchInput.value = searchQuery.substring(0, 100);
             return;
         }
 
-        // Appliquer la recherche texte
         if (searchQuery) {
             data = data.filter(r =>
                 (r.name || '').toLowerCase().includes(searchQuery) ||
@@ -618,7 +615,6 @@
             );
         }
 
-        // ✅ Appliquer le filtre avancé (déjà validé par ALLOWED_FILTERS)
         switch(activeFilter) {
             case 'top-rated':
                 data.sort((a, b) => (b.stats?.avg_rating || 0) - (a.stats?.avg_rating || 0));

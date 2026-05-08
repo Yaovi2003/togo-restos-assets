@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin — Plateforme Restaurants</title>
     
-    <!-- Content Security Policy -->
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net 'unsafe-inline'; style-src 'self' https://fonts.googleapis.com 'unsafe-inline'; font-src https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://*.supabase.co;">
+    <!-- CSP — BUG-FIX: suppression frame-ancestors (ignoré en meta), ajout cdn.jsdelivr.net dans connect-src -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net 'unsafe-inline'; style-src 'self' https://fonts.googleapis.com 'unsafe-inline'; font-src https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://*.supabase.co https://cdn.jsdelivr.net;">
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=IBM+Plex+Mono:wght@400;500&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
@@ -502,12 +502,10 @@
 let db=null,currentUser=null,currentProfile=null,currentRestaurant=null,allDishes=[],pendingImgFile=null,pendingAdFile=null,deletePendingId=null,activePanel='dashboard',editingAdId=null,editingEventId=null,editingDishId=null;
 const IMG_SETTINGS={MAX_IMG_WIDTH:1200,MAX_IMG_HEIGHT:1200,IMG_QUALITY:0.92,MAX_KB:400};
 
-// Configuration du rate limiting local
 const rateLimiter = {
     attempts: new Map(),
     maxAttempts: 5,
     windowMs: 15 * 60 * 1000,
-    
     check(key) {
         const now = Date.now();
         const record = this.attempts.get(key);
@@ -515,7 +513,6 @@ const rateLimiter = {
         if (record.count >= this.maxAttempts) return false;
         return true;
     },
-    
     increment(key) {
         const now = Date.now();
         const record = this.attempts.get(key) || { count: 0, timestamp: now };
@@ -526,10 +523,7 @@ const rateLimiter = {
             this.attempts.set(key, record);
         }
     },
-    
-    reset(key) {
-        this.attempts.delete(key);
-    }
+    reset(key) { this.attempts.delete(key); }
 };
 
 function escapeHTML(str) {
@@ -621,13 +615,16 @@ document.getElementById('login-btn').addEventListener('click',async()=>{
 
 ['login-email','login-password'].forEach(id=>document.getElementById(id).addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('login-btn').click()}));
 
-// Déconnexion
+// ✅ BUG-09 CORRIGÉ : collecter les clés AVANT de supprimer pour éviter le décalage d'index
 document.getElementById('logout-btn').addEventListener('click',async()=>{
     try{
+        const keysToRemove=[];
         for(let i=0;i<localStorage.length;i++){
             const key=localStorage.key(i);
-            if(key.startsWith('sb-')||key.includes('token')||key.includes('auth'))localStorage.removeItem(key);
+            if(key&&(key.startsWith('sb-')||key.includes('token')||key.includes('auth')))
+                keysToRemove.push(key);
         }
+        keysToRemove.forEach(k=>localStorage.removeItem(k));
         await db.auth.signOut();
         window.location.replace('/admin.html');
     }catch(e){location.reload();}
@@ -657,8 +654,19 @@ async function initApp(user){
     showPanel('dashboard');
 }
 
+// ✅ BUG-04 CORRIGÉ : initSupabase() puis onAuthStateChange enregistré APRÈS que db est initialisé
 (async()=>{
     await initSupabase();
+
+    // Enregistrer le listener auth APRÈS initialisation de db
+    db.auth.onAuthStateChange((event,session)=>{
+        if(event==='SIGNED_OUT'||event==='USER_DELETED'){
+            document.getElementById('login-page').style.display='block';
+            document.getElementById('app-layout').classList.remove('visible');
+            currentUser=null;currentProfile=null;currentRestaurant=null;allDishes=[];
+        }else if(event==='TOKEN_REFRESHED'&&session?.user){currentUser=session.user;}
+    });
+
     const{data:{session}}=await db.auth.getSession();
     if(session?.user){
         const expiresAt=new Date(session.expires_at*1000);
@@ -666,14 +674,6 @@ async function initApp(user){
         else{const{data:{session:refreshedSession}}=await db.auth.refreshSession();if(refreshedSession?.user)await initApp(refreshedSession.user);}
     }
 })();
-
-db?.auth.onAuthStateChange((event,session)=>{
-    if(event==='SIGNED_OUT'||event==='USER_DELETED'){
-        document.getElementById('login-page').style.display='block';
-        document.getElementById('app-layout').classList.remove('visible');
-        currentUser=null;currentProfile=null;currentRestaurant=null;allDishes=[];
-    }else if(event==='TOKEN_REFRESHED'&&session?.user){currentUser=session.user;}
-});
 
 // Load dishes
 async function loadDishes(){
@@ -700,23 +700,39 @@ function renderMenuTable(){
     document.getElementById('menu-count-label').textContent=`${allDishes.length} plat${allDishes.length>1?'s':''}`;
     const t=document.getElementById('menu-tbody');
     if(!allDishes.length){t.innerHTML='<tr><td colspan="6"><div class="empty-placeholder"><div class="icon">🍽️</div><p>Menu vide.</p></div></td></tr>';return}
-    t.innerHTML=allDishes.map(d=>`<tr><td>${d.image_url?`<img class="dish-thumb" src="${d.image_url}" alt="${escapeHTML(d.name)}" loading="lazy">`:'🍽️'}</td><td><div class="dish-name-cell">${escapeHTML(d.name)}</div></td><td style="color:var(--text-dim);">${escapeHTML(d.category)}</td><td class="price-mono">${d.price.toLocaleString()} FCFA</td><td><label class="toggle-wrap"><div class="toggle"><input type="checkbox" ${d.is_available?'checked':''} onchange="toggleAvailability('${d.id.replace(/'/g,"\\'")}',this.checked)" aria-label="Disponibilité du plat ${escapeHTML(d.name)}"><div class="toggle-track"></div></div></label></td><td><div class="actions-cell"><button class="btn btn-ghost btn-sm" onclick="openEditDish('${d.id.replace(/'/g,"\\'")}')" aria-label="Modifier ${escapeHTML(d.name)}">✏️</button><button class="btn btn-danger btn-sm" onclick="openDeleteConfirm('${d.id.replace(/'/g,"\\'")}','${d.name.replace(/'/g,"\\'").replace(/"/g,'&quot;')}')" aria-label="Supprimer ${escapeHTML(d.name)}">🗑️</button></div></td></tr>`).join('');
+    t.innerHTML=allDishes.map(d=>`<tr><td>${d.image_url?`<img class="dish-thumb" src="${d.image_url}" alt="${escapeHTML(d.name)}" loading="lazy">`:'🍽️'}</td><td><div class="dish-name-cell">${escapeHTML(d.name)}${d.is_drink?'<small>🍷 Boisson</small>':''}</div></td><td style="color:var(--text-dim);">${escapeHTML(d.category)}</td><td class="price-mono">${d.price.toLocaleString()} FCFA</td><td><label class="toggle-wrap"><div class="toggle"><input type="checkbox" ${d.is_available?'checked':''} onchange="toggleAvailability('${d.id.replace(/'/g,"\\'")}',this.checked)" aria-label="Disponibilité du plat ${escapeHTML(d.name)}"><div class="toggle-track"></div></div></label></td><td><div class="actions-cell"><button class="btn btn-ghost btn-sm" onclick="openEditDish('${d.id.replace(/'/g,"\\'")}')" aria-label="Modifier ${escapeHTML(d.name)}">✏️</button><button class="btn btn-danger btn-sm" onclick="openDeleteConfirm('${d.id.replace(/'/g,"\\'")}','${d.name.replace(/'/g,"\\'").replace(/"/g,'&quot;')}')" aria-label="Supprimer ${escapeHTML(d.name)}">🗑️</button></div></td></tr>`).join('');
 }
 
 async function toggleAvailability(dishId,av){await db.from('menu_items').update({is_available:av}).eq('id',dishId);const d=allDishes.find(x=>x.id===dishId);if(d)d.is_available=av;toast(`Plat ${av?'disponible':'épuisé'}.`,'success');renderMenuTable()}
 
 /* ═══ COMPTABILITÉ ═══ */
+// ✅ BUG-06 CORRIGÉ : 3 requêtes parallèles pour day / semaine / mois
 async function loadAccounting(){
     const today=new Date().toISOString().split('T')[0];
-    const{data:trans}=await db.from('transactions').select('*').eq('restaurant_id',currentRestaurant.id).gte('created_at',today).order('created_at',{ascending:false});
+    const weekStart=new Date();
+    weekStart.setDate(weekStart.getDate()-weekStart.getDay());
+    const monthStart=new Date(new Date().getFullYear(),new Date().getMonth(),1);
+
+    const[dayRes,weekRes,monthRes]=await Promise.all([
+        db.from('transactions').select('*').eq('restaurant_id',currentRestaurant.id).gte('created_at',today).order('created_at',{ascending:false}),
+        db.from('transactions').select('amount').eq('restaurant_id',currentRestaurant.id).gte('created_at',weekStart.toISOString().split('T')[0]),
+        db.from('transactions').select('amount').eq('restaurant_id',currentRestaurant.id).gte('created_at',monthStart.toISOString().split('T')[0]),
+    ]);
+
+    const trans=dayRes.data||[];
+    const caWeek=(weekRes.data||[]).reduce((s,t)=>s+t.amount,0);
+    const caMonth=(monthRes.data||[]).reduce((s,t)=>s+t.amount,0);
+
     const tbody=document.getElementById('transactions-tbody');
     let total=0,tm=0,fl=0,ca=0;
-    if(!trans?.length){tbody.innerHTML='<tr><td colspan="6" style="text-align:center;padding:30px;color:var(--text-dim);">Aucune transaction.</td></tr>'}
+    if(!trans.length){tbody.innerHTML='<tr><td colspan="6" style="text-align:center;padding:30px;color:var(--text-dim);">Aucune transaction.</td></tr>'}
     else{
         trans.forEach(t=>{total+=t.amount;if(t.payment_method==='tmoney')tm+=t.amount;else if(t.payment_method==='flooz')fl+=t.amount;else ca+=t.amount});
         tbody.innerHTML=trans.map(t=>`<tr><td style="font-family:var(--mono);">#${escapeHTML(t.id?.substring(0,6)||'')}</td><td>${escapeHTML(t.description||'—')}</td><td class="price-mono">${t.amount.toLocaleString()} FCFA</td><td>${t.payment_method==='tmoney'?'📱 TMoney':t.payment_method==='flooz'?'📱 Flooz':'💵 Espèces'}</td><td>${t.type==='livraison'?'🛵':'🏪'}</td><td style="font-size:.78rem;color:var(--text-dim);">${new Date(t.created_at).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})}</td></tr>`).join('');
     }
     document.getElementById('acc-ca-day').textContent=total.toLocaleString();
+    document.getElementById('acc-ca-week').textContent=caWeek.toLocaleString();
+    document.getElementById('acc-ca-month').textContent=caMonth.toLocaleString();
     document.getElementById('acc-cash').textContent=ca.toLocaleString();
     document.getElementById('acc-tmoney').textContent=tm.toLocaleString();
     document.getElementById('acc-flooz').textContent=fl.toLocaleString();
@@ -773,11 +789,49 @@ function fillRestoForm(){const r=currentRestaurant;if(!r)return;document.getElem
 document.getElementById('save-resto-btn')?.addEventListener('click',async()=>{const btn=document.getElementById('save-resto-btn');btn.disabled=true;btn.innerHTML='⏳ Enregistrement...';try{const updates={name:document.getElementById('r-name').value.trim(),address:document.getElementById('r-address').value.trim(),description:document.getElementById('r-description').value.trim(),whatsapp:document.getElementById('r-whatsapp').value.trim(),phone:document.getElementById('r-phone').value.trim(),opening_hours:document.getElementById('r-hours').value.trim(),theme_color:document.getElementById('r-theme-color-hex').value.trim()};const{data,error}=await db.from('restaurants').update(updates).eq('id',currentRestaurant.id).select().single();if(error)throw error;currentRestaurant=data;document.getElementById('sidebar-resto-name').textContent=data.name;toast('Restaurant mis à jour !','success')}catch(err){toast(err.message||'Erreur.','error')}finally{btn.disabled=false;btn.innerHTML='💾 Enregistrer'}});
 
 /* ═══ PUB LOCALE ═══ */
-async function loadAds(){const{data:ads}=await db.from('local_ads').select('*').eq('restaurant_id',currentRestaurant.id).order('created_at',{ascending:false});const container=document.getElementById('ads-list');if(!ads?.length){container.innerHTML='<div class="empty-placeholder"><div class="icon">📢</div><p>Aucune publicité locale.</p></div>';return}container.innerHTML=ads.map(ad=>{const isExpired=ad.expires_at&&new Date(ad.expires_at)<new Date();return`<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:20px;margin-bottom:16px;"><div style="display:flex;justify-content:space-between;margin-bottom:8px;"><strong>${escapeHTML(ad.label||'Sans nom')}</strong>${isExpired?'<span class="badge unavailable">Expirée</span>':''}<button class="btn btn-danger btn-sm" onclick="deleteAd('${ad.id.replace(/'/g,"\\'")}')">🗑️</button></div><img src="${ad.banner_url}" style="width:100%;height:80px;object-fit:cover;border-radius:8px;" alt="${escapeHTML(ad.label||'Publicité')}" loading="lazy"><div style="font-size:.75rem;color:var(--text-dim);margin-top:6px;">${escapeHTML(ad.redirect_url||'Pas de lien')} ${ad.expires_at?'· Expire le '+new Date(ad.expires_at).toLocaleDateString('fr-FR'):''}</div></div>`}).join('')}
+async function loadAds(){
+    const{data:ads}=await db.from('local_ads').select('*').eq('restaurant_id',currentRestaurant.id).order('created_at',{ascending:false});
+    const container=document.getElementById('ads-list');
+    if(!ads?.length){container.innerHTML='<div class="empty-placeholder"><div class="icon">📢</div><p>Aucune publicité locale.</p></div>';return}
+    container.innerHTML=ads.map(ad=>{
+        const isExpired=ad.expires_at&&new Date(ad.expires_at)<new Date();
+        return`<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:20px;margin-bottom:16px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                <strong>${escapeHTML(ad.label||'Sans nom')}</strong>
+                ${isExpired?'<span class="badge unavailable">Expirée</span>':'<span class="badge available">Active</span>'}
+            </div>
+            <img src="${escapeHTML(ad.banner_url)}" style="width:100%;height:80px;object-fit:cover;border-radius:8px;" alt="${escapeHTML(ad.label||'Publicité')}" loading="lazy">
+            <div style="font-size:.75rem;color:var(--text-dim);margin-top:6px;">${escapeHTML(ad.redirect_url||'Pas de lien')} ${ad.expires_at?'· Expire le '+new Date(ad.expires_at).toLocaleDateString('fr-FR'):''}</div>
+            <div style="display:flex;gap:8px;margin-top:10px;">
+                <button class="btn btn-ghost btn-sm" onclick="editAd('${ad.id.replace(/'/g,"\\'")}')">✏️ Modifier</button>
+                <button class="btn btn-danger btn-sm" onclick="deleteAd('${ad.id.replace(/'/g,"\\'")}')">🗑️ Supprimer</button>
+            </div>
+        </div>`;
+    }).join('');
+}
+
+// ✅ BUG-08 CORRIGÉ : fonction editAd() ajoutée
+async function editAd(adId){
+    const{data:ad}=await db.from('local_ads').select('*').eq('id',adId).single();
+    if(ad)openAdModal(ad);
+}
+
 async function deleteAd(adId){if(!confirm('Supprimer ?'))return;await db.from('local_ads').delete().eq('id',adId);toast('Supprimé.','success');loadAds()}
 
 /* ═══ ÉVÉNEMENTS ═══ */
-async function loadEventsAdmin(){const{data:events}=await db.from('events').select('*').eq('restaurant_id',currentRestaurant.id).order('event_date',{ascending:true});const container=document.getElementById('events-list-admin');if(!events?.length){container.innerHTML='<div class="empty-placeholder"><div class="icon">🎭</div><p>Aucun événement.</p></div>';return}container.innerHTML=events.map(ev=>`<div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:12px;"><strong>${escapeHTML(ev.title)}</strong><br><span style="font-size:.78rem;color:var(--text-dim);">${ev.event_date?new Date(ev.event_date).toLocaleDateString('fr-FR'):'Date non définie'} ${ev.is_published?'✅ Publié':'📝 Brouillon'}</span><div style="margin-top:8px;display:flex;gap:6px;"><button class="btn btn-danger btn-sm" onclick="deleteEvent('${ev.id.replace(/'/g,"\\'")}')">🗑️</button></div></div>`).join('')}
+async function loadEventsAdmin(){
+    const{data:events}=await db.from('events').select('*').eq('restaurant_id',currentRestaurant.id).order('event_date',{ascending:true});
+    const container=document.getElementById('events-list-admin');
+    if(!events?.length){container.innerHTML='<div class="empty-placeholder"><div class="icon">🎭</div><p>Aucun événement.</p></div>';return}
+    container.innerHTML=events.map(ev=>`<div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:12px;">
+        ${ev.poster_url?`<img src="${escapeHTML(ev.poster_url)}" style="width:100%;height:100px;object-fit:cover;border-radius:8px;margin-bottom:8px;" alt="${escapeHTML(ev.title)}">`:''}
+        <strong>${escapeHTML(ev.title)}</strong><br>
+        <span style="font-size:.78rem;color:var(--text-dim);">${ev.event_date?new Date(ev.event_date).toLocaleDateString('fr-FR'):'Date non définie'} ${ev.is_published?'✅ Publié':'📝 Brouillon'}</span>
+        <div style="margin-top:8px;display:flex;gap:6px;">
+            <button class="btn btn-danger btn-sm" onclick="deleteEvent('${ev.id.replace(/'/g,"\\'")}')">🗑️</button>
+        </div>
+    </div>`).join('');
+}
 async function deleteEvent(evId){if(!confirm('Supprimer ?'))return;await db.from('events').delete().eq('id',evId);toast('Supprimé.','success');loadEventsAdmin()}
 
 /* ═══ LOCALISATION ═══ */
@@ -805,38 +859,291 @@ function initChefPanel(){const r=currentRestaurant;document.getElementById('chef
 document.getElementById('save-chef-btn')?.addEventListener('click',async()=>{const updates={chef_name:document.getElementById('chef-name').value.trim()||null,chef_title:document.getElementById('chef-title').value.trim()||null,chef_photo:document.getElementById('chef-photo').value.trim()||null,chef_bio:document.getElementById('chef-bio').value.trim()||null};const{error}=await db.from('restaurants').update(updates).eq('id',currentRestaurant.id);if(!error)toast('Profil Chef enregistré !','success');else toast('Erreur.','error')});
 
 /* ═══ GALERIE ═══ */
-async function loadGalleryAdmin(){const{data:photos}=await db.from('gallery_photos').select('*').eq('restaurant_id',currentRestaurant.id).order('display_order');const list=document.getElementById('gallery-photos-list');if(!photos?.length){list.innerHTML='<p style="color:var(--text-dim);">Aucune photo.</p>';return}list.innerHTML=photos.map(p=>`<div style="display:flex;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);"><img src="${p.photo_url}" style="width:60px;height:60px;object-fit:cover;border-radius:6px;" alt="${escapeHTML(p.caption||'Photo galerie')}" loading="lazy"><span style="flex:1;font-size:.82rem;">${escapeHTML(p.caption||'Sans légende')}</span><button class="btn btn-danger btn-sm" onclick="deleteGalleryPhoto('${p.id.replace(/'/g,"\\'")}')">🗑️</button></div>`).join('')}
-document.getElementById('add-photo-btn')?.addEventListener('click',async()=>{const url=document.getElementById('gal-url').value.trim();const caption=document.getElementById('gal-caption').value.trim();if(!url){toast('URL requise.','error');return}await db.from('gallery_photos').insert({restaurant_id:currentRestaurant.id,photo_url:url,caption:caption||null,display_order:0});toast('Ajoutée !','success');document.getElementById('gal-url').value='';document.getElementById('gal-caption').value='';loadGalleryAdmin()});
+async function loadGalleryAdmin(){
+    const{data:photos}=await db.from('gallery_photos').select('*').eq('restaurant_id',currentRestaurant.id).order('display_order');
+    const list=document.getElementById('gallery-photos-list');
+    if(!photos?.length){list.innerHTML='<p style="color:var(--text-dim);">Aucune photo.</p>';return}
+    list.innerHTML=photos.map(p=>`<div style="display:flex;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);"><img src="${escapeHTML(p.photo_url)}" style="width:60px;height:60px;object-fit:cover;border-radius:6px;" alt="${escapeHTML(p.caption||'Photo galerie')}" loading="lazy"><span style="flex:1;font-size:.82rem;">${escapeHTML(p.caption||'Sans légende')}</span><button class="btn btn-danger btn-sm" onclick="deleteGalleryPhoto('${p.id.replace(/'/g,"\\'")}')">🗑️</button></div>`).join('')
+}
+
+// ✅ BUG-10 CORRIGÉ : calcul du display_order séquentiel avant l'insert
+document.getElementById('add-photo-btn')?.addEventListener('click',async()=>{
+    const url=document.getElementById('gal-url').value.trim();
+    const caption=document.getElementById('gal-caption').value.trim();
+    if(!url){toast('URL requise.','error');return}
+
+    // Calculer le prochain ordre
+    const{data:existing}=await db.from('gallery_photos').select('display_order')
+        .eq('restaurant_id',currentRestaurant.id)
+        .order('display_order',{ascending:false}).limit(1);
+    const nextOrder=(existing?.[0]?.display_order??-1)+1;
+
+    await db.from('gallery_photos').insert({
+        restaurant_id:currentRestaurant.id,
+        photo_url:url,
+        caption:caption||null,
+        display_order:nextOrder
+    });
+    toast('Ajoutée !','success');
+    document.getElementById('gal-url').value='';
+    document.getElementById('gal-caption').value='';
+    loadGalleryAdmin();
+});
+
 async function deleteGalleryPhoto(id){if(!confirm('Supprimer ?'))return;await db.from('gallery_photos').delete().eq('id',id);toast('Supprimée.','success');loadGalleryAdmin()}
 
 /* ═══ FORMULE DU JOUR ═══ */
-function initFormulaPanel(){const r=currentRestaurant;document.getElementById('formula-title-inp').value=r.formula_title||'';document.getElementById('formula-desc-inp').value=r.formula_description||'';document.getElementById('formula-price-inp').value=r.formula_price||'';if(r.formula_expires_at){const d=new Date(r.formula_expires_at);document.getElementById('formula-expires-inp').value=d.toISOString().slice(0,16)}}
-document.getElementById('save-formula-btn')?.addEventListener('click',async()=>{const updates={formula_title:document.getElementById('formula-title-inp').value.trim()||null,formula_description:document.getElementById('formula-desc-inp').value.trim()||null,formula_price:parseInt(document.getElementById('formula-price-inp').value)||null,formula_expires_at:document.getElementById('formula-expires-inp').value?new Date(document.getElementById('formula-expires-inp').value).toISOString():null};const{error}=await db.from('restaurants').update(updates).eq('id',currentRestaurant.id);if(!error)toast('Formule enregistrée !','success');else toast('Erreur.','error')});
+// ✅ BUG-01 (partie admin) : les champs DB sont formula_title / formula_description — cohérent avec ce que view.html doit lire
+function initFormulaPanel(){
+    const r=currentRestaurant;
+    document.getElementById('formula-title-inp').value=r.formula_title||'';
+    document.getElementById('formula-desc-inp').value=r.formula_description||'';
+    document.getElementById('formula-price-inp').value=r.formula_price||'';
+    if(r.formula_expires_at){const d=new Date(r.formula_expires_at);document.getElementById('formula-expires-inp').value=d.toISOString().slice(0,16)}
+}
+document.getElementById('save-formula-btn')?.addEventListener('click',async()=>{
+    const updates={
+        formula_title:document.getElementById('formula-title-inp').value.trim()||null,
+        formula_description:document.getElementById('formula-desc-inp').value.trim()||null,
+        formula_price:parseInt(document.getElementById('formula-price-inp').value)||null,
+        formula_expires_at:document.getElementById('formula-expires-inp').value?new Date(document.getElementById('formula-expires-inp').value).toISOString():null
+    };
+    const{error}=await db.from('restaurants').update(updates).eq('id',currentRestaurant.id);
+    if(!error){Object.assign(currentRestaurant,updates);toast('Formule enregistrée !','success');}
+    else toast('Erreur.','error');
+});
 
 /* ═══ CARTE DES VINS ═══ */
-function initDrinksPanel(){const drinks=allDishes.filter(d=>d.is_drink);const list=document.getElementById('drinks-list');if(!drinks.length){list.innerHTML='<p style="color:var(--text-dim);padding:20px;">Aucune boisson marquée.</p>';return}list.innerHTML=drinks.map(d=>`<div style="display:flex;align-items:center;gap:12px;padding:10px 20px;border-bottom:1px solid var(--border);"><span style="font-size:1.2rem;">🍷</span><div style="flex:1;"><strong>${escapeHTML(d.name)}</strong><span style="display:block;font-size:.72rem;color:var(--text-dim);">${escapeHTML(d.category)} · ${d.price.toLocaleString()} FCFA</span></div><button class="btn btn-ghost btn-sm" onclick="toggleDrinkFlag('${d.id.replace(/'/g,"\\'")}',false)">↩ Retirer</button></div>`).join('')}
+function initDrinksPanel(){const drinks=allDishes.filter(d=>d.is_drink);const list=document.getElementById('drinks-list');if(!drinks.length){list.innerHTML='<p style="color:var(--text-dim);padding:20px;">Aucune boisson marquée.<br><small>Éditez un plat et cochez "Boisson" pour l\'ajouter ici.</small></p>';return}list.innerHTML=drinks.map(d=>`<div style="display:flex;align-items:center;gap:12px;padding:10px 20px;border-bottom:1px solid var(--border);"><span style="font-size:1.2rem;">🍷</span><div style="flex:1;"><strong>${escapeHTML(d.name)}</strong><span style="display:block;font-size:.72rem;color:var(--text-dim);">${escapeHTML(d.category)} · ${d.price.toLocaleString()} FCFA</span></div><button class="btn btn-ghost btn-sm" onclick="toggleDrinkFlag('${d.id.replace(/'/g,"\\'")}',false)">↩ Retirer</button></div>`).join('')}
 async function toggleDrinkFlag(dishId,isDrink){await db.from('menu_items').update({is_drink:isDrink}).eq('id',dishId);const d=allDishes.find(x=>x.id===dishId);if(d)d.is_drink=isDrink;toast('Mis à jour.','success');initDrinksPanel()}
 
 /* ═══ MODALS PUB & ÉVÉNEMENTS ═══ */
 document.getElementById('open-add-ad-btn')?.addEventListener('click',()=>openAdModal());
 document.getElementById('open-add-event-btn')?.addEventListener('click',()=>openEventModal());
 
-function openAdModal(ad=null){editingAdId=ad?.id||null;let modal=document.getElementById('ad-modal-overlay');if(!modal){modal=document.createElement('div');modal.className='modal-overlay';modal.id='ad-modal-overlay';modal.innerHTML=`<div class="modal-box"><div class="modal-head"><h3 class="modal-title">${editingAdId?'Modifier':'Nouvelle'} Publicité</h3><button class="modal-close" onclick="document.getElementById('ad-modal-overlay').classList.remove('visible')">✕</button></div><div class="field-group"><label class="field-label">Nom</label><input type="text" class="field-input" id="ad-label" value="${escapeHTML(ad?.label||'')}"></div><div class="field-group"><label class="field-label">URL de l'image</label><input type="url" class="field-input" id="ad-banner" value="${escapeHTML(ad?.banner_url||'')}"></div><div class="field-group"><label class="field-label">Lien de redirection</label><input type="url" class="field-input" id="ad-redirect" value="${escapeHTML(ad?.redirect_url||'')}"></div><div class="field-group"><label class="field-label">Expire le</label><input type="date" class="field-input" id="ad-expires" value="${ad?.expires_at?.split('T')[0]||''}"></div><button class="btn btn-primary btn-full" onclick="saveAd()">💾 Enregistrer</button></div>`;document.body.appendChild(modal)}modal.classList.add('visible')}
-async function saveAd(){const data={restaurant_id:currentRestaurant.id,label:document.getElementById('ad-label').value.trim(),banner_url:document.getElementById('ad-banner').value.trim(),redirect_url:document.getElementById('ad-redirect').value.trim()||null,expires_at:document.getElementById('ad-expires').value||null};if(!data.label||!data.banner_url){toast('Nom et image requis.','error');return}if(editingAdId){await db.from('local_ads').update(data).eq('id',editingAdId)}else{await db.from('local_ads').insert(data)}document.getElementById('ad-modal-overlay').classList.remove('visible');toast('Publicité enregistrée !','success');loadAds();editingAdId=null}
+// ✅ BUG-03 CORRIGÉ : modal toujours détruite et recrée pour garantir les valeurs à jour
+function openAdModal(ad=null){
+    editingAdId=ad?.id||null;
+    // Supprimer l'ancienne modale si elle existe
+    const old=document.getElementById('ad-modal-overlay');
+    if(old)old.remove();
 
-function openEventModal(ev=null){editingEventId=ev?.id||null;let modal=document.getElementById('event-modal-overlay');if(!modal){modal=document.createElement('div');modal.className='modal-overlay';modal.id='event-modal-overlay';modal.innerHTML=`<div class="modal-box"><div class="modal-head"><h3 class="modal-title">${editingEventId?'Modifier':'Nouvel'} Événement</h3><button class="modal-close" onclick="document.getElementById('event-modal-overlay').classList.remove('visible')">✕</button></div><div class="field-group"><label class="field-label">Titre</label><input type="text" class="field-input" id="event-title" value="${escapeHTML(ev?.title||'')}"></div><div class="field-group"><label class="field-label">Description</label><textarea class="field-input" id="event-desc" rows="3">${escapeHTML(ev?.description||'')}</textarea></div><div class="field-group"><label class="field-label">Date</label><input type="date" class="field-input" id="event-date" value="${ev?.event_date?.split('T')[0]||''}"></div><div class="field-group"><label class="field-label">Heure</label><input type="time" class="field-input" id="event-time" value="${ev?.event_date?new Date(ev.event_date).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}):''}"></div><label class="toggle-wrap"><div class="toggle"><input type="checkbox" id="event-published" ${ev?.is_published?'checked':''}><div class="toggle-track"></div></div><span style="font-size:.8rem;">Publié</span></label><button class="btn btn-primary btn-full" onclick="saveEvent()" style="margin-top:16px;">💾 ${editingEventId?'Modifier':'Créer'} l'événement</button></div>`;document.body.appendChild(modal)}modal.classList.add('visible')}
-async function saveEvent(){const title=document.getElementById('event-title').value.trim();const date=document.getElementById('event-date').value;const time=document.getElementById('event-time').value||'19:00';if(!title||!date){toast('Titre et date requis.','error');return}const event_date=new Date(date+'T'+time).toISOString();const data={restaurant_id:currentRestaurant.id,title:title,description:document.getElementById('event-desc').value.trim()||null,event_date:event_date,is_published:document.getElementById('event-published').checked};if(editingEventId){await db.from('events').update(data).eq('id',editingEventId)}else{await db.from('events').insert(data)}document.getElementById('event-modal-overlay').classList.remove('visible');toast('Événement enregistré !','success');loadEventsAdmin();editingEventId=null}
+    const modal=document.createElement('div');
+    modal.className='modal-overlay';
+    modal.id='ad-modal-overlay';
+    modal.innerHTML=`<div class="modal-box">
+        <div class="modal-head">
+            <h3 class="modal-title">${editingAdId?'Modifier':'Nouvelle'} Publicité</h3>
+            <button class="modal-close" onclick="document.getElementById('ad-modal-overlay').classList.remove('visible')">✕</button>
+        </div>
+        <div class="field-group"><label class="field-label">Nom</label><input type="text" class="field-input" id="ad-label" value="${escapeHTML(ad?.label||'')}"></div>
+        <div class="field-group"><label class="field-label">URL de l'image</label><input type="url" class="field-input" id="ad-banner" value="${escapeHTML(ad?.banner_url||'')}" placeholder="https://..."></div>
+        <div id="ad-img-preview" style="${ad?.banner_url?'display:block':'display:none'};margin-bottom:12px;">
+            <img id="ad-img-prev-el" src="${escapeHTML(ad?.banner_url||'')}" style="width:100%;height:80px;object-fit:cover;border-radius:8px;" alt="Prévisualisation">
+        </div>
+        <div class="field-group"><label class="field-label">Lien de redirection</label><input type="url" class="field-input" id="ad-redirect" value="${escapeHTML(ad?.redirect_url||'')}"></div>
+        <div class="field-group"><label class="field-label">Expire le</label><input type="date" class="field-input" id="ad-expires" value="${ad?.expires_at?.split('T')[0]||''}"></div>
+        <button class="btn btn-primary btn-full" onclick="saveAd()">💾 Enregistrer</button>
+    </div>`;
+    document.body.appendChild(modal);
+
+    // Preview image en live
+    modal.querySelector('#ad-banner').addEventListener('input',function(){
+        const prev=modal.querySelector('#ad-img-prev-el');
+        const wrap=modal.querySelector('#ad-img-preview');
+        if(this.value.startsWith('http')){
+            prev.src=this.value; wrap.style.display='block';
+            prev.onerror=()=>wrap.style.display='none';
+        } else { wrap.style.display='none'; }
+    });
+
+    requestAnimationFrame(()=>modal.classList.add('visible'));
+}
+
+async function saveAd(){
+    const data={
+        restaurant_id:currentRestaurant.id,
+        label:document.getElementById('ad-label').value.trim(),
+        banner_url:document.getElementById('ad-banner').value.trim(),
+        redirect_url:document.getElementById('ad-redirect').value.trim()||null,
+        expires_at:document.getElementById('ad-expires').value||null
+    };
+    if(!data.label||!data.banner_url){toast('Nom et image requis.','error');return}
+    if(editingAdId){await db.from('local_ads').update(data).eq('id',editingAdId)}
+    else{await db.from('local_ads').insert(data)}
+    document.getElementById('ad-modal-overlay').classList.remove('visible');
+    setTimeout(()=>{const m=document.getElementById('ad-modal-overlay');if(m)m.remove();},300);
+    toast('Publicité enregistrée !','success');
+    loadAds();
+    editingAdId=null;
+}
+
+// ✅ BUG-03 CORRIGÉ : modal événement aussi recrée à chaque ouverture
+// ✅ BUG-07 CORRIGÉ : champ poster_url ajouté dans le modal et dans saveEvent()
+function openEventModal(ev=null){
+    editingEventId=ev?.id||null;
+    const old=document.getElementById('event-modal-overlay');
+    if(old)old.remove();
+
+    const modal=document.createElement('div');
+    modal.className='modal-overlay';
+    modal.id='event-modal-overlay';
+    modal.innerHTML=`<div class="modal-box">
+        <div class="modal-head">
+            <h3 class="modal-title">${editingEventId?'Modifier':'Nouvel'} Événement</h3>
+            <button class="modal-close" onclick="document.getElementById('event-modal-overlay').classList.remove('visible')">✕</button>
+        </div>
+        <div class="field-group"><label class="field-label">Titre</label><input type="text" class="field-input" id="event-title" value="${escapeHTML(ev?.title||'')}"></div>
+        <div class="field-group"><label class="field-label">Description</label><textarea class="field-input" id="event-desc" rows="3">${escapeHTML(ev?.description||'')}</textarea></div>
+        <div class="field-group"><label class="field-label">URL de l'affiche (optionnel)</label><input type="url" class="field-input" id="event-poster" value="${escapeHTML(ev?.poster_url||'')}" placeholder="https://..."></div>
+        <div class="field-group"><label class="field-label">Date</label><input type="date" class="field-input" id="event-date" value="${ev?.event_date?.split('T')[0]||''}"></div>
+        <div class="field-group"><label class="field-label">Heure</label><input type="time" class="field-input" id="event-time" value="${ev?.event_date?new Date(ev.event_date).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}):''}"></div>
+        <label class="toggle-wrap" style="margin-bottom:16px;">
+            <div class="toggle"><input type="checkbox" id="event-published" ${ev?.is_published?'checked':''}><div class="toggle-track"></div></div>
+            <span style="font-size:.8rem;">Publié</span>
+        </label>
+        <button class="btn btn-primary btn-full" onclick="saveEvent()" style="margin-top:16px;">💾 ${editingEventId?'Modifier':'Créer'} l'événement</button>
+    </div>`;
+    document.body.appendChild(modal);
+    requestAnimationFrame(()=>modal.classList.add('visible'));
+}
+
+async function saveEvent(){
+    const title=document.getElementById('event-title').value.trim();
+    const date=document.getElementById('event-date').value;
+    const time=document.getElementById('event-time').value||'19:00';
+    if(!title||!date){toast('Titre et date requis.','error');return}
+    const event_date=new Date(date+'T'+time).toISOString();
+    const data={
+        restaurant_id:currentRestaurant.id,
+        title:title,
+        description:document.getElementById('event-desc').value.trim()||null,
+        event_date:event_date,
+        is_published:document.getElementById('event-published').checked,
+        poster_url:document.getElementById('event-poster').value.trim()||null  // ✅ BUG-07 CORRIGÉ
+    };
+    if(editingEventId){await db.from('events').update(data).eq('id',editingEventId)}
+    else{await db.from('events').insert(data)}
+    document.getElementById('event-modal-overlay').classList.remove('visible');
+    setTimeout(()=>{const m=document.getElementById('event-modal-overlay');if(m)m.remove();},300);
+    toast('Événement enregistré !','success');
+    loadEventsAdmin();
+    editingEventId=null;
+}
 
 /* ═══ GESTION DES PLATS — MODALS ═══ */
-function openEditDish(dishId){const dish=allDishes.find(d=>d.id===dishId);if(!dish)return;editingDishId=dishId;let modal=document.getElementById('dish-modal-overlay');if(!modal){modal=document.createElement('div');modal.className='modal-overlay';modal.id='dish-modal-overlay';modal.innerHTML=`<div class="modal-box"><div class="modal-head"><h3 class="modal-title">Modifier le plat</h3><button class="modal-close" onclick="document.getElementById('dish-modal-overlay').classList.remove('visible')">✕</button></div><div class="field-group"><label class="field-label">Nom</label><input type="text" class="field-input" id="edit-dish-name"></div><div class="field-group"><label class="field-label">Catégorie</label><input type="text" class="field-input" id="edit-dish-cat"></div><div class="field-group"><label class="field-label">Prix (FCFA)</label><input type="number" class="field-input" id="edit-dish-price"></div><div class="field-group"><label class="field-label">Description</label><textarea class="field-input" id="edit-dish-desc" rows="2"></textarea></div><button class="btn btn-primary btn-full" onclick="saveEditDish()">💾 Enregistrer</button></div>`;document.body.appendChild(modal)}document.getElementById('edit-dish-name').value=dish.name;document.getElementById('edit-dish-cat').value=dish.category||'';document.getElementById('edit-dish-price').value=dish.price;document.getElementById('edit-dish-desc').value=dish.description||'';modal.classList.add('visible')}
-async function saveEditDish(){const updates={name:document.getElementById('edit-dish-name').value.trim(),category:document.getElementById('edit-dish-cat').value.trim(),price:parseInt(document.getElementById('edit-dish-price').value),description:document.getElementById('edit-dish-desc').value.trim()};if(!updates.name||isNaN(updates.price)){toast('Nom et prix requis.','error');return}await db.from('menu_items').update(updates).eq('id',editingDishId);const d=allDishes.find(x=>x.id===editingDishId);if(d)Object.assign(d,updates);document.getElementById('dish-modal-overlay').classList.remove('visible');toast('Plat modifié !','success');renderMenuTable();editingDishId=null}
-function openDeleteConfirm(dishId,dishName){deletePendingId=dishId;let modal=document.getElementById('delete-modal-overlay');if(!modal){modal=document.createElement('div');modal.className='modal-overlay';modal.id='delete-modal-overlay';modal.innerHTML=`<div class="confirm-dialog"><h3>🗑️ Supprimer le plat ?</h3><p id="delete-dish-name"></p><div class="confirm-actions"><button class="btn btn-danger btn-full" onclick="confirmDeleteDish()">🗑️ Oui, supprimer</button><button class="btn btn-ghost btn-full" onclick="document.getElementById('delete-modal-overlay').classList.remove('visible')">Annuler</button></div></div>`;document.body.appendChild(modal)}document.getElementById('delete-dish-name').textContent=`"${escapeHTML(dishName)}" — Cette action est irréversible.`;modal.classList.add('visible')}
-async function confirmDeleteDish(){if(!deletePendingId)return;await db.from('menu_items').delete().eq('id',deletePendingId);allDishes=allDishes.filter(d=>d.id!==deletePendingId);document.getElementById('delete-modal-overlay').classList.remove('visible');toast('Plat supprimé.','success');renderMenuTable();deletePendingId=null}
+// ✅ BUG-05 CORRIGÉ : champ is_drink ajouté dans le modal d'édition
+// ✅ BUG-03 CORRIGÉ : modal d'édition aussi recrée à chaque ouverture
+function openEditDish(dishId){
+    const dish=allDishes.find(d=>d.id===dishId);
+    if(!dish)return;
+    editingDishId=dishId;
+
+    const old=document.getElementById('dish-modal-overlay');
+    if(old)old.remove();
+
+    const modal=document.createElement('div');
+    modal.className='modal-overlay';
+    modal.id='dish-modal-overlay';
+    modal.innerHTML=`<div class="modal-box">
+        <div class="modal-head">
+            <h3 class="modal-title">Modifier le plat</h3>
+            <button class="modal-close" onclick="document.getElementById('dish-modal-overlay').classList.remove('visible')">✕</button>
+        </div>
+        <div class="field-group"><label class="field-label">Nom</label><input type="text" class="field-input" id="edit-dish-name" value="${escapeHTML(dish.name)}"></div>
+        <div class="field-group"><label class="field-label">Catégorie</label><input type="text" class="field-input" id="edit-dish-cat" value="${escapeHTML(dish.category||'')}"></div>
+        <div class="field-group"><label class="field-label">Prix (FCFA)</label><input type="number" class="field-input" id="edit-dish-price" value="${dish.price}"></div>
+        <div class="field-group"><label class="field-label">Description</label><textarea class="field-input" id="edit-dish-desc" rows="2">${escapeHTML(dish.description||'')}</textarea></div>
+        <div class="field-group"><label class="field-label">URL de la photo</label><input type="url" class="field-input" id="edit-dish-img" value="${escapeHTML(dish.image_url||'')}" placeholder="https://..."></div>
+        <label class="toggle-wrap" style="margin-bottom:16px;">
+            <div class="toggle">
+                <input type="checkbox" id="edit-dish-is-drink" ${dish.is_drink?'checked':''}>
+                <div class="toggle-track"></div>
+            </div>
+            <span style="font-size:.8rem;">🍷 Boisson (carte des vins)</span>
+        </label>
+        <button class="btn btn-primary btn-full" onclick="saveEditDish()">💾 Enregistrer</button>
+    </div>`;
+    document.body.appendChild(modal);
+    requestAnimationFrame(()=>modal.classList.add('visible'));
+}
+
+async function saveEditDish(){
+    const updates={
+        name:document.getElementById('edit-dish-name').value.trim(),
+        category:document.getElementById('edit-dish-cat').value.trim(),
+        price:parseInt(document.getElementById('edit-dish-price').value),
+        description:document.getElementById('edit-dish-desc').value.trim(),
+        image_url:document.getElementById('edit-dish-img').value.trim()||null,
+        is_drink:document.getElementById('edit-dish-is-drink').checked  // ✅ BUG-05 CORRIGÉ
+    };
+    if(!updates.name||isNaN(updates.price)){toast('Nom et prix requis.','error');return}
+    await db.from('menu_items').update(updates).eq('id',editingDishId);
+    const d=allDishes.find(x=>x.id===editingDishId);
+    if(d)Object.assign(d,updates);
+    document.getElementById('dish-modal-overlay').classList.remove('visible');
+    setTimeout(()=>{const m=document.getElementById('dish-modal-overlay');if(m)m.remove();},300);
+    toast('Plat modifié !','success');
+    renderMenuTable();
+    editingDishId=null;
+}
+
+function openDeleteConfirm(dishId,dishName){
+    deletePendingId=dishId;
+    const old=document.getElementById('delete-modal-overlay');
+    if(old)old.remove();
+    const modal=document.createElement('div');
+    modal.className='modal-overlay';
+    modal.id='delete-modal-overlay';
+    modal.innerHTML=`<div class="confirm-dialog"><h3>🗑️ Supprimer le plat ?</h3><p id="delete-dish-name"></p><div class="confirm-actions"><button class="btn btn-danger btn-full" onclick="confirmDeleteDish()">🗑️ Oui, supprimer</button><button class="btn btn-ghost btn-full" onclick="document.getElementById('delete-modal-overlay').classList.remove('visible')">Annuler</button></div></div>`;
+    document.body.appendChild(modal);
+    modal.querySelector('#delete-dish-name').textContent=`"${dishName}" — Cette action est irréversible.`;
+    requestAnimationFrame(()=>modal.classList.add('visible'));
+}
+
+async function confirmDeleteDish(){
+    if(!deletePendingId)return;
+    await db.from('menu_items').delete().eq('id',deletePendingId);
+    allDishes=allDishes.filter(d=>d.id!==deletePendingId);
+    document.getElementById('delete-modal-overlay').classList.remove('visible');
+    setTimeout(()=>{const m=document.getElementById('delete-modal-overlay');if(m)m.remove();},300);
+    toast('Plat supprimé.','success');
+    renderMenuTable();
+    deletePendingId=null;
+}
 
 /* ═══ AJOUTER UN PLAT ═══ */
-document.getElementById('open-add-dish-btn')?.addEventListener('click',()=>{const name=prompt('Nom du plat :');if(!name)return;const cat=prompt('Catégorie :','Plats');if(!cat)return;const price=parseInt(prompt('Prix (FCFA) :','0'));if(isNaN(price))return;db.from('menu_items').insert({restaurant_id:currentRestaurant.id,name:name,category:cat,price:price,is_available:true,display_order:allDishes.length}).then(()=>{toast('Plat ajouté !','success');loadDishes().then(()=>renderMenuTable())})});
+// ✅ BUG-17 CORRIGÉ : normalisation de la catégorie + suggestion des catégories existantes
+document.getElementById('open-add-dish-btn')?.addEventListener('click',()=>{
+    const name=prompt('Nom du plat :');
+    if(!name)return;
 
-// Fermer les modals
+    // Proposer les catégories existantes
+    const existingCats=[...new Set(allDishes.map(d=>d.category).filter(Boolean))];
+    const catHint=existingCats.length?`Catégories existantes : ${existingCats.join(', ')}. `:'';
+    const catRaw=prompt(`${catHint}Catégorie :`,existingCats[0]||'Plats');
+    if(!catRaw)return;
+    // Normaliser : première lettre majuscule, reste identique
+    const cat=catRaw.trim().charAt(0).toUpperCase()+catRaw.trim().slice(1);
+
+    const price=parseInt(prompt('Prix (FCFA) :','0'));
+    if(isNaN(price))return;
+
+    const imgUrl=prompt('URL photo (laisser vide pour ignorer) :','');
+
+    db.from('menu_items').insert({
+        restaurant_id:currentRestaurant.id,
+        name:name.trim(),
+        category:cat,
+        price:price,
+        image_url:imgUrl&&imgUrl.startsWith('http')?imgUrl.trim():null,
+        is_available:true,
+        is_drink:false,
+        display_order:allDishes.length
+    }).then(()=>{toast('Plat ajouté !','success');loadDishes().then(()=>renderMenuTable())})
+});
+
+// Fermer les modals en cliquant sur l'overlay
 document.addEventListener('click',(e)=>{if(e.target.classList.contains('modal-overlay')){e.target.classList.remove('visible')}});
 </script>
 </body>

@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Générateur QR Code — Restos Lomé</title>
 
-    <!-- ✅ Content Security Policy (AJOUTÉ) -->
+    <!-- CSP — BUG-FIX: suppression frame-ancestors (ignoré en meta), connect-src non nécessaire ici (pas de fetch externe) -->
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdnjs.cloudflare.com 'unsafe-inline'; style-src 'self' https://fonts.googleapis.com 'unsafe-inline'; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:;">
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
@@ -55,7 +55,6 @@
     <p>Créez et téléchargez les QR Codes de vos restaurants</p>
 </div>
 
-<!-- ✅ Message d'erreur (AJOUTÉ) -->
 <div id="error-msg"></div>
 
 <div class="card">
@@ -121,8 +120,7 @@
 'use strict';
 let sz = 250;
 
-// ✅ FONCTIONS DE SÉCURITÉ (AJOUTÉES)
-
+// ✅ escapeHTML — UNIQUEMENT pour insertion dans le DOM HTML, jamais dans canvas
 function escapeHTML(str) {
     if (!str && str !== 0) return '';
     const div = document.createElement('div');
@@ -169,7 +167,6 @@ function gen() {
     const darkC  = document.getElementById('dark-hex').value || '#000000';
     const lightC = document.getElementById('light-hex').value || '#ffffff';
 
-    // ✅ VALIDATION RENFORCÉE
     if (!domain) { 
         showError('Veuillez entrer l\'URL de votre menu.'); 
         document.getElementById('domain').classList.add('error');
@@ -178,7 +175,6 @@ function gen() {
     }
     document.getElementById('domain').classList.remove('error');
     
-    // ✅ VALIDATION URL
     try {
         const parsed = new URL(domain);
         if (!['http:', 'https:'].includes(parsed.protocol)) {
@@ -198,7 +194,6 @@ function gen() {
     }
     document.getElementById('slug').classList.remove('error');
     
-    // ✅ VALIDATION SLUG
     if (!/^[a-z0-9-]+$/.test(slug)) {
         showError('Slug invalide : minuscules, chiffres et tirets uniquement.');
         return;
@@ -211,6 +206,7 @@ function gen() {
 
     const url = domain.includes('?') ? `${domain}&id=${slug}` : `${domain}?id=${slug}`;
     document.getElementById('urlbox').textContent = url;
+    // ✅ BUG-13 CORRIGÉ : texte brut dans textContent (pas escapeHTML qui génère des entités HTML dans le canvas)
     document.getElementById('rname-disp').textContent = name || slug;
 
     const wrap = document.getElementById('qr-wrap');
@@ -234,11 +230,11 @@ function gen() {
     }
 }
 
-// Téléchargement PNG avec légende
+// ✅ BUG-13 CORRIGÉ : ctx.fillText() reçoit le texte brut — escapeHTML() uniquement pour le DOM
 document.getElementById('dl-btn').addEventListener('click', () => {
     const wrap  = document.getElementById('qr-wrap');
     const slug  = document.getElementById('slug').value.trim() || 'qrcode';
-    const name  = document.getElementById('rname').value.trim() || slug;
+    const name  = document.getElementById('rname').value.trim() || slug;  // texte brut pour canvas
     const lightC= document.getElementById('light-hex').value || '#ffffff';
     const darkC = document.getElementById('dark-hex').value  || '#000000';
 
@@ -255,14 +251,15 @@ document.getElementById('dl-btn').addEventListener('click', () => {
     ctx.fillStyle = lightC;
     ctx.fillRect(0,0,out.width,out.height);
 
-    const safeName = escapeHTML(name).substring(0, 60);
+    // ✅ Nom du fichier sécurisé (pas le texte affiché dans canvas)
     const safeFileName = slug.replace(/[^a-z0-9-]/g, '-').substring(0, 50);
 
     const drawLbl = () => {
         ctx.fillStyle = darkC;
         ctx.font = `bold ${Math.round(sz/14)}px sans-serif`;
         ctx.textAlign = 'center';
-        ctx.fillText(safeName, out.width/2, sz+pad+28);
+        // ✅ BUG-13 : name brut dans ctx.fillText (le canvas n'interprète pas le HTML)
+        ctx.fillText(name.substring(0, 60), out.width/2, sz+pad+28);
         ctx.font = `${Math.round(sz/20)}px sans-serif`;
         ctx.fillStyle = '#666';
         ctx.fillText('Scannez pour voir le menu', out.width/2, sz+pad+46);
@@ -302,7 +299,6 @@ document.getElementById('cp-btn').addEventListener('click', () => {
 const p = new URLSearchParams(location.search);
 if (p.get('slug')) {
     const slugParam = p.get('slug');
-    // ✅ VALIDATION DU SLUG DEPUIS L'URL
     if (/^[a-z0-9-]+$/.test(slugParam)) {
         document.getElementById('slug').value = slugParam;
         if (p.get('name')) {

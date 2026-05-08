@@ -18,15 +18,14 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Restos Lomé">
 
-    <!-- ✅ CSP Header contre XSS -->
+    <!-- CSP — BUG-FIX: suppression frame-ancestors (ignoré en meta), ajout cdn.jsdelivr.net dans connect-src -->
     <meta http-equiv="Content-Security-Policy" content="
         default-src 'self';
         script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com;
         style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
         img-src 'self' data: https: blob:;
         font-src 'self' https://fonts.gstatic.com;
-        connect-src 'self' https://qlkhzplfigyrbfizsnkp.supabase.co;
-        frame-ancestors 'none';
+        connect-src 'self' https://qlkhzplfigyrbfizsnkp.supabase.co https://cdn.jsdelivr.net;
         base-uri 'self';
         form-action 'self';
     ">
@@ -516,7 +515,7 @@ let logoTimer = null;
 let currentArt = null;
 let supabaseArticles = [];
 let articlesLoaded = false;
-let reviewRating = 5; // ✅ Pour le système d'avis
+let reviewRating = 5;
 
 // ✅ Configuration DOMPurify pour la protection XSS
 const DOMPurifyConfig = {
@@ -765,7 +764,8 @@ if (blogThemeBtn) {
     blogThemeBtn.addEventListener('click', () => { const isLight = document.body.classList.toggle('light'); blogThemeBtn.textContent = isLight ? '🌙' : '☀️'; try { localStorage.setItem('blog_theme', isLight ? 'light' : 'dark'); } catch(_){} });
 }
 
-(async () => { await initSupabase(); await loadSupabaseArticles(); articlesLoaded = false; init(); })();
+// ✅ BUG-12 CORRIGÉ : articlesLoaded = false supprimé — le cache est maintenant préservé
+(async () => { await initSupabase(); await loadSupabaseArticles(); init(); })();
 </script>
 <script>
 if('serviceWorker' in navigator){navigator.serviceWorker.register('/sw.js')}
