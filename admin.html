@@ -4,6 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin — Plateforme Restaurants</title>
+
+    <!-- CACHE-FIX : empêche le navigateur de servir une page admin périmée -->
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
     
     <!-- CSP — BUG-FIX: suppression frame-ancestors (ignoré en meta), ajout cdn.jsdelivr.net dans connect-src -->
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net 'unsafe-inline'; style-src 'self' https://fonts.googleapis.com 'unsafe-inline'; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https: blob:; connect-src 'self' https://*.supabase.co https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; frame-src 'self' https://maps.google.com https://www.google.com;">
@@ -223,6 +228,17 @@
 
         .stat-unit { font-family: var(--mono); font-size: 0.7rem; color: var(--text-muted); margin-top: 6px; }
 
+        /* ── SCROLL HINT TABLE MOBILE ── */
+        .table-scroll-hint {
+            display: none;
+            font-family: var(--mono); font-size: 0.68rem; color: var(--text-muted);
+            padding: 6px 24px; border-bottom: 1px solid var(--border);
+            background: var(--surface2);
+        }
+        @media (max-width: 768px) {
+            .table-scroll-hint { display: block; }
+        }
+
         .menu-table-wrap {
             background: var(--surface); border: 1px solid var(--border);
             border-radius: var(--radius-lg); overflow: hidden;
@@ -405,6 +421,7 @@
         /* ── SIDEBAR OVERLAY ── */
         #sidebar-overlay {
             display: none; position: fixed; inset: 0;
+            top: 56px; /* commence SOUS la barre mobile, pas derrière */
             background: rgba(0,0,0,0.65); z-index: 99;
             backdrop-filter: blur(2px);
         }
@@ -413,21 +430,53 @@
         @media (max-width: 768px) {
             .mobile-header { display: flex; }
 
+            /* ✅ FIX LAYOUT : la sidebar commence SOUS la barre mobile (56px)
+               sans ce top:56px, elle recouvre la barre et le contenu disparaît derrière */
             .sidebar {
+                top: 56px;
                 transform: translateX(-100%);
                 transition: transform 0.28s cubic-bezier(.4,0,.2,1);
                 z-index: 150;
             }
             .sidebar.mobile-open { transform: translateX(0); }
 
-            .main-content { margin-left: 0; padding: 72px 16px 24px; }
-            .stats-grid { grid-template-columns: 1fr 1fr; }
+            /* ✅ FIX : padding-top = hauteur barre (56px) + espace respiration (16px) */
+            .main-content { margin-left: 0; padding: 72px 14px 32px; max-width: 100%; }
+
+            /* ✅ Stats : 1 colonne sur très petit écran pour éviter l'écrasement */
+            .stats-grid { grid-template-columns: 1fr; gap: 10px; }
+
             .form-grid-2 { grid-template-columns: 1fr; }
             .section-header { flex-direction: column; align-items: flex-start; gap: 12px; }
+            .section-header .btn { width: 100%; justify-content: center; }
             .menu-table-header { flex-direction: column; align-items: flex-start; gap: 8px; }
-            table { font-size: .8rem; }
-            thead th, tbody td { padding: 10px 12px; }
+
+            /* ✅ FIX TABLE : scroll horizontal plutôt que débordement invisible */
+            .menu-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+            table { font-size: .78rem; min-width: 500px; }
+            thead th, tbody td { padding: 9px 10px; }
             .actions-cell { gap: 4px; }
+            .dish-thumb { width: 36px; height: 36px; }
+
+            /* ✅ Modals plus adaptées mobile */
+            .modal-box { padding: 20px 16px; max-height: 95vh; }
+            .modal-title { font-size: 1rem; }
+
+            /* ✅ Info cards full-width */
+            .info-card { padding: 18px 14px; }
+
+            /* ✅ Boutons pleine largeur dans les confirm dialogs */
+            .confirm-actions { flex-direction: column; }
+
+            /* ✅ Masquer les colonnes secondaires sur mobile pour la lisibilité */
+            .col-hide-mobile { display: none; }
+        }
+
+        /* ✅ Très petits écrans (< 400px) */
+        @media (max-width: 400px) {
+            .stats-grid { grid-template-columns: 1fr; }
+            .stat-value { font-size: 1.8rem; }
+            table { font-size: .72rem; min-width: 420px; }
         }
 
         @keyframes fadeIn {
@@ -525,7 +574,7 @@
             <div class="menu-table-wrap"><div class="menu-table-header"><span class="menu-table-title">🏆 Plats les plus aimés</span></div><table><thead><tr><th>Plat</th><th>Catégorie</th><th>Prix</th><th>Likes</th><th>Statut</th></tr></thead><tbody id="top-dishes-tbody"><tr><td colspan="5" style="text-align:center;padding:30px;color:var(--text-dim);">Chargement...</td></tr></tbody></table></div>
         </div>
         <!-- GESTION DES PLATS -->
-        <div id="panel-menu" class="panel" style="display:none;"><div class="section-header"><div><h2 class="section-title">Mes plats</h2><p class="section-subtitle" id="menu-count-label">Chargement...</p></div><button class="btn btn-primary" id="open-add-dish-btn">+ Ajouter un plat</button></div><div class="menu-table-wrap"><table><thead><tr><th width="60">Photo</th><th>Plat</th><th>Catégorie</th><th>Prix</th><th>Statut</th><th>Actions</th></tr></thead><tbody id="menu-tbody"><tr><td colspan="6" style="text-align:center;padding:30px;color:var(--text-dim);">Chargement...</td></tr></tbody></table></div></div>
+        <div id="panel-menu" class="panel" style="display:none;"><div class="section-header"><div><h2 class="section-title">Mes plats</h2><p class="section-subtitle" id="menu-count-label">Chargement...</p></div><button class="btn btn-primary" id="open-add-dish-btn">+ Ajouter un plat</button></div><div class="menu-table-wrap"><p class="table-scroll-hint">← Faites défiler le tableau →</p><table><thead><tr><th width="60">Photo</th><th>Plat</th><th>Catégorie</th><th>Prix</th><th>Statut</th><th>Actions</th></tr></thead><tbody id="menu-tbody"><tr><td colspan="6" style="text-align:center;padding:30px;color:var(--text-dim);">Chargement...</td></tr></tbody></table></div></div>
         <!-- INFOS RESTAURANT -->
         <div id="panel-restaurant" class="panel" style="display:none;"><div class="section-header"><div><h2 class="section-title">Mon restaurant</h2><p class="section-subtitle">Informations affichées sur votre menu public</p></div></div><div class="info-card"><h3 class="info-card-title">🏷️ Identité</h3><div class="form-grid-2"><div class="field-group"><label class="field-label">Nom</label><input type="text" class="field-input" id="r-name"></div><div class="field-group"><label class="field-label">Adresse</label><input type="text" class="field-input" id="r-address"></div></div><div class="field-group"><label class="field-label">Description</label><textarea class="field-input" id="r-description" rows="3"></textarea></div></div><div class="info-card"><h3 class="info-card-title">📞 Contact</h3><div class="form-grid-2"><div class="field-group"><label class="field-label">WhatsApp</label><input type="text" class="field-input" id="r-whatsapp" placeholder="22890010203"></div><div class="field-group"><label class="field-label">Téléphone</label><input type="text" class="field-input" id="r-phone"></div></div><div class="field-group"><label class="field-label">Horaires</label><input type="text" class="field-input" id="r-hours" placeholder="Lun-Sam : 11h00 – 23h00"></div></div><div class="info-card"><h3 class="info-card-title">🎨 Apparence</h3><div class="field-group"><label class="field-label">Couleur</label><div class="color-picker-wrap"><input type="color" id="r-theme-color" value="#c5a059"><input type="text" class="field-input" id="r-theme-color-hex" value="#c5a059" style="width:140px;font-family:var(--mono);"></div></div></div><button class="btn btn-primary" id="save-resto-btn">💾 Enregistrer</button></div>
         <!-- PUB LOCALE -->
@@ -605,7 +654,40 @@ function sanitizeHTML(str, options = {}) {
     return escapeHTML(str.replace(/<[^>]*>/g, ''));
 }
 
-async function initSupabase(){await CONFIG.load();db=supabase.createClient(CONFIG.supabaseUrl,CONFIG.supabaseKey,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:false}})}
+async function initSupabase(){
+    await CONFIG.load();
+
+    /* ═══════════════════════════════════════════════════════════
+       CACHE-FIX admin — même correctif que view.html
+       ─────────────────────────────────────────────────────────
+       Sans ce fetch personnalisé, le navigateur met en cache les
+       réponses GET de Supabase. Résultat : après un ajout ou une
+       suppression, loadDishes() renvoie l'ancienne liste.
+
+       ⚠️ opts.headers est un objet Headers natif → on ne peut
+       pas faire {...opts.headers}. Il faut Object.fromEntries().
+    ═══════════════════════════════════════════════════════════ */
+    const noCacheFetch=(url,opts={})=>{
+        const flatHeaders=opts.headers instanceof Headers
+            ? Object.fromEntries(opts.headers.entries())
+            : (opts.headers||{});
+        return fetch(url,{
+            ...opts,
+            cache:'no-store',
+            headers:{
+                ...flatHeaders,
+                'Cache-Control':'no-cache, no-store, must-revalidate',
+                'Pragma':'no-cache',
+                'Expires':'0'
+            }
+        });
+    };
+
+    db=supabase.createClient(CONFIG.supabaseUrl,CONFIG.supabaseKey,{
+        auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:false},
+        global:{fetch:noCacheFetch}
+    });
+}
 
 function toast(msg,type='info',d=4000){
     const i={success:'✅',error:'❌',info:'ℹ️',warning:'⚠️'};
