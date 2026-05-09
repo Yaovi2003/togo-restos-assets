@@ -5,13 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
     <meta name="theme-color" content="#050402">
     
+    <!-- CSP — BUG-FIX: suppression frame-ancestors (ignoré en meta), ajout cdn.jsdelivr.net dans connect-src -->
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net 'unsafe-inline'; style-src 'self' https://fonts.googleapis.com 'unsafe-inline'; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https: blob:; connect-src 'self' https://*.supabase.co https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; frame-src 'self' https://maps.google.com https://www.google.com;">
     
     <meta property="og:type" content="website">
     <meta property="og:site_name" content="Restos Lomé">
-    <meta name="og:title" id="og-title" content="Menu">
-    <meta name="og:description" id="og-description" content="Réservez votre table et commandez via WhatsApp">
-    <meta name="og:image" id="og-image" content="">
+    <meta property="og:title" id="og-title" content="Menu">
+    <meta property="og:description" id="og-description" content="Réservez votre table et commandez via WhatsApp">
+    <meta property="og:image" id="og-image" content="">
     <title id="page-title">Chargement…</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;0,700;1,300;1,400;1,600&family=Raleway:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
@@ -292,13 +293,15 @@
     .call-ok{width:100%;background:var(--gold);color:var(--ebony);border:none;padding:13px;border-radius:50px;font-weight:700;font-size:.85rem;letter-spacing:.08em;text-transform:uppercase;cursor:pointer;margin-bottom:8px}
     .call-cancel-btn{width:100%;background:transparent;border:1px solid var(--line);color:var(--ivory-muted);padding:11px;border-radius:50px;font-size:.82rem;cursor:pointer}
 
-    /* ═══════════════════════════════════════
-       MODE CLAIR
-    ═══════════════════════════════════════ */
+    /* ════════════════════════════════════════
+       MODE CLAIR — BUG-FIX : hero-name visible
+       ════════════════════════════════════════ */
     body.light{--ebony:#f5f0e8;--ebony2:#ede7db;--walnut:#fff;--walnut2:#faf6ee;--sepia:#f0ebe0;--ivory:#1a1510;--ivory2:#2a2318;--ivory-dim:#4a4438;--ivory-muted:#7a7060;--line:rgba(26,21,16,.1);--line2:rgba(26,21,16,.18)}
     body.light #loader{background:var(--ebony)}
     body.light .ctrl-btn{background:rgba(245,240,232,.9)}
+    /* ✅ FIX : en mode clair, le hero reste sombre pour que le texte reste lisible */
     body.light #hero-cover{filter:brightness(.6) saturate(1.1)}
+    /* ✅ FIX : forcer couleur ivoire sur le nom du restaurant en mode clair */
     body.light #hero-name{color:#f8f3e8 !important;text-shadow:0 2px 40px rgba(0,0,0,.9)}
     body.light .hero-label{color:var(--gold)}
     body.light .hero-meta-pill{color:rgba(248,243,232,.75)}
@@ -325,75 +328,6 @@
     body.light .footer-credit{color:#7a7060}
     body.light .res-title{color:#1a1510}
     body.light .call-box h3{color:#1a1510}
-
-    /* ═══════════════════════════════════════
-       FIX — Pub locale responsive
-    ═══════════════════════════════════════ */
-    #local-ad{
-        margin:0 24px 16px;
-        border-radius:var(--r2);
-        overflow:hidden;
-        border:1px solid var(--gold-border);
-        cursor:pointer;
-        transition:opacity .2s;
-        background:var(--sepia);
-        display:none;
-    }
-    #local-ad:hover{opacity:.9}
-    #local-ad-img{
-        width:100%;
-        height:auto;
-        min-height:60px;
-        max-height:120px;
-        object-fit:cover;
-        display:block;
-        border-radius:var(--r2);
-    }
-    #local-ad-label{
-        font-family:var(--mono);
-        font-size:.5rem;
-        letter-spacing:.12em;
-        text-transform:uppercase;
-        color:var(--ivory-muted);
-        text-align:right;
-        padding:3px 8px;
-    }
-
-    /* ═══════════════════════════════════════
-       FIX — Événements images robustes
-    ═══════════════════════════════════════ */
-    .event-card{
-        background:var(--walnut);
-        border:1px solid var(--gold-border);
-        border-radius:var(--r2);
-        padding:16px;
-        margin-bottom:12px;
-        display:flex;
-        align-items:flex-start;
-        gap:12px;
-    }
-    .event-poster{
-        width:64px;
-        height:64px;
-        flex-shrink:0;
-        border-radius:8px;
-        object-fit:cover;
-        object-position:center;
-        background:var(--sepia);
-        display:block;
-    }
-    .event-poster-ph{
-        width:64px;
-        height:64px;
-        flex-shrink:0;
-        border-radius:8px;
-        background:var(--sepia);
-        display:flex;
-        align-items:center;
-        justify-content:center;
-        font-size:1.5rem;
-    }
-    .event-body{flex:1;min-width:0}
 
     @media(min-width:560px){body{max-width:480px;margin:0 auto;box-shadow:0 0 80px rgba(0,0,0,.7)}}
     #reviews-list > div{animation:fadeUp .3s ease both}
@@ -423,11 +357,7 @@
 <div class="menu-type-switch" id="menu-type-switch" style="display:none"><button class="mts-btn on" id="mts-food">🍽 Nos plats</button><button class="mts-btn" id="mts-drinks">🍷 Carte des vins</button></div>
 <div class="search-zone"><input type="search" id="search" autocomplete="off"></div>
 <div class="cats" id="cats"></div>
-<!-- FIX pub locale — structure améliorée -->
-<div id="local-ad">
-    <img id="local-ad-img" src="" alt="">
-    <div id="local-ad-label">Publicité</div>
-</div>
+<div id="local-ad" style="display:none;margin:0 24px 16px"><img id="local-ad-img" src="" alt="" style="width:100%;max-height:100px;object-fit:cover;border-radius:var(--r2);display:block;border:1px solid var(--line)"></div>
 <div class="menu-zone" id="menu-zone"></div>
 <footer class="page-footer">
     <button id="reel-btn">🎥 Créer un Reel/TikTok</button>
@@ -466,24 +396,7 @@ let resto=null,dishes=[],gallery=[],activePanel='menu',activeCat='__all__',showD
 const slug=()=>new URLSearchParams(location.search).get('id')||new URLSearchParams(location.search).get('slug'),$=id=>document.getElementById(id),fmt=n=>n.toLocaleString('fr-FR').replace(/\u202F/g,' ')+' FCFA',sk=k=>`${k}_${slug()}`;
 
 function escapeHTML(str){if(!str&&str!==0)return '';const div=document.createElement('div');div.textContent=String(str);return div.innerHTML}
-
-/* ═══════════════════════════════════════════════════════════
-   FIX sanitizeURL — trim() pour éviter les espaces parasites
-   qui empêchent new URL() de parser et retournent '#'
-═══════════════════════════════════════════════════════════ */
-function sanitizeURL(url){
-    if(!url)return '#';
-    const u=(typeof url==='string'?url:String(url)).trim();
-    if(!u)return '#';
-    try{
-        const p=new URL(u);
-        if(!['http:','https:','tel:','mailto:'].includes(p.protocol))return '#';
-        return u;
-    }catch{
-        if(u.startsWith('tel:')||u.startsWith('mailto:'))return u;
-        return '#';
-    }
-}
+function sanitizeURL(url){if(!url)return '#';try{const p=new URL(url);if(!['http:','https:','tel:','mailto:'].includes(p.protocol))return '#';return url}catch{if(url.startsWith('tel:')||url.startsWith('mailto:'))return url;return '#'}}
 function sanitizePhone(phone){if(!phone)return '';return String(phone).replace(/[^0-9+]/g,'').substring(0,20)}
 
 function save(){try{localStorage.setItem(sk('c'),JSON.stringify(cart));localStorage.setItem(sk('l'),JSON.stringify([...liked]));localStorage.setItem(sk('r'),String(rated))}catch(_){}}
@@ -519,6 +432,7 @@ async function load(){
         const{data:r,error:re}=await supabaseClient.from('restaurants').select('*').eq('slug',s).eq('is_active',true).single();
         if(re||!r){showErr();return}
 
+        // ✅ BUG-02 CORRIGÉ : charger local_ads en parallèle
         const[menuRes,galleryRes,adsRes]=await Promise.all([
             supabaseClient.from('menu_items').select('*').eq('restaurant_id',r.id).order('display_order',{ascending:true}),
             supabaseClient.from('gallery_photos').select('*').eq('restaurant_id',r.id).order('display_order',{ascending:true}),
@@ -532,51 +446,18 @@ async function load(){
 
         restore();applyBrand(r.theme_color);
         fillHero();fillInfoBar();fillFormula();fillBestsellers();fillChef();fillGallery();fillAbout();fillMap();buildCats();applyFilters();updateFab();fillStars();fillFooter();updateOG();
+        // FIX B3 — placeholder initialisé au chargement (sinon invisible jusqu'au clic lang/mts)
+        $('search').placeholder=t('search');
         if(dishes.some(d=>d.is_drink)){$('menu-type-switch').style.display='flex'}
         try{await supabaseClient.rpc('increment_views',{p_slug:s})}catch(_){}
         checkNightMode();loadReviews();loadEventsView();hideLoader();
-
-        /* ═══════════════════════════════════════════════════
-           FIX REALTIME — abonnement Supabase pour mise à jour
-           instantanée du menu sans rechargement de la page
-        ═══════════════════════════════════════════════════ */
-        setupRealtime(r.id);
-
     }catch(e){console.error(e);showErr()}
-}
-
-/* Realtime — rafraîchit le menu et les plats en temps réel */
-function setupRealtime(restaurantId){
-    try{
-        supabaseClient.channel('rt_menu_'+restaurantId)
-            .on('postgres_changes',{
-                event:'*',schema:'public',table:'menu_items',
-                filter:`restaurant_id=eq.${restaurantId}`
-            },async()=>{
-                const{data}=await supabaseClient.from('menu_items').select('*')
-                    .eq('restaurant_id',restaurantId).order('display_order',{ascending:true});
-                if(data){
-                    dishes=data;
-                    if(dishes.some(d=>d.is_drink)){$('menu-type-switch').style.display='flex'}
-                    buildCats();applyFilters();fillBestsellers();
-                }
-            })
-            .on('postgres_changes',{
-                event:'*',schema:'public',table:'restaurants',
-                filter:`id=eq.${restaurantId}`
-            },async()=>{
-                const{data:r}=await supabaseClient.from('restaurants').select('*')
-                    .eq('id',restaurantId).single();
-                if(r){resto=r;fillFormula();fillHero();fillInfoBar()}
-            })
-            .subscribe();
-    }catch(e){console.warn('Realtime non disponible:',e)}
 }
 
 function updateOG(){const r=resto;const img=r.cover_url||r.logo_url||'';document.title=escapeHTML(r.name)+' — Menu';document.querySelector('#og-title')?.setAttribute('content',escapeHTML(r.name)+' — Menu Digital');document.querySelector('#og-description')?.setAttribute('content',escapeHTML(r.description||'Réservez votre table et commandez via WhatsApp'));if(img&&img.startsWith('http')){document.querySelector('#og-image')?.setAttribute('content',sanitizeURL(img))}else{const ogImageUrl=`${location.origin}/api/og-image?name=${encodeURIComponent(escapeHTML(r.name))}&color=${encodeURIComponent(r.theme_color||'#c5a059')}`;document.querySelector('#og-image')?.setAttribute('content',ogImageUrl)}}
 function fillHero(){const r=resto;$('ld-initial').textContent=r.name.charAt(0).toUpperCase();$('ld-name').textContent=r.name;if(r.cover_url){const img=$('hero-cover');img.src=sanitizeURL(r.cover_url);img.alt=escapeHTML(r.name);img.style.display='block';$('hero-cover-ph').style.display='none'}$('hero-label').textContent=r.address?'📍 '+escapeHTML(r.address):'Menu Digital';$('hero-name').textContent=r.name;const meta=$('hero-meta');meta.innerHTML='';if(r.opening_hours)meta.innerHTML+=`<div class="hero-meta-pill"><span>🕐</span>${escapeHTML(r.opening_hours)}</div>`;if(r.phone)meta.innerHTML+=`<div class="hero-meta-pill"><span>📞</span>${escapeHTML(r.phone)}</div>`;const hr=new Date().getHours(),isOpen=r.opening_hours?hr>=9&&hr<23:null;if(isOpen!==null)$('hero-badges').innerHTML=`<div class="status-chip ${isOpen?'open':'closed'}"><span class="status-dot"></span>${isOpen?t('open'):t('closed')}</div>`;$('reserve-btn-txt').textContent=t('reserveBtn')}
 function fillInfoBar(){const r=resto,bar=$('info-bar');bar.innerHTML='';const cells=[r.opening_hours?{ico:'🕐',lbl:'Horaires',val:escapeHTML(r.opening_hours)}:null,r.phone?{ico:'📞',lbl:'Appeler',val:escapeHTML(r.phone),href:sanitizeURL(`tel:+${sanitizePhone(r.phone)}`)}:null,r.address?{ico:'📍',lbl:'Adresse',val:escapeHTML(r.address)}:null,r.whatsapp?{ico:'💬',lbl:'WhatsApp',val:'Commander',href:sanitizeURL(`https://wa.me/${sanitizePhone(r.whatsapp)}`)}:null].filter(Boolean).slice(0,4);cells.forEach(c=>{const cell=document.createElement('div');cell.className='info-cell';const inner=`<span class="info-cell-ico">${c.ico}</span><span class="info-cell-label">${c.lbl}</span><span class="info-cell-val">${c.val}</span>`;cell.innerHTML=c.href?`<a href="${c.href}" target="_blank" rel="noopener noreferrer">${inner}</a>`:inner;bar.appendChild(cell)})}
-function fillBestsellers(){const top=[...dishes].filter(d=>d.is_available!==false&&!d.is_drink).sort((a,b)=>(b.likes_count||0)-(a.likes_count||0)).slice(0,5);if(!top.length){$('bestsellers').style.display='none';return}const scroll=$('best-scroll');scroll.innerHTML='';$('bestsellers').querySelector('.bestsellers-label').textContent=t('bestsellers');top.forEach((d,i)=>{const card=document.createElement('div');card.className='best-card';const imgHtml=d.image_url?`<img class="best-card-img" src="${sanitizeURL(d.image_url)}" alt="${escapeHTML(d.name)}" loading="lazy" crossorigin="anonymous" onerror="this.style.display='none';this.nextElementSibling&&(this.nextElementSibling.style.display='flex')">`:``;const phHtml=`<div class="best-card-img-ph" style="${d.image_url?'display:none':''}">🍽️</div>`;card.innerHTML=`${imgHtml}${phHtml}<div class="best-card-body"><div class="best-rank">#${i+1} Bestseller</div><div class="best-name">${escapeHTML(d.name)}</div><div class="best-price">${fmt(d.price)}</div><div class="best-likes">❤️ ${d.likes_count||0}</div></div>`;card.addEventListener('click',()=>{if(!cart[d.id]){cart[d.id]={name:d.name,price:d.price,qty:1};save();updateFab();card.style.border='1px solid var(--gold)';setTimeout(()=>card.style.border='1px solid var(--line)',1000)}});scroll.appendChild(card)})}
+function fillBestsellers(){const top=[...dishes].filter(d=>d.is_available!==false&&!d.is_drink).sort((a,b)=>(b.likes_count||0)-(a.likes_count||0)).slice(0,5);if(!top.length){$('bestsellers').style.display='none';return}const scroll=$('best-scroll');scroll.innerHTML='';$('bestsellers').querySelector('.bestsellers-label').textContent=t('bestsellers');top.forEach((d,i)=>{const card=document.createElement('div');card.className='best-card';const imgHtml=d.image_url?`<img class="best-card-img" src="${sanitizeURL(d.image_url)}" alt="${escapeHTML(d.name)}" loading="lazy" onerror="this.style.display='none'">`:`<div class="best-card-img-ph">🍽️</div>`;card.innerHTML=`${imgHtml}<div class="best-card-body"><div class="best-rank">#${i+1} Bestseller</div><div class="best-name">${escapeHTML(d.name)}</div><div class="best-price">${fmt(d.price)}</div><div class="best-likes">❤️ ${d.likes_count||0}</div></div>`;card.addEventListener('click',()=>{if(!cart[d.id]){cart[d.id]={name:d.name,price:d.price,qty:1};save();updateFab();card.style.border='1px solid var(--gold)';setTimeout(()=>card.style.border='1px solid var(--line)',1000)}});scroll.appendChild(card)})}
 function fillChef(){const r=resto;if(!r.chef_name)return;$('tab-chef').style.display='flex';const card=$('chef-card');const photoHtml=r.chef_photo?`<div class="chef-photo-wrap"><img src="${sanitizeURL(r.chef_photo)}" alt="${escapeHTML(r.chef_name)}"><div class="chef-photo-overlay"></div><span class="chef-photo-label">${escapeHTML(r.chef_name)}</span><span class="chef-photo-title">${escapeHTML(r.chef_title||'Chef Exécutif')}</span></div>`:`<div class="chef-photo-ph"><span style="font-size:4rem">👨‍🍳</span></div><div style="padding:16px 20px 4px"><span style="font-family:var(--serif);font-size:1.3rem">${escapeHTML(r.chef_name)}</span><span style="display:block;font-family:var(--mono);font-size:.58rem;color:var(--gold);letter-spacing:.15em;text-transform:uppercase;margin-top:4px">${escapeHTML(r.chef_title||'Chef Exécutif')}</span></div>`;const bioHtml=r.chef_bio?`<div class="chef-bio"><p class="chef-bio-text">${escapeHTML(r.chef_bio)}</p></div>`:'';card.innerHTML=photoHtml+bioHtml}
 function fillGallery(){if(!gallery.length){$('badge-gallery').textContent='';$('badge-gallery').classList.remove('show');return}$('badge-gallery').textContent=gallery.length;$('badge-gallery').classList.add('show');$('gallery-sub').textContent=`${gallery.length} photo${gallery.length>1?'s':''} — Cliquez pour agrandir`;const grid=$('gallery-grid');grid.innerHTML='';if(gallery.length>=3)grid.classList.add('has-3');lbPhotos=gallery.map(p=>({url:sanitizeURL(p.photo_url),caption:escapeHTML(p.caption||'')}));gallery.forEach((p,i)=>{const item=document.createElement('div');item.className='gallery-item';item.innerHTML=`<img src="${sanitizeURL(p.photo_url)}" alt="${escapeHTML(p.caption||'Photo restaurant')}" loading="${i<3?'eager':'lazy'}"><div class="gallery-zoom">⊕</div>${p.caption?`<div class="gallery-caption">${escapeHTML(p.caption)}</div>`:''}`;item.addEventListener('click',()=>openLightbox(i));grid.appendChild(item)})}
 function openLightbox(idx){lbIdx=idx;updateLb();$('lightbox').classList.add('open');document.body.style.overflow='hidden'}
@@ -585,20 +466,25 @@ function updateLb(){const p=lbPhotos[lbIdx];if(!p)return;$('lb-img').src=p.url;$
 $('lb-close').addEventListener('click',closeLightbox);$('lightbox').addEventListener('click',e=>{if(e.target===$('lightbox'))closeLightbox()});$('lb-prev').addEventListener('click',()=>{lbIdx=(lbIdx-1+lbPhotos.length)%lbPhotos.length;updateLb()});$('lb-next').addEventListener('click',()=>{lbIdx=(lbIdx+1)%lbPhotos.length;updateLb()});let lbTouchX=0;$('lightbox').addEventListener('touchstart',e=>{lbTouchX=e.touches[0].clientX});$('lightbox').addEventListener('touchend',e=>{const dx=e.changedTouches[0].clientX-lbTouchX;if(Math.abs(dx)>40){dx<0?$('lb-next').click():$('lb-prev').click()}})
 function fillAbout(){$('about-desc').textContent=resto.description||''}
 
+// ✅ BUG-16 CORRIGÉ : validation et insertion sécurisée du maps embed code via appendChild
 function fillMap(){
     const r=resto;
     const mapsUrl=r.maps_lat&&r.maps_lng?sanitizeURL(`https://maps.google.com/maps?q=${parseFloat(r.maps_lat).toFixed(4)},${parseFloat(r.maps_lng).toFixed(4)}&z=16`):r.address?sanitizeURL(`https://maps.google.com/maps?q=${encodeURIComponent(r.address+', Lomé, Togo')}`):null;
     const mapCard=$('map-card');
     mapCard.innerHTML=`<div class="map-card-inner"><div class="map-pin-row"><div class="map-pin-ico">📍</div><div><p class="map-info-name">${escapeHTML(r.name)}</p><p class="map-info-addr">${escapeHTML(r.address||'Lomé, Togo')}</p>${r.maps_lat&&r.maps_lng?`<p class="map-gps">GPS : ${parseFloat(r.maps_lat).toFixed(4)}, ${parseFloat(r.maps_lng).toFixed(4)}</p>`:''}</div></div><div class="map-actions">${mapsUrl?`<a class="map-btn-primary" href="${mapsUrl}" target="_blank" rel="noopener noreferrer">🗺 ${t('directions')}</a>`:''}${r.whatsapp?`<button class="map-btn-secondary" onclick="window.open('${sanitizeURL('https://wa.me/'+sanitizePhone(r.whatsapp))}','_blank','noopener,noreferrer')">💬 WhatsApp</button>`:''}</div></div>`;
+
+    // ✅ BUG-16 : validation stricte avant injection de l'iframe Google Maps
     if(r.maps_embed_code){
         const raw=r.maps_embed_code.trim();
         if(raw.startsWith('<iframe')&&raw.includes('google.com/maps')){
             const wrap=document.createElement('div');
             wrap.className='map-iframe-wrap';
+            // On injecte dans un conteneur temporaire puis on valide l'iframe
             const tmp=document.createElement('div');
             tmp.innerHTML=raw.replace('width="600"','width="100%"').replace('height="450"','height="240px"');
             const iframeEl=tmp.querySelector('iframe');
             if(iframeEl){
+                // Sanitiser les attributs dangereux
                 iframeEl.removeAttribute('onload');
                 iframeEl.removeAttribute('onerror');
                 wrap.appendChild(iframeEl);
@@ -608,27 +494,19 @@ function fillMap(){
     }
 }
 
-/* ═══════════════════════════════════════════════════
-   FIX pub locale — affichage responsive amélioré
-═══════════════════════════════════════════════════ */
+// ✅ BUG-02 CORRIGÉ : lecture de activeAd (chargé depuis local_ads) au lieu des champs inexistants
 function fillFooter(){
     const r=resto;
     $('footer-logo').textContent=escapeHTML(r.name);
     if(r.opening_hours)$('footer-hours').textContent=escapeHTML(r.opening_hours);
 
+    // Affichage pub locale depuis la table local_ads
     if(activeAd?.banner_url){
-        const adEl=$('local-ad');
-        const imgEl=$('local-ad-img');
-        const labelEl=$('local-ad-label');
-        adEl.style.display='block';
-        imgEl.src=sanitizeURL(activeAd.banner_url);
-        imgEl.alt=escapeHTML(activeAd.label||'Publicité locale');
-        if(activeAd.label)labelEl.textContent=activeAd.label;
-        imgEl.onerror=function(){adEl.style.display='none'};
-        if(activeAd.redirect_url){
-            adEl.style.cursor='pointer';
-            adEl.onclick=()=>window.open(sanitizeURL(activeAd.redirect_url),'_blank','noopener,noreferrer');
-        }
+        $('local-ad').style.display='block';
+        $('local-ad-img').src=sanitizeURL(activeAd.banner_url);
+        $('local-ad-img').alt=escapeHTML(activeAd.label||'Publicité locale');
+        if(activeAd.redirect_url)
+            $('local-ad').onclick=()=>window.open(sanitizeURL(activeAd.redirect_url),'_blank','noopener,noreferrer');
     }
 
     if(r.phone){const fp=$('footer-phone');fp.style.display='flex';fp.href=sanitizeURL(`tel:+${sanitizePhone(r.phone)}`);fp.textContent='📞 +'+sanitizePhone(r.phone)}
@@ -638,6 +516,7 @@ function fillFooter(){
 function fillStars(){updateStarsUI(rated);document.querySelectorAll('.star').forEach(s=>s.addEventListener('click',()=>{rated=parseInt(s.dataset.v);save();updateStarsUI(rated)}))}
 function updateStarsUI(v){document.querySelectorAll('.star').forEach(s=>s.classList.toggle('on',parseInt(s.dataset.v)<=v));$('stars-note').textContent=v>0?`(${v}/5)`:''}
 
+// ✅ BUG-01 CORRIGÉ : lecture des champs formula_title et formula_description (cohérent avec l'admin)
 function fillFormula(){
     const r=resto;
     if(!r.formula_title||!r.formula_price||!r.formula_expires_at){$('formula-banner').style.display='none';return}
@@ -653,46 +532,13 @@ function fillFormula(){
 
 function buildCats(){const catsSet=new Set();dishes.forEach(d=>{if(d.category)catsSet.add(d.category)});const catsArr=[t('all'),...Array.from(catsSet).sort()];const container=$('cats');container.innerHTML='';catsArr.forEach(cat=>{const pill=document.createElement('button');pill.className='cat-pill'+(cat===activeCat||( activeCat==='__all__'&&cat===t('all'))?' on':'');pill.textContent=cat==='__all__'?t('all'):escapeHTML(cat);pill.addEventListener('click',()=>{activeCat=cat===t('all')?'__all__':cat;document.querySelectorAll('.cat-pill').forEach(p=>p.classList.remove('on'));pill.classList.add('on');applyFilters()});container.appendChild(pill)})}
 function applyFilters(){let filtered=[...dishes];if(showDrinks){filtered=filtered.filter(d=>d.is_drink===true)}else{filtered=filtered.filter(d=>!d.is_drink)}if(activeCat!=='__all__'){filtered=filtered.filter(d=>(d.category||'Autres')===activeCat)}const q=($('search').value||'').trim().toLowerCase();if(q){filtered=filtered.filter(d=>d.name.toLowerCase().includes(q)||(d.description||'').toLowerCase().includes(q)||(d.category||'').toLowerCase().includes(q))}renderMenu(filtered);document.querySelectorAll('.tab-badge').forEach(b=>b.classList.remove('show'));const badge=$('badge-gallery');if(gallery.length){badge.textContent=gallery.length;badge.classList.add('show')}}
-async function doLike(dish,card){liked.has(dish.id)?liked.delete(dish.id):liked.add(dish.id);save();const btn=card.querySelector('.like-btn');const icon=btn.querySelector('.like-icon');if(liked.has(dish.id)){btn.classList.add('on');icon.textContent='❤️';dish.likes_count=(dish.likes_count||0)+1;try{await supabaseClient.rpc('increment_likes',{item_id:dish.id})}catch(_){}}else{btn.classList.remove('on');icon.textContent='🤍';dish.likes_count=Math.max(0,(dish.likes_count||0)-1)}btn.querySelector('span:last-child').textContent=dish.likes_count||0}
+async function doLike(dish,card){liked.has(dish.id)?liked.delete(dish.id):liked.add(dish.id);save();const btn=card.querySelector('.like-btn');const icon=btn.querySelector('.like-icon');if(liked.has(dish.id)){btn.classList.add('on');icon.textContent='❤️';dish.likes_count=(dish.likes_count||0)+1;try{await supabaseClient.rpc('increment_likes',{item_id:dish.id})}catch(_){}}else{btn.classList.remove('on');icon.textContent='🤍';dish.likes_count=Math.max(0,(dish.likes_count||0)-1);// FIX B2 — décrémente aussi en BD (nécessite RPC decrement_likes dans Supabase)
+try{await supabaseClient.rpc('decrement_likes',{item_id:dish.id})}catch(_){}}btn.querySelector('span:last-child').textContent=dish.likes_count||0}
 function openReservation(){$('reservation-overlay').classList.add('open');document.body.style.overflow='hidden';const r=resto;$('res-title').textContent=t('resTitle');$('res-subtitle').textContent=t('resSub');if(r.whatsapp){$('res-phone').value=sanitizePhone(r.whatsapp)}const today=new Date().toISOString().split('T')[0];$('res-date').setAttribute('min',today);$('res-date').value=today}
 function closeReservation(){$('reservation-overlay').classList.remove('open');document.body.style.overflow=''}
 document.querySelectorAll('.tab').forEach(tab=>{tab.addEventListener('click',()=>{document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));document.querySelectorAll('.panel').forEach(p=>p.classList.remove('on'));tab.classList.add('on');const pid='panel-'+tab.dataset.panel;$(pid)?.classList.add('on');activePanel=tab.dataset.panel})});
 function renderMenu(items){const zone=$('menu-zone');zone.innerHTML='';if(!items.length){zone.innerHTML=`<div class="empty-state"><span>✦</span>${t('noResult')}</div>`;return}const groups={};items.forEach(d=>(groups[d.category||'Autres']??=[]).push(d));Object.entries(groups).forEach(([cat,list])=>{const sec=document.createElement('div');sec.innerHTML=`<div class="cat-heading"><span class="cat-heading-name">${escapeHTML(cat)}</span><div class="cat-heading-rule"></div></div>`;list.forEach(d=>sec.appendChild(makeDish(d)));zone.appendChild(sec)})}
-
-/* ═══════════════════════════════════════════════════════════
-   FIX V2 — makeDish() : passe d.image_url à takeSelfie()
-   FIX image plat — crossorigin + fallback img/placeholder
-═══════════════════════════════════════════════════════════ */
-function makeDish(d){
-    const inCart=!!cart[d.id],isLiked=liked.has(d.id),avail=d.is_available!==false;
-    const card=document.createElement('div');
-    card.className=`dish ${inCart?'in-cart':''} ${!avail?'sold':''}`;
-    card.dataset.id=d.id;
-    card.dataset.sold=t('soldOut');
-
-    // FIX image : crossorigin pour canvas + fallback sur img cassée
-    let imgHtml;
-    if(d.image_url){
-        const safeUrl=sanitizeURL(d.image_url);
-        if(safeUrl!=='#'){
-            imgHtml=`<img src="${safeUrl}" alt="${escapeHTML(d.name)}" loading="lazy" crossorigin="anonymous" onerror="this.style.display='none';this.insertAdjacentHTML('afterend','<div class=\\'dish-photo-ph\\'>🍽️</div>')">`;
-        }else{
-            imgHtml=`<div class="dish-photo-ph">🍽️</div>`;
-        }
-    }else{
-        imgHtml=`<div class="dish-photo-ph">🍽️</div>`;
-    }
-
-    // FIX V2 — image URL passée à takeSelfie
-    const safeNameJs=d.name.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-    const safeImgJs=(d.image_url||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-
-    card.innerHTML=`<div class="dish-photo">${imgHtml}</div><div class="dish-body"><p class="dish-name">${escapeHTML(d.name)}</p>${d.description?`<p class="dish-desc">${escapeHTML(d.description)}</p>`:''}<div class="dish-foot"><span class="dish-price">${fmt(d.price)}</span><div class="dish-acts"><button class="like-btn ${isLiked?'on':''}" onclick="event.stopPropagation()"><span class="like-icon">${isLiked?'❤️':'🤍'}</span><span>${d.likes_count||0}</span></button><button class="selfie-btn" onclick="event.stopPropagation();takeSelfie('${safeNameJs}','${safeImgJs}')" title="Selfie">📸</button><button class="selfie-btn" onclick="event.stopPropagation();notifyWhenReady('${safeNameJs}')" title="Me prévenir">🔔</button></div></div></div><button class="add-btn ${inCart?'on':''}">${inCart?'✓':'+'}</button>`;
-    card.querySelector('.add-btn').addEventListener('click',()=>toggleCart(d,card));
-    card.querySelector('.like-btn').addEventListener('click',()=>doLike(d,card));
-    return card;
-}
-
+function makeDish(d){const inCart=!!cart[d.id],isLiked=liked.has(d.id),avail=d.is_available!==false;const card=document.createElement('div');card.className=`dish ${inCart?'in-cart':''} ${!avail?'sold':''}`;card.dataset.id=d.id;card.dataset.sold=t('soldOut');const imgHtml=d.image_url?`<img src="${sanitizeURL(d.image_url)}" alt="${escapeHTML(d.name)}" loading="lazy" onerror="this.parentNode.innerHTML='<div class=\\'dish-photo-ph\\'>🍽️</div>'">`:`<div class="dish-photo-ph">🍽️</div>`;card.innerHTML=`<div class="dish-photo">${imgHtml}</div><div class="dish-body"><p class="dish-name">${escapeHTML(d.name)}</p>${d.description?`<p class="dish-desc">${escapeHTML(d.description)}</p>`:''}<div class="dish-foot"><span class="dish-price">${fmt(d.price)}</span><div class="dish-acts"><button class="like-btn ${isLiked?'on':''}" onclick="event.stopPropagation()"><span class="like-icon">${isLiked?'❤️':'🤍'}</span><span>${d.likes_count||0}</span></button><button class="selfie-btn" onclick="event.stopPropagation();takeSelfie('${d.name.replace(/'/g,"\\'")}')" title="Selfie">📸</button><button class="selfie-btn" onclick="event.stopPropagation();notifyWhenReady('${d.name.replace(/'/g,"\\'")}')" title="Me prévenir">🔔</button></div></div></div><button class="add-btn ${inCart?'on':''}">${inCart?'✓':'+'}</button>`;card.querySelector('.add-btn').addEventListener('click',()=>toggleCart(d,card));card.querySelector('.like-btn').addEventListener('click',()=>doLike(d,card));return card}
 function toggleCart(d,card){const btn=card.querySelector('.add-btn');if(cart[d.id]){delete cart[d.id];btn.textContent='+';btn.classList.remove('on');card.classList.remove('in-cart')}else{cart[d.id]={name:d.name,price:d.price,qty:1};btn.textContent='✓';btn.classList.add('on');card.classList.add('in-cart')}save();updateFab()}
 function updateFab(){const n=Object.values(cart).reduce((s,i)=>s+i.qty,0);$('fab-count').textContent=n;$('cart-fab').classList.toggle('show',n>0)}
 function openCart(){renderCart();$('cart-overlay').classList.add('open');document.body.style.overflow='hidden'}
@@ -700,19 +546,25 @@ function closeCart(){$('cart-overlay').classList.remove('open');document.body.st
 function renderCart(){const list=$('cart-list');list.innerHTML='';if(!Object.keys(cart).length){list.innerHTML=`<div class="empty-state" style="padding:32px 0"><span>🛒</span>${t('empty')}</div>`}else{Object.entries(cart).forEach(([id,item])=>{const row=document.createElement('div');row.className='cart-row';row.innerHTML=`<span class="cart-row-name">${escapeHTML(item.name)}</span><div class="qty-wrap"><button class="qty-btn dec">−</button><span class="qty-val">${item.qty}</span><button class="qty-btn inc">+</button></div><span class="cart-row-price">${fmt(item.price*item.qty)}</span><button class="del-btn">✕</button>`;row.querySelector('.inc').addEventListener('click',()=>{cart[id].qty++;save();updateFab();renderCart()});row.querySelector('.dec').addEventListener('click',()=>{if(cart[id].qty>1){cart[id].qty--;save();updateFab();renderCart()}});row.querySelector('.del-btn').addEventListener('click',()=>{delete cart[id];save();updateFab();renderCart()});list.appendChild(row)})}updateTotal()}
 function updateTotal(){$('cart-total').textContent=fmt(Object.values(cart).reduce((s,i)=>s+i.price*i.qty,0))}
 
+// ✅ BUG-11 CORRIGÉ : sendWA() demande le nom et le numéro du client avant de créer la commande
 async function sendWA(){
     if(!resto?.whatsapp||!Object.keys(cart).length)return;
+
     const customerName=prompt('Votre nom (pour la commande) :');
     if(!customerName||!customerName.trim()){return}
     const customerPhone=prompt('Votre numéro WhatsApp :');
     if(!customerPhone||!customerPhone.trim()){return}
+
     const items=Object.values(cart);
     const subtotal=items.reduce((s,i)=>s+i.price*i.qty,0);
     const total=subtotal;
     let orderId=null;
+
     try{
         const{data:order}=await supabaseClient.from('orders').insert({
-            restaurant_id:resto.id,customer_name:escapeHTML(customerName.trim()),customer_phone:sanitizePhone(customerPhone),
+            restaurant_id:resto.id,
+            customer_name:escapeHTML(customerName.trim()),
+            customer_phone:sanitizePhone(customerPhone),
             delivery_type:'sur_place',delivery_fee:0,subtotal:subtotal,discount:0,total:total,status:'confirmé',notes:'Commande via WhatsApp'
         }).select().single();
         orderId=order.id;
@@ -720,12 +572,14 @@ async function sendWA(){
         await supabaseClient.from('order_items').insert(orderItems);
         await supabaseClient.from('transactions').insert({restaurant_id:resto.id,order_id:order.id,amount:total,payment_method:'espèces',type:'sur_place',description:`Commande ${escapeHTML(customerName.trim())}`});
     }catch(e){console.error('Erreur commande:',e)}
+
     let msg=`*COMMANDE — ${escapeHTML(resto.name)}*\n\n👤 ${escapeHTML(customerName.trim())}\n📞 ${sanitizePhone(customerPhone)}\n\n`;
     items.forEach((i,n)=>msg+=`${n+1}. ${escapeHTML(i.name)} × ${i.qty} = ${fmt(i.price*i.qty)}\n`);
     msg+=`\n💰 *TOTAL : ${fmt(total)}*`;
     if(orderId)msg+=`\n📋 *N° ${escapeHTML(orderId?.substring(0,8)||'')}*`;
     msg+=`\n\n_Merci de confirmer ma commande._`;
     window.open(`https://wa.me/${sanitizePhone(resto.whatsapp)}?text=${encodeURIComponent(msg)}`,'_blank','noopener,noreferrer');
+
     if(orderId&&typeof window.jspdf!=='undefined'){setTimeout(()=>{const{jsPDF}=window.jspdf;const fmtPDF=n=>n.toString().replace(/\B(?=(\d{3})+(?!\d))/g,' ')+' FCFA';const doc=new jsPDF();doc.setFontSize(18);doc.text('FACTURE',105,20,{align:'center'});doc.setFontSize(12);doc.text(resto.name||'',105,30,{align:'center'});doc.setFontSize(10);doc.text(`Commande #${orderId?.substring(0,8)||''}`,105,38,{align:'center'});doc.text(`Date : ${new Date().toLocaleDateString('fr-FR')}`,105,45,{align:'center'});let y=60;doc.text('Plat',15,y);doc.text('Qté',110,y);doc.text('Prix',150,y);doc.line(15,y+3,195,y+3);y+=12;items.forEach(i=>{doc.text((i.name||'').substring(0,30),15,y);doc.text(`×${i.qty}`,110,y);doc.text(fmtPDF(i.price*i.qty),150,y);y+=8});y+=8;doc.line(15,y,195,y);y+=8;doc.setFontSize(12);doc.text(`TOTAL : ${fmtPDF(total)}`,15,y);doc.save(`facture-${orderId?.substring(0,8)||'commande'}.pdf`)},1000)}
     cart={};save();updateFab();closeCart();
 }
@@ -733,227 +587,14 @@ async function sendWA(){
 function checkNightMode(){const h=new Date().getHours();if(h>=22||h<6)document.body.classList.add('night-mode')}
 function splitBill(){if(!Object.keys(cart).length)return;const total=Object.values(cart).reduce((s,i)=>s+i.price*i.qty,0);const people=parseInt(prompt('Nombre de personnes :','2'));if(!people||people<1)return;const perPerson=Math.round(total/people);const items=Object.values(cart);let msg=`🧾 *SPLIT BILL — ${escapeHTML(resto?.name||'')}*\n\n👥 ${people} personnes\n💰 Total : ${fmt(total)}\n👤 Chacun : *${fmt(perPerson)}*\n\n📋 Plats :\n`;items.forEach((i,n)=>msg+=`  ${n+1}. ${escapeHTML(i.name)} ×${i.qty}\n`);if(resto?.whatsapp)window.open(`https://wa.me/${sanitizePhone(resto.whatsapp)}?text=${encodeURIComponent(msg)}`,'_blank','noopener,noreferrer')}
 
-/* ═══════════════════════════════════════════════════════════
-   FIX V1+V2+V3 — takeSelfie :
-   - dishImageUrl maintenant reçu (V2)
-   - qrDiv positionné fixed hors viewport (pas left:-9999px)
-   - waitForQR remplace setTimeout(800ms)
-   - V4 : bloque le téléchargement si QR indisponible
-   - V3 : onerror CORS logué proprement
-═══════════════════════════════════════════════════════════ */
-function takeSelfie(dishName,dishImageUrl){
-    const canvas=document.createElement('canvas');
-    canvas.width=800;canvas.height=600;
-    const ctx=canvas.getContext('2d');
-    ctx.fillStyle='#0a0a0a';ctx.fillRect(0,0,800,600);
-    ctx.strokeStyle='#c5a059';ctx.lineWidth=8;ctx.strokeRect(20,20,760,560);
-    ctx.fillStyle='#c5a059';
-    ctx.font='bold 28px "Cormorant Garamond",serif';
-    ctx.textAlign='center';
-    ctx.fillText(`🍽️ ${dishName}`,400,90);
-    ctx.fillText(resto?.name||'',400,135);
-
-    if(dishImageUrl&&dishImageUrl.trim()&&sanitizeURL(dishImageUrl)!=='#'){
-        const img=new Image();
-        img.crossOrigin='anonymous';
-        img.onload=function(){
-            ctx.fillStyle='#1a1a1a';ctx.fillRect(60,170,680,280);
-            const maxW=680,maxH=280;
-            let w=img.width,h=img.height;
-            const ratio=Math.min(maxW/w,maxH/h);
-            w=Math.round(w*ratio);h=Math.round(h*ratio);
-            const x=60+(680-w)/2,y=170+(280-h)/2;
-            ctx.drawImage(img,x,y,w,h);
-            ajouterQRCode();
-        };
-        img.onerror=function(){
-            console.warn('[Selfie] Image CORS non disponible:',dishImageUrl);
-            dessinerFallback();
-        };
-        img.src=sanitizeURL(dishImageUrl);
-    }else{
-        dessinerFallback();
-    }
-
-    function dessinerFallback(){
-        ctx.fillStyle='#1a1a1a';ctx.fillRect(60,170,680,280);
-        ctx.fillStyle='#fff';ctx.font='80px sans-serif';ctx.textAlign='center';ctx.fillText('🍽️',400,280);
-        ctx.fillStyle='#c5a059';ctx.font='bold 36px "Cormorant Garamond",serif';ctx.fillText(dishName,400,350);
-        ctx.fillStyle='#fff';ctx.font='18px sans-serif';ctx.fillText('Commandez sur Restos Lomé',400,400);
-        ajouterQRCode();
-    }
-
-    function ajouterQRCode(){
-        const qrDiv=document.createElement('div');
-        // FIX V1 : position fixed hors viewport (pas left:-9999px qui bloque Safari)
-        qrDiv.style.cssText='position:fixed;top:-500px;left:0;opacity:0;pointer-events:none;';
-        document.body.appendChild(qrDiv);
-        new QRCode(qrDiv,{text:`${location.origin}/view.html?id=${encodeURIComponent(resto?.slug||'')}`,width:100,height:100,colorDark:'#000',colorLight:'#fff'});
-        // FIX V1 : attente événementielle au lieu de setTimeout fixe
-        waitForQR(qrDiv,(qrEl)=>{
-            // FIX V4 : bloquer si QR indisponible
-            if(!qrEl){
-                document.body.removeChild(qrDiv);
-                console.warn('[Selfie] QR Code non rendu.');
-            }else{
-                ctx.drawImage(qrEl,350,460,100,100);
-                document.body.removeChild(qrDiv);
-            }
-            ctx.fillStyle='#fff';ctx.font='14px sans-serif';ctx.textAlign='center';
-            ctx.fillText('Scannez pour voir le menu !',400,580);
-            const a=document.createElement('a');
-            a.download=`selfie-${(dishName||'plat').replace(/\s/g,'-')}.png`;
-            a.href=canvas.toDataURL('image/png');
-            a.click();
-        });
-    }
-}
-
+function takeSelfie(dishName,dishImageUrl){const canvas=document.createElement('canvas');canvas.width=800;canvas.height=600;const ctx=canvas.getContext('2d');ctx.fillStyle='#0a0a0a';ctx.fillRect(0,0,800,600);ctx.strokeStyle='#c5a059';ctx.lineWidth=8;ctx.strokeRect(20,20,760,560);ctx.fillStyle='#c5a059';ctx.font='bold 28px serif';ctx.textAlign='center';ctx.fillText(`🍽️ ${dishName}`,400,90);ctx.fillText(resto?.name||'',400,135);if(dishImageUrl&&dishImageUrl.startsWith('http')){const img=new Image();img.crossOrigin='anonymous';img.onload=function(){ctx.fillStyle='#1a1a1a';ctx.fillRect(60,170,680,280);const maxW=680,maxH=280;let w=img.width,h=img.height;const ratio=Math.min(maxW/w,maxH/h);w=Math.round(w*ratio);h=Math.round(h*ratio);const x=60+(680-w)/2,y=170+(280-h)/2;ctx.drawImage(img,x,y,w,h);ajouterQRCode()};img.onerror=function(){dessinerFallback()};img.src=sanitizeURL(dishImageUrl)}else{dessinerFallback()}function dessinerFallback(){ctx.fillStyle='#1a1a1a';ctx.fillRect(60,170,680,280);ctx.fillStyle='#fff';ctx.font='80px sans-serif';ctx.textAlign='center';ctx.fillText('🍽️',400,280);ctx.fillStyle='#c5a059';ctx.font='bold 36px serif';ctx.fillText(dishName,400,350);ctx.fillStyle='#fff';ctx.font='18px sans-serif';ctx.fillText('Commandez sur Restos Lomé',400,400);ajouterQRCode()}function ajouterQRCode(){const qrDiv=document.createElement('div');qrDiv.style.position='absolute';qrDiv.style.left='-9999px';document.body.appendChild(qrDiv);new QRCode(qrDiv,{text:`${location.origin}/view.html?id=${encodeURIComponent(resto?.slug||'')}`,width:100,height:100,colorDark:'#000',colorLight:'#fff'});setTimeout(()=>{const qrImg=qrDiv.querySelector('img')||qrDiv.querySelector('canvas');if(qrImg){ctx.drawImage(qrImg,350,460,100,100)}document.body.removeChild(qrDiv);ctx.fillStyle='#fff';ctx.font='14px sans-serif';ctx.fillText('Scannez pour voir le menu !',400,580);const a=document.createElement('a');a.download=`selfie-${(dishName||'plat').replace(/\s/g,'-')}.png`;a.href=canvas.toDataURL('image/png');a.click()},800)}}
 function notifyWhenReady(dishName){const phone=prompt('Votre numéro WhatsApp pour être prévenu :','228');if(!phone)return;const msg=`🔔 *${escapeHTML(dishName)} est prêt !*\n\n🍽️ ${escapeHTML(resto?.name||'')}\n\nCommandez maintenant !`;window.open(`https://wa.me/${sanitizePhone(phone)}?text=${encodeURIComponent(msg)}`,'_blank','noopener,noreferrer')}
 
-/* ═══════════════════════════════════════════════════════════
-   FIX V1+V4+V5 — generateReel :
-   - qrDiv positionné correctement (fixed hors viewport)
-   - waitForQR remplace setTimeout(1000ms)
-   - V4 : toast si QR absent
-   - V5 : police web pré-chargée pour canvas
-═══════════════════════════════════════════════════════════ */
-async function generateReel(){
-    if(!resto)return;
-    // FIX V5 : pré-charger la police web pour canvas
-    try{await document.fonts.load('bold 60px "Cormorant Garamond"')}catch(_){}
-    const canvas=document.createElement('canvas');
-    canvas.width=1080;canvas.height=1920;
-    const ctx=canvas.getContext('2d');
-    const grad=ctx.createLinearGradient(0,0,0,1920);
-    grad.addColorStop(0,'#0a0a0a');grad.addColorStop(1,'#1a1a1a');
-    ctx.fillStyle=grad;ctx.fillRect(0,0,1080,1920);
-    ctx.fillStyle='#c5a059';
-    ctx.font='bold 60px "Cormorant Garamond",serif';
-    ctx.textAlign='center';
-    ctx.fillText('🍽️ '+resto.name,540,200);
-    ctx.fillStyle='#fff';
-    ctx.font='40px "Cormorant Garamond",serif';
-    ctx.fillText('Découvrez notre menu digital !',540,400);
-    ctx.fillText('Scannez le QR Code 👇',540,500);
-    const qrDiv=document.createElement('div');
-    // FIX V1
-    qrDiv.style.cssText='position:fixed;top:-500px;left:0;opacity:0;pointer-events:none;';
-    document.body.appendChild(qrDiv);
-    new QRCode(qrDiv,{text:`${location.origin}/view.html?id=${encodeURIComponent(resto.slug)}`,width:300,height:300,colorDark:'#000',colorLight:'#fff'});
-    waitForQR(qrDiv,(qrEl)=>{
-        // FIX V4
-        if(!qrEl){
-            document.body.removeChild(qrDiv);
-            alert('⚠️ QR Code non disponible. Réessayez.');
-            return;
-        }
-        ctx.fillStyle='#fff';ctx.fillRect(390,580,320,320);
-        ctx.drawImage(qrEl,395,585,310,310);
-        document.body.removeChild(qrDiv);
-        ctx.fillStyle='#c5a059';
-        ctx.font='30px "Cormorant Garamond",serif';
-        ctx.textAlign='center';
-        ctx.fillText('Restos Lomé — Commandez en ligne',540,1100);
-        const a=document.createElement('a');
-        a.download=`reel-${resto.slug}.png`;
-        a.href=canvas.toDataURL('image/png');
-        a.click();
-        alert('✅ Image prête !\n\n1. Ouvrez TikTok/Instagram\n2. Ajoutez cette image\n3. Ajoutez un son\n4. Publiez !');
-    });
-}
+function generateReel(){if(!resto)return;const canvas=document.createElement('canvas');canvas.width=1080;canvas.height=1920;const ctx=canvas.getContext('2d');const grad=ctx.createLinearGradient(0,0,0,1920);grad.addColorStop(0,'#0a0a0a');grad.addColorStop(1,'#1a1a1a');ctx.fillStyle=grad;ctx.fillRect(0,0,1080,1920);ctx.fillStyle='#c5a059';ctx.font='bold 60px serif';ctx.textAlign='center';ctx.fillText('🍽️ '+resto.name,540,200);ctx.fillStyle='#fff';ctx.font='40px sans-serif';ctx.fillText('Découvrez notre menu digital !',540,400);ctx.fillText('Scannez le QR Code 👇',540,500);const qrDiv=document.createElement('div');qrDiv.style.position='absolute';qrDiv.style.left='-9999px';document.body.appendChild(qrDiv);new QRCode(qrDiv,{text:`${location.origin}/view.html?id=${encodeURIComponent(resto.slug)}`,width:300,height:300,colorDark:'#000',colorLight:'#fff'});setTimeout(()=>{const qrImg=qrDiv.querySelector('img')||qrDiv.querySelector('canvas');if(qrImg){ctx.drawImage(qrImg,390,600,300,300)}document.body.removeChild(qrDiv);ctx.fillStyle='#c5a059';ctx.font='30px sans-serif';ctx.fillText('Restos Lomé — Commandez en ligne',540,1100);const a=document.createElement('a');a.download=`reel-${resto.slug}.png`;a.href=canvas.toDataURL('image/png');a.click();alert('✅ Image prête !\n\n1. Ouvrez TikTok/Instagram\n2. Ajoutez cette image\n3. Ajoutez un son\n4. Publiez !')},1000)}
 
-/* ═══════════════════════════════════════════════════════════
-   FIX V1+V4+V5 — shareWithSelfie :
-   - qrDiv positionné correctement
-   - waitForQR remplace await setTimeout(1000ms)
-   - V4 : alerte si QR absent
-   - V5 : police web pré-chargée
-═══════════════════════════════════════════════════════════ */
-async function shareWithSelfie(platform){
-    if(!resto)return;
-    // FIX V5 : pré-charger la police web
-    try{await document.fonts.load('bold 48px "Cormorant Garamond"')}catch(_){}
-    const menuUrl=`${location.origin}/view.html?id=${encodeURIComponent(resto.slug)}`;
-    const canvas=document.createElement('canvas');
-    canvas.width=1200;canvas.height=630;
-    const ctx=canvas.getContext('2d');
-    const grad=ctx.createLinearGradient(0,0,1200,630);
-    grad.addColorStop(0,'#0a0a0a');grad.addColorStop(1,'#1c1c1c');
-    ctx.fillStyle=grad;ctx.fillRect(0,0,1200,630);
-    ctx.strokeStyle='#c5a059';ctx.lineWidth=6;ctx.strokeRect(15,15,1170,600);
-    ctx.fillStyle='#c5a059';
-    ctx.font='bold 48px "Cormorant Garamond",serif';
-    ctx.textAlign='left';
-    ctx.fillText('🍽️ '+resto.name,60,100);
-    ctx.fillStyle='#fff';
-    ctx.font='28px "Cormorant Garamond",serif';
-    ctx.fillText('Découvrez notre menu digital !',60,180);
-    ctx.fillText('Commandez facilement en ligne 📱',60,230);
-    const qrDiv=document.createElement('div');
-    // FIX V1
-    qrDiv.style.cssText='position:fixed;top:-500px;left:0;opacity:0;pointer-events:none;';
-    document.body.appendChild(qrDiv);
-    new QRCode(qrDiv,{text:menuUrl,width:250,height:250,colorDark:'#000',colorLight:'#fff'});
-    waitForQR(qrDiv,(qrEl)=>{
-        // FIX V4
-        if(!qrEl){
-            document.body.removeChild(qrDiv);
-            alert('⚠️ QR Code non disponible. Réessayez.');
-            return;
-        }
-        ctx.fillStyle='#fff';ctx.fillRect(880,190,270,270);
-        ctx.drawImage(qrEl,890,200,250,250);
-        document.body.removeChild(qrDiv);
-        ctx.fillStyle='#000';ctx.font='14px sans-serif';ctx.textAlign='center';
-        ctx.fillText('Scannez-moi !',1015,475);
-        ctx.fillStyle='#c5a059';
-        ctx.font='22px "Cormorant Garamond",serif';
-        ctx.fillText('Restos Lomé — Les saveurs du Togo',60,550);
-        const text=`🍽️ ${escapeHTML(resto.name)} — Menu Digital\n\n📋 ${escapeHTML(resto.description||'Découvrez nos plats !')}\n📍 ${escapeHTML(resto.address||'Lomé, Togo')}\n\n🔗 ${menuUrl}`;
-        const encodedText=encodeURIComponent(text);
-        const encodedUrl=encodeURIComponent(menuUrl);
-        if(platform==='facebook'){window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}&quote=${encodedText}`,'_blank','noopener,noreferrer')}
-        else if(platform==='whatsapp'){window.open(`https://wa.me/?text=${encodedText}`,'_blank','noopener,noreferrer')}
-        else if(platform==='twitter'){window.open(`https://twitter.com/intent/tweet?text=${encodedText}&url=${encodedUrl}`,'_blank','noopener,noreferrer')}
-        else if(platform==='tiktok'){const a=document.createElement('a');a.download=`${resto.slug}-tiktok.png`;a.href=canvas.toDataURL('image/png');a.click();alert('✅ Image enregistrée !\n\n📱 Ouvrez TikTok → "+" → Upload\n📝 Collez ce texte :\n'+text)}
-        else if(platform==='instagram'){const a=document.createElement('a');a.download=`${resto.slug}-insta.png`;a.href=canvas.toDataURL('image/png');a.click();alert('✅ Image enregistrée !\n\n📱 Ouvrez Instagram → "+" → Post\n📝 Collez ce texte :\n'+text)}
-    });
-}
+async function shareWithSelfie(platform){if(!resto)return;const menuUrl=`${location.origin}/view.html?id=${encodeURIComponent(resto.slug)}`;const canvas=document.createElement('canvas');canvas.width=1200;canvas.height=630;const ctx=canvas.getContext('2d');const grad=ctx.createLinearGradient(0,0,1200,630);grad.addColorStop(0,'#0a0a0a');grad.addColorStop(1,'#1c1c1c');ctx.fillStyle=grad;ctx.fillRect(0,0,1200,630);ctx.strokeStyle='#c5a059';ctx.lineWidth=6;ctx.strokeRect(15,15,1170,600);ctx.fillStyle='#c5a059';ctx.font='bold 48px serif';ctx.fillText('🍽️ '+resto.name,60,100);ctx.fillStyle='#fff';ctx.font='28px sans-serif';ctx.fillText('Découvrez notre menu digital !',60,180);ctx.fillText('Commandez facilement en ligne 📱',60,230);const qrDiv=document.createElement('div');qrDiv.style.position='absolute';qrDiv.style.left='-9999px';document.body.appendChild(qrDiv);new QRCode(qrDiv,{text:menuUrl,width:250,height:250,colorDark:'#000',colorLight:'#fff'});await new Promise(resolve=>setTimeout(resolve,1000));const qrImg=qrDiv.querySelector('img')||qrDiv.querySelector('canvas');if(qrImg){ctx.fillStyle='#fff';ctx.fillRect(880,190,270,270);ctx.drawImage(qrImg,890,200,250,250)}document.body.removeChild(qrDiv);ctx.fillStyle='#000';ctx.font='14px sans-serif';ctx.fillText('Scannez-moi !',1015,475);ctx.fillStyle='#c5a059';ctx.font='22px sans-serif';ctx.fillText('Restos Lomé — Les saveurs du Togo',60,550);const text=`🍽️ ${escapeHTML(resto.name)} — Menu Digital\n\n📋 ${escapeHTML(resto.description||'Découvrez nos plats !')}\n📍 ${escapeHTML(resto.address||'Lomé, Togo')}\n\n🔗 ${menuUrl}`;const encodedText=encodeURIComponent(text);const encodedUrl=encodeURIComponent(menuUrl);if(platform==='facebook'){window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}&quote=${encodedText}`,'_blank','noopener,noreferrer')}else if(platform==='whatsapp'){window.open(`https://wa.me/?text=${encodedText}`,'_blank','noopener,noreferrer')}else if(platform==='twitter'){window.open(`https://twitter.com/intent/tweet?text=${encodedText}&url=${encodedUrl}`,'_blank','noopener,noreferrer')}else if(platform==='tiktok'){const a=document.createElement('a');a.download=`${resto.slug}-tiktok.png`;a.href=canvas.toDataURL('image/png');a.click();alert('✅ Image enregistrée !\n\n📱 Ouvrez TikTok → "+" → Upload\n📝 Collez ce texte :\n'+text)}else if(platform==='instagram'){const a=document.createElement('a');a.download=`${resto.slug}-insta.png`;a.href=canvas.toDataURL('image/png');a.click();alert('✅ Image enregistrée !\n\n📱 Ouvrez Instagram → "+" → Post\n📝 Collez ce texte :\n'+text)}}
 
-/* ═══════════════════════════════════════════════════════════
-   FIX événements — images robustes (multi-format, fallback)
-═══════════════════════════════════════════════════════════ */
-async function loadEventsView(){
-    try{
-        const{data:events}=await supabaseClient.from('events').select('*')
-            .eq('restaurant_id',resto.id).eq('is_published',true)
-            .gte('event_date',new Date().toISOString())
-            .order('event_date',{ascending:true});
-        const badge=document.getElementById('badge-events');
-        const list=document.getElementById('events-list-view');
-        if(!events?.length){
-            badge.textContent='0';badge.classList.remove('show');
-            list.innerHTML='<p style="color:var(--ivory-muted);text-align:center;padding:20px;">Aucun événement à venir.</p>';
-            return;
-        }
-        badge.textContent=events.length;badge.classList.add('show');
-        list.innerHTML='';
-        events.forEach(ev=>{
-            const card=document.createElement('div');
-            card.className='event-card';
-            // FIX image événement : object-fit + fallback sur onerror (multi-format)
-            const posterSrc=ev.poster_url?sanitizeURL(ev.poster_url):'';
-            const posterHtml=posterSrc&&posterSrc!=='#'
-                ?`<img class="event-poster" src="${posterSrc}" alt="${escapeHTML(ev.title)}" onerror="this.style.display='none';this.insertAdjacentHTML('afterend','<div class=\\'event-poster-ph\\'>🎭</div>')">`
-                :`<div class="event-poster-ph">🎭</div>`;
-            const dateStr=new Date(ev.event_date).toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
-            const timeStr=new Date(ev.event_date).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
-            card.innerHTML=`${posterHtml}<div class="event-body"><strong style="font-size:.9rem;color:var(--gold);display:block;margin-bottom:4px;">${escapeHTML(ev.title)}</strong><p style="font-size:.75rem;color:var(--ivory-dim);">📅 ${dateStr} · 🕐 ${timeStr}</p>${ev.description?`<p style="font-size:.78rem;color:var(--ivory-muted);margin-top:4px;line-height:1.5;">${escapeHTML(ev.description)}</p>`:''}${ev.ticket_url?`<a href="${sanitizeURL(ev.ticket_url)}" target="_blank" rel="noopener noreferrer" style="display:inline-block;margin-top:8px;background:var(--gold);color:var(--ebony);padding:6px 14px;border-radius:50px;font-size:.72rem;font-weight:700;text-decoration:none;">🎟️ Réserver</a>`:''}</div>`;
-            list.appendChild(card);
-        });
-    }catch(e){console.error(e)}
-}
+async function loadEventsView(){try{const{data:events}=await supabaseClient.from('events').select('*').eq('restaurant_id',resto.id).eq('is_published',true).gte('event_date',new Date().toISOString()).order('event_date',{ascending:true});const badge=document.getElementById('badge-events');const list=document.getElementById('events-list-view');if(!events?.length){badge.textContent='0';badge.classList.remove('show');list.innerHTML='<p style="color:var(--ivory-muted);text-align:center;padding:20px;">Aucun événement à venir.</p>';return}badge.textContent=events.length;badge.classList.add('show');list.innerHTML=events.map(ev=>`<div style="background:var(--walnut);border:1px solid var(--gold-border);border-radius:var(--r2);padding:16px;margin-bottom:12px;"><div style="display:flex;align-items:center;gap:12px;">${ev.poster_url?`<img src="${sanitizeURL(ev.poster_url)}" alt="${escapeHTML(ev.title)}" style="width:60px;height:60px;object-fit:cover;border-radius:8px;">`:'<div style="width:60px;height:60px;background:var(--sepia);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:1.5rem;">🎭</div>'}<div style="flex:1;"><strong style="font-size:.9rem;color:var(--gold);">${escapeHTML(ev.title)}</strong><p style="font-size:.75rem;color:var(--ivory-dim);">📅 ${new Date(ev.event_date).toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long',year:'numeric'})} · 🕐 ${new Date(ev.event_date).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})}</p>${ev.description?`<p style="font-size:.78rem;color:var(--ivory-muted);margin-top:4px;">${escapeHTML(ev.description)}</p>`:''}${ev.ticket_url?`<a href="${sanitizeURL(ev.ticket_url)}" target="_blank" rel="noopener noreferrer" style="display:inline-block;margin-top:8px;background:var(--gold);color:var(--ebony);padding:6px 14px;border-radius:50px;font-size:.72rem;font-weight:700;text-decoration:none;">🎟️ Réserver</a>`:''}</div></div></div>`).join('')}catch(e){console.error(e)}}
 
 function hideLoader(){$('loader').classList.add('out');$('app').style.display='block'}
 function showErr(){$('loader').classList.add('out');$('err').classList.add('show')}
@@ -986,12 +627,14 @@ $('mts-drinks')?.addEventListener('click',()=>{showDrinks=true;$('mts-drinks').c
 
 $('lang-btn').addEventListener('click',()=>{lang=lang==='fr'?'en':'fr';$('lang-btn').textContent=lang==='fr'?'EN':'FR';applyFilters();updateFab();fillFormula();$('search').placeholder=t('search');$('call-txt').textContent=t('callBtn');$('call-title').textContent=t('callTitle');$('call-desc').textContent=t('callDesc');$('call-ok').textContent=t('callOk');$('call-cancel-btn').textContent=t('cancel');$('wa-btn-txt').textContent=t('orderWA');$('reserve-btn-txt').textContent=t('reserveBtn');$('cart-fab').querySelector('span:first-child').textContent=t('myCart')});
 
+// ✅ FIX mode clair : le thème est appliqué avant de charger l'app pour éviter le flash
 $('theme-btn').addEventListener('click',()=>{
     const isLight=document.body.classList.toggle('light');
     $('theme-btn').textContent=isLight?'☾':'☀';
     try{localStorage.setItem('view_theme',isLight?'light':'dark')}catch(_){}
 });
 
+// Appliquer le thème sauvegardé au démarrage
 try{if(localStorage.getItem('view_theme')==='light'){document.body.classList.add('light');$('theme-btn').textContent='☾'}else if(window.matchMedia('(prefers-color-scheme:light)').matches){document.body.classList.add('light');$('theme-btn').textContent='☾'}}catch(_){}
 
 document.querySelectorAll('.star-review').forEach(s=>{s.addEventListener('click',function(){reviewRating=parseInt(this.dataset.v);document.querySelectorAll('.star-review').forEach((x,i)=>{x.style.filter=i<reviewRating?'none':'grayscale(1)opacity(.4)'})});s.addEventListener('mouseenter',function(){const v=parseInt(this.dataset.v);document.querySelectorAll('.star-review').forEach((x,i)=>{x.style.filter=i<v?'none':'grayscale(1)opacity(.4)'})})});
