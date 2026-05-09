@@ -255,7 +255,26 @@ function jsonResponse(data, status = 200, extraHeaders = {}) {
 }
 
 // ================================================================
-// UPLOAD IMAGE SÉCURISÉ (MODIFIÉ)
+// ✅ CORRECTION : Conversion base64 par lots (BUG FIX)
+// Remplace btoa(String.fromCharCode(...bytes)) qui dépasse la
+// pile d'appels pour les fichiers > ~100 Ko
+// ================================================================
+
+function arrayBufferToBase64(buffer) {
+    const bytes = new Uint8Array(buffer);
+    const CHUNK_SIZE = 0x8000; // 32768 bytes par lot
+    let binary = '';
+    
+    for (let i = 0; i < bytes.length; i += CHUNK_SIZE) {
+        const chunk = bytes.subarray(i, Math.min(i + CHUNK_SIZE, bytes.length));
+        binary += String.fromCharCode.apply(null, chunk);
+    }
+    
+    return btoa(binary);
+}
+
+// ================================================================
+// UPLOAD IMAGE SÉCURISÉ (CORRIGÉ)
 // ================================================================
 
 async function handleImageUpload(request, env) {
@@ -291,8 +310,8 @@ async function handleImageUpload(request, env) {
             return jsonResponse({ error: 'Nom de fichier invalide. Utilisez uniquement lettres, chiffres, - et _' }, 400);
         }
 
-        const bytes = new Uint8Array(arrayBuffer);
-        const base64 = btoa(String.fromCharCode(...bytes));
+        // ✅ CORRECTION : Conversion base64 par lots (ne dépasse plus la pile d'appels)
+        const base64 = arrayBufferToBase64(arrayBuffer);
 
         const cleanName = filename.replace(/[^a-z0-9\-_]/gi, '-').toLowerCase();
         const timestamp = Date.now();
