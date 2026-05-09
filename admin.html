@@ -377,11 +377,56 @@
 
         .toggle input:checked + .toggle-track::after { transform: translateX(20px); }
 
+        /* ── MOBILE HEADER ── */
+        .mobile-header {
+            display: none;
+            position: fixed; top: 0; left: 0; right: 0; z-index: 200;
+            height: 56px;
+            background: var(--surface); border-bottom: 1px solid var(--border);
+            align-items: center; padding: 0 16px; gap: 12px;
+        }
+        .mobile-header-brand { flex: 1; display: flex; flex-direction: column; }
+        .mobile-header-brand span:first-child { font-family: 'Syne', sans-serif; font-size: .9rem; font-weight: 800; line-height: 1.2; }
+        .mobile-header-brand span:last-child  { font-family: var(--mono); font-size: .65rem; color: var(--text-dim); }
+        .hamburger-btn {
+            width: 38px; height: 38px; flex-shrink: 0;
+            background: var(--surface2); border: 1px solid var(--border2);
+            border-radius: 10px; color: var(--text); font-size: 1.1rem;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .mobile-logout-btn {
+            width: 38px; height: 38px; flex-shrink: 0;
+            background: transparent; border: 1px solid var(--border2);
+            border-radius: 10px; color: var(--text-dim); font-size: 1rem;
+            display: flex; align-items: center; justify-content: center;
+        }
+
+        /* ── SIDEBAR OVERLAY ── */
+        #sidebar-overlay {
+            display: none; position: fixed; inset: 0;
+            background: rgba(0,0,0,0.65); z-index: 99;
+            backdrop-filter: blur(2px);
+        }
+        #sidebar-overlay.visible { display: block; }
+
         @media (max-width: 768px) {
-            .sidebar { display: none; }
-            .main-content { margin-left: 0; padding: 20px 16px; }
+            .mobile-header { display: flex; }
+
+            .sidebar {
+                transform: translateX(-100%);
+                transition: transform 0.28s cubic-bezier(.4,0,.2,1);
+                z-index: 150;
+            }
+            .sidebar.mobile-open { transform: translateX(0); }
+
+            .main-content { margin-left: 0; padding: 72px 16px 24px; }
             .stats-grid { grid-template-columns: 1fr 1fr; }
             .form-grid-2 { grid-template-columns: 1fr; }
+            .section-header { flex-direction: column; align-items: flex-start; gap: 12px; }
+            .menu-table-header { flex-direction: column; align-items: flex-start; gap: 8px; }
+            table { font-size: .8rem; }
+            thead th, tbody td { padding: 10px 12px; }
+            .actions-cell { gap: 4px; }
         }
 
         @keyframes fadeIn {
@@ -395,6 +440,19 @@
 <body>
 
 <div id="toast-container"></div>
+
+<!-- EN-TÊTE MOBILE -->
+<div class="mobile-header" id="mobile-header" style="display:none;">
+    <button class="hamburger-btn" id="hamburger-btn" aria-label="Menu">☰</button>
+    <div class="mobile-header-brand">
+        <span id="mobile-resto-name">Chargement…</span>
+        <span id="mobile-resto-slug">@…</span>
+    </div>
+    <button class="mobile-logout-btn" id="mobile-logout-btn" aria-label="Déconnexion" title="Déconnexion">↩</button>
+</div>
+
+<!-- OVERLAY SIDEBAR MOBILE -->
+<div id="sidebar-overlay"></div>
 
 <!-- PAGE DE CONNEXION -->
 <div id="login-page">
@@ -586,7 +644,7 @@ function showPanel(id){
     if(id==='stock')loadStock();
     if(id==='employees-panel')loadEmployees();
 }
-document.querySelectorAll('.nav-item').forEach(b=>b.addEventListener('click',()=>showPanel(b.dataset.panel)));
+// Navigation par onglets — géré par le listener unifié dans la section SIDEBAR MOBILE (desktop + mobile)
 
 // Login
 document.getElementById('login-btn').addEventListener('click',async()=>{
@@ -648,6 +706,10 @@ async function initApp(user){
     currentProfile=profile;currentRestaurant=profile.restaurants;
     document.getElementById('sidebar-resto-name').textContent=currentRestaurant.name;
     document.getElementById('sidebar-slug').textContent=`@${currentRestaurant.slug}`;
+    // Synchroniser l'en-tête mobile
+    document.getElementById('mobile-resto-name').textContent=currentRestaurant.name;
+    document.getElementById('mobile-resto-slug').textContent=`@${currentRestaurant.slug}`;
+    document.getElementById('mobile-header').style.display='flex';
     await loadDishes();
     document.getElementById('login-page').style.display='none';
     document.getElementById('app-layout').classList.add('visible');
@@ -683,11 +745,15 @@ async function loadDishes(){
     else{console.error('Erreur loadDishes:',error);toast('Erreur chargement plats','error');}
 }
 
-// Stats
+// Stats — BUG-A2 CORRIGÉ : total likes calculé depuis allDishes
+//         BUG-A3 CORRIGÉ : loadDishes() appelé avant pour avoir des données fraîches
 async function loadStats(){
+    await loadDishes();
     const{data}=await db.from('stats').select('*').eq('restaurant_id',currentRestaurant.id).single();
     document.getElementById('stat-views').textContent=data?.views_count??0;
-    document.getElementById('stat-likes').textContent=data?.likes_count??0;
+    // Total réel des likes = somme de tous les plats (stats.likes_count n'est jamais mis à jour par les likes individuels)
+    const totalLikes=allDishes.reduce((s,d)=>s+(d.likes_count||0),0);
+    document.getElementById('stat-likes').textContent=totalLikes;
     document.getElementById('stat-today').textContent=data?.visitors_today??0;
     const top=[...allDishes].sort((a,b)=>(b.likes_count||0)-(a.likes_count||0)).slice(0,5);
     const t=document.getElementById('top-dishes-tbody');
@@ -1078,7 +1144,9 @@ async function saveEditDish(){
         is_drink:document.getElementById('edit-dish-is-drink').checked  // ✅ BUG-05 CORRIGÉ
     };
     if(!updates.name||isNaN(updates.price)){toast('Nom et prix requis.','error');return}
-    await db.from('menu_items').update(updates).eq('id',editingDishId);
+    // ✅ BUG-A4 CORRIGÉ : vérification de l'erreur avant de mettre à jour l'état local
+    const{error}=await db.from('menu_items').update(updates).eq('id',editingDishId);
+    if(error){toast('Erreur modification : '+error.message,'error');return}
     const d=allDishes.find(x=>x.id===editingDishId);
     if(d)Object.assign(d,updates);
     document.getElementById('dish-modal-overlay').classList.remove('visible');
@@ -1114,7 +1182,8 @@ async function confirmDeleteDish(){
 
 /* ═══ AJOUTER UN PLAT ═══ */
 // ✅ BUG-17 CORRIGÉ : normalisation de la catégorie + suggestion des catégories existantes
-document.getElementById('open-add-dish-btn')?.addEventListener('click',()=>{
+// ✅ BUG-A1 CORRIGÉ : gestion d'erreur sur l'insert (sinon le toast "Plat ajouté" s'affiche même si la BD a rejeté l'opération)
+document.getElementById('open-add-dish-btn')?.addEventListener('click',async()=>{
     const name=prompt('Nom du plat :');
     if(!name)return;
 
@@ -1131,7 +1200,7 @@ document.getElementById('open-add-dish-btn')?.addEventListener('click',()=>{
 
     const imgUrl=prompt('URL photo (laisser vide pour ignorer) :','');
 
-    db.from('menu_items').insert({
+    const{error}=await db.from('menu_items').insert({
         restaurant_id:currentRestaurant.id,
         name:name.trim(),
         category:cat,
@@ -1140,11 +1209,43 @@ document.getElementById('open-add-dish-btn')?.addEventListener('click',()=>{
         is_available:true,
         is_drink:false,
         display_order:allDishes.length
-    }).then(()=>{toast('Plat ajouté !','success');loadDishes().then(()=>renderMenuTable())})
+    });
+    if(error){toast('Erreur ajout : '+error.message,'error');return}
+    toast('Plat ajouté !','success');
+    await loadDishes();
+    renderMenuTable();
 });
 
 // Fermer les modals en cliquant sur l'overlay
 document.addEventListener('click',(e)=>{if(e.target.classList.contains('modal-overlay')){e.target.classList.remove('visible')}});
+
+/* ═══ SIDEBAR MOBILE ═══ */
+function openMobileSidebar(){
+    document.querySelector('.sidebar').classList.add('mobile-open');
+    document.getElementById('sidebar-overlay').classList.add('visible');
+    document.body.style.overflow='hidden';
+}
+function closeMobileSidebar(){
+    document.querySelector('.sidebar').classList.remove('mobile-open');
+    document.getElementById('sidebar-overlay').classList.remove('visible');
+    document.body.style.overflow='';
+}
+
+document.getElementById('hamburger-btn').addEventListener('click',openMobileSidebar);
+document.getElementById('sidebar-overlay').addEventListener('click',closeMobileSidebar);
+
+// Fermer la sidebar mobile au clic sur un item de nav
+document.querySelectorAll('.nav-item').forEach(b=>{
+    b.addEventListener('click',()=>{
+        if(window.innerWidth<=768)closeMobileSidebar();
+        showPanel(b.dataset.panel);
+    });
+});
+
+// Bouton déconnexion mobile
+document.getElementById('mobile-logout-btn').addEventListener('click',()=>{
+    document.getElementById('logout-btn').click();
+});
 </script>
 </body>
 </html>
