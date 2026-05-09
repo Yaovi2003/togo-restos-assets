@@ -930,7 +930,7 @@ async function toggleLike(articleId) {
             .select('id')
             .eq('article_id', articleId)
             .eq('user_ip', userIP)
-            .single();
+            .maybeSingle();
 
         if (existing) {
             await supabaseClient.from('blog_likes').delete().eq('id', existing.id);
@@ -963,7 +963,7 @@ async function checkIfLiked(articleId) {
             .select('id')
             .eq('article_id', articleId)
             .eq('user_ip', userIP)
-            .single();
+            .maybeSingle();
         return !!data;
     } catch {
         return false;
