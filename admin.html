@@ -302,31 +302,32 @@
             display: flex; align-items: center; justify-content: center; flex-shrink: 0;
         }
 
+        /* ── UPLOAD IMAGE PLAT ── */
         .img-upload-zone {
             border: 2px dashed var(--border2); border-radius: var(--radius);
             padding: 28px; text-align: center; cursor: pointer;
             transition: all 0.2s; position: relative; overflow: hidden;
+            background: rgba(255,255,255,.02);
         }
-
         .img-upload-zone:hover, .img-upload-zone.dragover { border-color: var(--gold); background: var(--gold-dim); }
-
         .img-upload-zone input[type="file"] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
-
         .img-upload-icon { font-size: 2rem; margin-bottom: 10px; }
         .img-upload-text { font-size: 0.85rem; color: var(--text-dim); line-height: 1.5; }
         .img-upload-text strong { color: var(--gold); }
 
-        #img-preview-wrap { display: none; position: relative; }
-        #img-preview { width: 100%; height: 160px; object-fit: cover; border-radius: var(--radius); display: block; }
+        /* classes génériques réutilisables (remplacent les anciens IDs #img-preview-wrap etc.) */
+        .img-preview-wrap {
+            margin-top: 12px; border: 1px solid var(--border);
+            border-radius: var(--radius); overflow: hidden;
+        }
+        .img-preview { width: 100%; max-height: 200px; object-fit: cover; display: block; }
+        .img-preview-info { padding: 8px 12px; display: flex; align-items: center; justify-content: space-between; gap: 10px; background: rgba(255,255,255,.03); }
+        .img-preview-info span { font-family: var(--mono); font-size: 0.75rem; color: var(--text-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .upload-progress-wrap { margin-top: 10px; }
 
-        .img-preview-info { margin-top: 8px; display: flex; align-items: center; justify-content: space-between; }
-        .img-preview-info span { font-family: var(--mono); font-size: 0.75rem; color: var(--text-dim); }
-
-        #upload-progress-wrap { display: none; margin-top: 10px; }
-
-        .progress-bar-bg { height: 4px; background: var(--surface3); border-radius: 2px; overflow: hidden; }
-        .progress-bar-fill { height: 100%; background: var(--gold); border-radius: 2px; transition: width 0.3s ease; width: 0%; }
-        .progress-label { font-family: var(--mono); font-size: 0.72rem; color: var(--text-dim); margin-top: 4px; }
+        .progress-bar-bg { height: 6px; background: var(--surface3); border-radius: 3px; overflow: hidden; }
+        .progress-bar-fill { height: 100%; background: var(--gold); border-radius: 3px; transition: width 0.3s ease; width: 0%; }
+        .progress-label { font-family: var(--mono); font-size: 0.72rem; color: var(--text-dim); margin-top: 5px; }
 
         .info-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 28px; margin-bottom: 24px; }
 
@@ -1099,7 +1100,8 @@ async function saveEvent(){
 
 /* ═══ GESTION DES PLATS — MODALS ═══ */
 // ✅ BUG-05 CORRIGÉ : champ is_drink ajouté dans le modal d'édition
-// ✅ BUG-03 CORRIGÉ : modal d'édition aussi recrée à chaque ouverture
+// ✅ BUG-03 CORRIGÉ : modal recrée à chaque ouverture
+// ✅ UPLOAD IMAGE : zone drag & drop + preview + barre de progression + CONFIG.uploadImage()
 function openEditDish(dishId){
     const dish=allDishes.find(d=>d.id===dishId);
     if(!dish)return;
@@ -1120,7 +1122,33 @@ function openEditDish(dishId){
         <div class="field-group"><label class="field-label">Catégorie</label><input type="text" class="field-input" id="edit-dish-cat" value="${escapeHTML(dish.category||'')}"></div>
         <div class="field-group"><label class="field-label">Prix (FCFA)</label><input type="number" class="field-input" id="edit-dish-price" value="${dish.price}"></div>
         <div class="field-group"><label class="field-label">Description</label><textarea class="field-input" id="edit-dish-desc" rows="2">${escapeHTML(dish.description||'')}</textarea></div>
-        <div class="field-group"><label class="field-label">URL de la photo</label><input type="url" class="field-input" id="edit-dish-img" value="${escapeHTML(dish.image_url||'')}" placeholder="https://..."></div>
+
+        <div class="field-group">
+            <label class="field-label">📸 Photo du plat — Uploader un fichier</label>
+            <div class="img-upload-zone" id="dish-img-upload-zone">
+                <input type="file" id="dish-img-file" accept="image/jpeg,image/png,image/webp">
+                <div class="img-upload-icon">📁</div>
+                <p class="img-upload-text"><strong>Cliquer ou glisser-déposer</strong><br>JPG / PNG / WEBP — max 5 MB</p>
+            </div>
+            <div class="img-preview-wrap" id="dish-img-preview-wrap" style="display:none;">
+                <img class="img-preview" id="dish-img-preview" src="" alt="Aperçu">
+                <div class="img-preview-info">
+                    <span id="dish-img-filename">—</span>
+                    <button class="btn btn-ghost btn-sm" id="dish-img-remove-btn">✕ Retirer</button>
+                </div>
+            </div>
+            <div class="upload-progress-wrap" id="dish-upload-progress-wrap" style="display:none;">
+                <div class="progress-bar-bg"><div class="progress-bar-fill" id="dish-upload-progress-bar"></div></div>
+                <p class="progress-label" id="dish-upload-progress-label"></p>
+            </div>
+        </div>
+
+        <div class="field-group">
+            <label class="field-label">Ou coller une URL d'image</label>
+            <input type="url" class="field-input" id="edit-dish-img" value="${escapeHTML(dish.image_url||'')}" placeholder="https://...">
+            <p class="field-hint">Laissez vide si vous uploadez un fichier ci-dessus</p>
+        </div>
+
         <label class="toggle-wrap" style="margin-bottom:16px;">
             <div class="toggle">
                 <input type="checkbox" id="edit-dish-is-drink" ${dish.is_drink?'checked':''}>
@@ -1128,32 +1156,135 @@ function openEditDish(dishId){
             </div>
             <span style="font-size:.8rem;">🍷 Boisson (carte des vins)</span>
         </label>
-        <button class="btn btn-primary btn-full" onclick="saveEditDish()">💾 Enregistrer</button>
+        <button class="btn btn-primary btn-full" id="save-dish-btn" onclick="saveEditDish()">💾 Enregistrer</button>
     </div>`;
     document.body.appendChild(modal);
+
+    // Afficher l'aperçu si image existante
+    if(dish.image_url){
+        const pw=modal.querySelector('#dish-img-preview-wrap');
+        modal.querySelector('#dish-img-preview').src=dish.image_url;
+        modal.querySelector('#dish-img-filename').textContent='Image actuelle';
+        pw.style.display='block';
+    }
+
+    setupDishImageUpload(modal);
     requestAnimationFrame(()=>modal.classList.add('visible'));
 }
 
-async function saveEditDish(){
-    const updates={
-        name:document.getElementById('edit-dish-name').value.trim(),
-        category:document.getElementById('edit-dish-cat').value.trim(),
-        price:parseInt(document.getElementById('edit-dish-price').value),
-        description:document.getElementById('edit-dish-desc').value.trim(),
-        image_url:document.getElementById('edit-dish-img').value.trim()||null,
-        is_drink:document.getElementById('edit-dish-is-drink').checked  // ✅ BUG-05 CORRIGÉ
+// Gestion upload image plat — drag & drop, preview, appel CONFIG.uploadImage()
+function setupDishImageUpload(modal){
+    const MAX_SIZE=5*1024*1024; // 5 MB
+    const fileInput  =modal.querySelector('#dish-img-file');
+    const uploadZone =modal.querySelector('#dish-img-upload-zone');
+    const previewWrap=modal.querySelector('#dish-img-preview-wrap');
+    const previewImg =modal.querySelector('#dish-img-preview');
+    const filenameEl =modal.querySelector('#dish-img-filename');
+    const progressWrap=modal.querySelector('#dish-upload-progress-wrap');
+    const progressBar =modal.querySelector('#dish-upload-progress-bar');
+    const progressLbl =modal.querySelector('#dish-upload-progress-label');
+    const removeBtn  =modal.querySelector('#dish-img-remove-btn');
+    const urlInput   =modal.querySelector('#edit-dish-img');
+    let pendingFile=null;
+
+    function handleFile(file){
+        if(!file.type.startsWith('image/')){toast('Format non supporté. Utilisez JPG, PNG ou WEBP.','error');return;}
+        if(file.size>MAX_SIZE){toast('Image trop lourde (max 5 MB).','error');return;}
+        pendingFile=file;
+        const reader=new FileReader();
+        reader.onload=e=>{
+            previewImg.src=e.target.result;
+            filenameEl.textContent=file.name;
+            previewWrap.style.display='block';
+        };
+        reader.readAsDataURL(file);
+    }
+
+    uploadZone.addEventListener('dragover',e=>{e.preventDefault();uploadZone.classList.add('dragover');});
+    uploadZone.addEventListener('dragleave',()=>uploadZone.classList.remove('dragover'));
+    uploadZone.addEventListener('drop',e=>{
+        e.preventDefault();uploadZone.classList.remove('dragover');
+        const f=e.dataTransfer.files[0];if(f)handleFile(f);
+    });
+    fileInput.addEventListener('change',()=>{if(fileInput.files[0])handleFile(fileInput.files[0]);});
+    removeBtn.addEventListener('click',()=>{
+        pendingFile=null;fileInput.value='';
+        previewImg.src='';previewWrap.style.display='none';
+    });
+
+    // Exposer la logique d'upload sur le modal pour saveEditDish()
+    modal._hasPendingFile=()=>!!pendingFile;
+    modal._doUpload=async()=>{
+        if(!pendingFile)return null;
+        progressWrap.style.display='block';
+        progressBar.style.width='25%';
+        progressLbl.textContent='Upload en cours…';
+        try{
+            // Sanitiser le nom : supprimer extension + caractères interdits (le Worker exige /^[a-zA-Z0-9_-]{1,60}$/)
+            const safeName=pendingFile.name
+                .replace(/\.[^/.]+$/,'')           // retire extension
+                .replace(/[^a-zA-Z0-9_-]/g,'-')   // remplace tout caractère invalide
+                .replace(/-+/g,'-')                // dédouble les tirets
+                .substring(0,60)
+                ||'image';
+            const url=await CONFIG.uploadImage(pendingFile,safeName);
+            progressBar.style.width='100%';
+            progressLbl.textContent='✅ Upload terminé !';
+            urlInput.value=url; // remplit le champ URL automatiquement
+            return url;
+        }catch(err){
+            progressLbl.textContent='❌ Erreur : '+err.message;
+            toast('Erreur upload : '+err.message,'error');
+            return null;
+        }finally{
+            setTimeout(()=>{progressWrap.style.display='none';progressBar.style.width='0%';},2500);
+        }
     };
-    if(!updates.name||isNaN(updates.price)){toast('Nom et prix requis.','error');return}
-    // ✅ BUG-A4 CORRIGÉ : vérification de l'erreur avant de mettre à jour l'état local
-    const{error}=await db.from('menu_items').update(updates).eq('id',editingDishId);
-    if(error){toast('Erreur modification : '+error.message,'error');return}
-    const d=allDishes.find(x=>x.id===editingDishId);
-    if(d)Object.assign(d,updates);
-    document.getElementById('dish-modal-overlay').classList.remove('visible');
-    setTimeout(()=>{const m=document.getElementById('dish-modal-overlay');if(m)m.remove();},300);
-    toast('Plat modifié !','success');
-    renderMenuTable();
-    editingDishId=null;
+}
+
+// ✅ BUG-05 CORRIGÉ : is_drink inclus
+// ✅ BUG-A4 CORRIGÉ : vérification erreur BD avant mise à jour locale
+// ✅ UPLOAD   : upload déclenché avant sauvegarde + protection double clic
+async function saveEditDish(){
+    const modal=document.getElementById('dish-modal-overlay');
+    const saveBtn=modal.querySelector('#save-dish-btn');
+    saveBtn.disabled=true;
+    saveBtn.innerHTML='⏳ Sauvegarde…';
+    try{
+        // 1. Upload si fichier en attente
+        let imageUrl=document.getElementById('edit-dish-img').value.trim()||null;
+        if(modal._hasPendingFile&&modal._hasPendingFile()){
+            saveBtn.innerHTML='⏳ Upload…';
+            const uploaded=await modal._doUpload();
+            if(uploaded)imageUrl=uploaded;
+            // Si l'upload échoue mais qu'il y avait déjà une URL, on la conserve
+        }
+        const updates={
+            name:document.getElementById('edit-dish-name').value.trim(),
+            category:document.getElementById('edit-dish-cat').value.trim(),
+            price:parseInt(document.getElementById('edit-dish-price').value),
+            description:document.getElementById('edit-dish-desc').value.trim(),
+            image_url:imageUrl,
+            is_drink:document.getElementById('edit-dish-is-drink').checked
+        };
+        if(!updates.name||isNaN(updates.price)){toast('Nom et prix requis.','error');return}
+        saveBtn.innerHTML='⏳ Enregistrement…';
+        const{error}=await db.from('menu_items').update(updates).eq('id',editingDishId);
+        if(error){toast('Erreur modification : '+error.message,'error');return}
+        const d=allDishes.find(x=>x.id===editingDishId);
+        if(d)Object.assign(d,updates);
+        modal.classList.remove('visible');
+        setTimeout(()=>{if(modal)modal.remove();},300);
+        toast('Plat modifié !','success');
+        renderMenuTable();
+        editingDishId=null;
+    }finally{
+        // Réactiver le bouton si on est encore sur le modal (erreur de validation)
+        if(document.getElementById('dish-modal-overlay')){
+            saveBtn.disabled=false;
+            saveBtn.innerHTML='💾 Enregistrer';
+        }
+    }
 }
 
 function openDeleteConfirm(dishId,dishName){
