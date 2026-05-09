@@ -774,24 +774,42 @@ async function refreshAccountingData(){
     const weekStart=new Date();weekStart.setDate(weekStart.getDate()-weekStart.getDay());
     const monthStart=new Date(new Date().getFullYear(),new Date().getMonth(),1);
 
+    // ✅ Helper pour gérer les erreurs de requête
+    async function safeQuery(queryBuilder) {
+        try {
+            const result = await queryBuilder;
+            return result;
+        } catch (error) {
+            console.warn('⚠️ Requête échouée (table peut ne pas exister):', error.message);
+            return { data: [] };
+        }
+    }
+
     let transQuery=db.from('transactions').select('*').eq('restaurant_id',currentRestaurant.id).gte('created_at',filterDate).order('created_at',{ascending:false});
     if(filterPay)transQuery=transQuery.eq('payment_method',filterPay);
     if(filterType)transQuery=transQuery.eq('type',filterType);
 
+    // ✅ Utiliser safeQuery pour chaque appel
     const[dayRes,weekRes,monthRes,expDay]=await Promise.all([
-        transQuery,
-        db.from('transactions').select('amount').eq('restaurant_id',currentRestaurant.id).gte('created_at',weekStart.toISOString().split('T')[0]),
-        db.from('transactions').select('amount').eq('restaurant_id',currentRestaurant.id).gte('created_at',monthStart.toISOString().split('T')[0]),
-        db.from('expenses').select('amount').eq('restaurant_id',currentRestaurant.id).gte('created_at',filterDate).catch(()=>({data:[]}))
+        safeQuery(transQuery),
+        safeQuery(db.from('transactions').select('amount').eq('restaurant_id',currentRestaurant.id).gte('created_at',weekStart.toISOString().split('T')[0])),
+        safeQuery(db.from('transactions').select('amount').eq('restaurant_id',currentRestaurant.id).gte('created_at',monthStart.toISOString().split('T')[0])),
+        safeQuery(db.from('expenses').select('amount').eq('restaurant_id',currentRestaurant.id).gte('created_at',filterDate))
     ]);
 
     const trans=dayRes.data||[];
-    const caWeek=(weekRes.data||[]).reduce((s,t)=>s+t.amount,0);
-    const caMonth=(monthRes.data||[]).reduce((s,t)=>s+t.amount,0);
-    const totalExpDay=(expDay.data||[]).reduce((s,e)=>s+e.amount,0);
+    const caWeek=(weekRes.data||[]).reduce((s,t)=>s+(t.amount||0),0);
+    const caMonth=(monthRes.data||[]).reduce((s,t)=>s+(t.amount||0),0);
+    const totalExpDay=(expDay.data||[]).reduce((s,e)=>s+(e.amount||0),0);
 
     let total=0,tm=0,fl=0,ca=0;
-    trans.forEach(t=>{total+=t.amount;if(t.payment_method==='tmoney')tm+=t.amount;else if(t.payment_method==='flooz')fl+=t.amount;else ca+=t.amount;});
+    trans.forEach(t=>{
+        const amount=t.amount||0;
+        total+=amount;
+        if(t.payment_method==='tmoney')tm+=amount;
+        else if(t.payment_method==='flooz')fl+=amount;
+        else ca+=amount;
+    });
 
     // KPIs
     const setEl=(id,val)=>{const el=document.getElementById(id);if(el)el.textContent=val;};
@@ -824,7 +842,7 @@ async function refreshAccountingData(){
     tbody.innerHTML=trans.map(t=>`<tr>
         <td style="font-family:var(--mono);font-size:.72rem;">#${escapeHTML(t.id?.substring(0,6)||'')}</td>
         <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHTML(t.description||'—')}</td>
-        <td class="price-mono">${t.amount.toLocaleString('fr-FR')} FCFA</td>
+        <td class="price-mono">${(t.amount||0).toLocaleString('fr-FR')} FCFA</td>
         <td>${t.payment_method==='tmoney'?'📱 TMoney':t.payment_method==='flooz'?'📱 Flooz':'💵 Espèces'}</td>
         <td>${t.type==='livraison'?'🛵':'🏪'}</td>
         <td style="font-size:.72rem;color:var(--text-dim);">${new Date(t.created_at).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})}</td>
