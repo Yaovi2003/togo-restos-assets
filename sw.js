@@ -1,230 +1,207 @@
 // ================================================================
-// Service Worker v5 — Installation et caching robustes
+// sw.js — Service Worker v6
 // Plateforme Restaurants Togo · Jo D. Digital
+//
+// STRATÉGIES :
+//   • Pages HTML (.html, navigation) → Network-first, JAMAIS en cache
+//   • Fichiers locaux JS/CSS       → Network-first, JAMAIS en cache
+//   • API Supabase (*.supabase.co) → Network-only, JAMAIS intercepté
+//   • API Worker (/api/*)          → Network-only, JAMAIS intercepté
+//   • Ressources CDN externes      → Cache-first (fonts, libs)
+//   • Manifest / icônes            → Cache-first
+//
+// POURQUOI v6 ?
+//   L'ancien SW (v5) mettait en cache les pages HTML et les fichiers
+//   JS locaux (config.js, admin.html, view.html...). Résultat :
+//   les mises à jour du menu et de l'admin étaient invisibles jusqu'à
+//   ce que l'utilisateur vide manuellement le cache. Ce SW corrige
+//   ce comportement en n'appliquant le cache QUE sur les ressources
+//   qui ne changent jamais (libs CDN, polices Google Fonts).
 // ================================================================
 
-const CACHE_NAME = 'restos-lome-v5';
+const CACHE_VERSION = 'restos-lome-v6';
 
-const CRITICAL_ASSETS = [
-    '/index.html',
-    '/manifest.json',
-    '/config.js',
+// ── Ressources CDN à mettre en cache (ne changent jamais) ──────
+const CDN_DOMAINS = [
+  'fonts.googleapis.com',
+  'fonts.gstatic.com',
+  'cdn.jsdelivr.net',
+  'cdnjs.cloudflare.com',
 ];
 
-const OPTIONAL_ASSETS = [
-    '/view.html',
-    '/admin.html',
-    '/blog.html',
-    '/checkout.html',
-    '/tracking.html',
-    '/qrcode.html',
+// ── Domaines à ne JAMAIS intercepter ──────────────────────────
+const BYPASS_DOMAINS = [
+  'supabase.co',   // API données restaurant
+  'supabase.in',
 ];
 
-// ═══════════════════════════════════════════════════════
-// INSTALLATION
-// ═══════════════════════════════════════════════════════
+// ── Chemins locaux à ne JAMAIS mettre en cache ─────────────────
+// Toute navigation, toute page HTML, tout fichier JS/CSS local
+// doit toujours venir du réseau pour refléter les mises à jour.
+const NO_CACHE_EXTENSIONS = ['.html', '.js', '.css', '.json'];
+const NO_CACHE_PATHS = ['/api/']; // Worker endpoints
 
-self.addEventListener('install', event => {
-    console.log('🔄 Service Worker v5 — Installation');
-
-    event.waitUntil(
-        (async () => {
-            try {
-                const cache = await caches.open(CACHE_NAME);
-
-                // 1. Cacher les assets CRITIQUES (tout doit réussir)
-                console.log('📦 Mise en cache des assets critiques...');
-                const criticalResults = await Promise.allSettled(
-                    CRITICAL_ASSETS.map(url => cache.add(url))
-                );
-
-                const criticalFailures = criticalResults
-                    .map((r, i) => r.status === 'rejected' ? CRITICAL_ASSETS[i] : null)
-                    .filter(Boolean);
-
-                if (criticalFailures.length > 0) {
-                    throw new Error(`Assets critiques manquants: ${criticalFailures.join(', ')}`);
-                }
-
-                console.log('✅ Assets critiques cachés');
-
-                // 2. Cacher les assets OPTIONNELS (silencieusement)
-                console.log('📦 Mise en cache des assets optionnels...');
-                Promise.allSettled(
-                    OPTIONAL_ASSETS.map(url => cache.add(url))
-                ).then(results => {
-                    const failed = results
-                        .map((r, i) => r.status === 'rejected' ? OPTIONAL_ASSETS[i] : null)
-                        .filter(Boolean);
-                    if (failed.length > 0) {
-                        console.warn('Assets optionnels non cachés:', failed.join(', '));
-                    }
-                });
-
-                return self.skipWaiting();
-
-            } catch (err) {
-                console.error('❌ Installation échouée:', err);
-                throw err;
-            }
-        })()
-    );
+// ================================================================
+// INSTALL — skipWaiting() immédiat pour remplacer l'ancien SW
+// ================================================================
+self.addEventListener('install', (event) => {
+  console.log('🔄 Service Worker v6 — Installation');
+  // Active immédiatement sans attendre la fermeture des onglets ouverts
+  self.skipWaiting();
+  // Aucun pré-cache des pages HTML — on ne veut PAS mettre admin.html
+  // ou view.html en cache (ils doivent toujours être frais)
+  event.waitUntil(Promise.resolve());
 });
 
-// ═══════════════════════════════════════════════════════
-// REQUÊTES (Network-first avec fallback au cache)
-// ═══════════════════════════════════════════════════════
-
-self.addEventListener('fetch', event => {
-    const { request } = event;
-    const url = new URL(request.url);
-
-    // 1. GET seulement
-    if (request.method !== 'GET') {
-        return;
-    }
-
-    // 2. Pas de cache pour les APIs
-    if (url.pathname.startsWith('/api/')) {
-        event.respondWith(
-            fetch(request)
-                .catch(() => createOfflineResponse('Pas de connexion'))
+// ================================================================
+// ACTIVATE — réclame tous les clients, nettoie les anciens caches
+// ================================================================
+self.addEventListener('activate', (event) => {
+  console.log('🧹 Service Worker v6 — Activation');
+  event.waitUntil(
+    Promise.all([
+      // Prendre le contrôle de tous les onglets ouverts immédiatement
+      self.clients.claim(),
+      // Supprimer TOUS les anciens caches (v1, v2, … v5)
+      caches.keys().then((cacheNames) => {
+        return Promise.all(
+          cacheNames
+            .filter((name) => name !== CACHE_VERSION)
+            .map((name) => {
+              console.log('🗑️ Suppression ancien cache :', name);
+              return caches.delete(name);
+            })
         );
-        return;
-    }
+      }),
+    ])
+  );
+});
 
-    // 3. Pages HTML : Network-first
-    if (url.pathname.endsWith('.html') || url.pathname === '/') {
-        event.respondWith(networkFirst(request));
-        return;
-    }
+// ================================================================
+// FETCH — stratégie selon le type de requête
+// ================================================================
+self.addEventListener('fetch', (event) => {
+  const request = event.request;
+  const url = new URL(request.url);
 
-    // 4. Assets statiques : Cache-first
+  // ── 1. Ignorer les requêtes non-GET ──────────────────────────
+  // POST, PUT, DELETE, PATCH → toujours réseau direct
+  if (request.method !== 'GET') {
+    return; // laisse passer sans interception
+  }
+
+  // ── 2. Ignorer les domaines Supabase ─────────────────────────
+  // Les requêtes vers l'API de données ne doivent JAMAIS passer
+  // par le cache — sinon les mises à jour de plats ne s'affichent pas.
+  if (BYPASS_DOMAINS.some((d) => url.hostname.includes(d))) {
+    return; // réseau direct, pas d'interception
+  }
+
+  // ── 3. Ignorer les endpoints /api/ du Worker ─────────────────
+  if (NO_CACHE_PATHS.some((p) => url.pathname.startsWith(p))) {
+    return; // réseau direct
+  }
+
+  // ── 4. Pages HTML & ressources locales → Network-first ───────
+  // On ne met JAMAIS en cache les pages HTML ni les fichiers JS/CSS
+  // locaux pour que les mises à jour soient visibles immédiatement.
+  const isNavigation = request.mode === 'navigate';
+  const isLocalFile =
+    url.hostname === self.location.hostname &&
+    NO_CACHE_EXTENSIONS.some((ext) => url.pathname.endsWith(ext));
+
+  if (isNavigation || isLocalFile) {
+    event.respondWith(networkFirst(request));
+    return;
+  }
+
+  // ── 5. Ressources CDN → Cache-first ──────────────────────────
+  // Les polices Google, les libs (Supabase JS, etc.) ne changent pas.
+  // On les met en cache pour la performance et le mode hors-ligne.
+  const isCDN = CDN_DOMAINS.some((d) => url.hostname.includes(d));
+  if (isCDN) {
     event.respondWith(cacheFirst(request));
+    return;
+  }
+
+  // ── 6. Tout le reste → Network-first avec fallback cache ─────
+  event.respondWith(networkFirst(request));
 });
 
-// ═══════════════════════════════════════════════════════
-// STRATÉGIES
-// ═══════════════════════════════════════════════════════
+// ================================================================
+// HELPERS
+// ================================================================
 
+/**
+ * Network-first : tente le réseau, repli sur le cache si hors-ligne.
+ * Toujours utiliser no-store pour ne pas laisser le navigateur
+ * décider de mettre en cache la réponse HTTP.
+ */
 async function networkFirst(request) {
-    try {
-        const response = await fetch(request);
-        
-        if (response.ok && response.status === 200) {
-            const responseClone = response.clone();
-            const cache = await caches.open(CACHE_NAME);
-            cache.put(request, responseClone);
-        }
-        
-        return response;
-    } catch (err) {
-        const cached = await caches.match(request);
-        if (cached) {
-            return cached;
-        }
-        
-        return createOfflineResponse('Pas de connexion');
-    }
-}
-
-async function cacheFirst(request) {
-    const cached = await caches.match(request);
-    if (cached) {
-        return cached;
-    }
-
-    try {
-        const response = await fetch(request);
-        
-        if (response.ok && response.status === 200) {
-            const responseClone = response.clone();
-            const cache = await caches.open(CACHE_NAME);
-            cache.put(request, responseClone);
-        }
-        
-        return response;
-    } catch (err) {
-        return createOfflineResponse('Ressource non disponible offline');
-    }
-}
-
-function createOfflineResponse(message) {
-    return new Response(`
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <meta charset="utf-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1">
-            <title>Offline</title>
-            <style>
-                body { 
-                    font-family: sans-serif; 
-                    display: flex; 
-                    align-items: center; 
-                    justify-content: center; 
-                    min-height: 100vh; 
-                    margin: 0;
-                    background: #080808;
-                    color: #f0ece4;
-                }
-                div { text-align: center; }
-                h1 { margin: 0 0 10px; }
-                p { color: #6e6a64; margin: 0; }
-            </style>
-        </head>
-        <body>
-            <div>
-                <h1>📡 Pas de connexion</h1>
-                <p>${message}</p>
-            </div>
-        </body>
-        </html>
-    `, {
-        status: 503,
-        headers: {
-            'Content-Type': 'text/html; charset=utf-8',
-            'Cache-Control': 'no-store'
-        }
+  try {
+    // Fetch sans cache HTTP (évite la double mise en cache)
+    const networkResponse = await fetch(request, {
+      cache: 'no-store',
+      headers: mergeNoCacheHeaders(request.headers),
     });
+    return networkResponse;
+  } catch {
+    // Hors-ligne : essayer le cache comme dernier recours
+    const cached = await caches.match(request);
+    if (cached) return cached;
+    // Pas de fallback possible
+    return new Response('Hors-ligne — contenu non disponible', {
+      status: 503,
+      headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+    });
+  }
 }
 
-// ═══════════════════════════════════════════════════════
-// ACTIVATION (Nettoyage des anciens caches)
-// ═══════════════════════════════════════════════════════
+/**
+ * Cache-first : sert depuis le cache si disponible, sinon réseau.
+ * Utilisé pour les ressources CDN qui ne changent jamais.
+ */
+async function cacheFirst(request) {
+  const cached = await caches.match(request);
+  if (cached) return cached;
 
-self.addEventListener('activate', event => {
-    console.log('🧹 Service Worker v5 — Activation');
-
-    event.waitUntil(
-        caches.keys().then(cacheNames => {
-            return Promise.all(
-                cacheNames
-                    .filter(name => name !== CACHE_NAME)
-                    .map(name => {
-                        console.log('🗑 Suppression du cache:', name);
-                        return caches.delete(name);
-                    })
-            );
-        }).then(() => {
-            console.log('✅ Caches nettoyés');
-            return self.clients.claim();
-        })
-    );
-});
-
-// ═══════════════════════════════════════════════════════
-// MESSAGES (Mise à jour du cache)
-// ═══════════════════════════════════════════════════════
-
-self.addEventListener('message', event => {
-    if (event.data === 'SKIP_WAITING') {
-        self.skipWaiting();
+  try {
+    const networkResponse = await fetch(request);
+    if (networkResponse.ok) {
+      const cache = await caches.open(CACHE_VERSION);
+      cache.put(request, networkResponse.clone());
     }
+    return networkResponse;
+  } catch {
+    return new Response('Ressource non disponible hors-ligne', {
+      status: 503,
+      headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+    });
+  }
+}
 
-    if (event.data === 'CLEAR_CACHE') {
-        caches.delete(CACHE_NAME).then(() => {
-            console.log('✅ Cache nettoyé');
-        });
-    }
+/**
+ * Fusionne les headers existants avec les directives no-cache.
+ * Gère le cas où headers est un objet Headers natif.
+ */
+function mergeNoCacheHeaders(existingHeaders) {
+  const flat =
+    existingHeaders instanceof Headers
+      ? Object.fromEntries(existingHeaders.entries())
+      : {};
+  return {
+    ...flat,
+    'Cache-Control': 'no-cache, no-store, must-revalidate',
+    Pragma: 'no-cache',
+    Expires: '0',
+  };
+}
+
+// ================================================================
+// MESSAGE — réception de SKIP_WAITING depuis les pages
+// ================================================================
+self.addEventListener('message', (event) => {
+  if (event.data?.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
 });
