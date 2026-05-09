@@ -38,7 +38,6 @@
     <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.6/dist/purify.min.js"></script>
     <script src="config.js"></script>
 
-    <!-- ... tout le CSS reste identique ... -->
     <style>
     :root {
         --gold   : #c5a059;
@@ -306,6 +305,301 @@
         transition: all .2s;
     }
     #blog-theme-toggle:hover { border-color: var(--gold); color: var(--gold); }
+
+    /* ═══════════════════════════════════════════════════════
+       BLOG PRO — Styles avancés
+       ═══════════════════════════════════════════════════════ */
+
+    /* === BARRE DE LIKES / COMMENTAIRES / VUES === */
+    .article-stats-bar {
+        display: flex;
+        align-items: center;
+        gap: 24px;
+        padding: 16px 0;
+        border-top: 1px solid var(--border);
+        border-bottom: 1px solid var(--border);
+        margin: 32px 0;
+        flex-wrap: wrap;
+    }
+
+    .stat-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 0.88rem;
+        color: var(--mid);
+        cursor: pointer;
+        transition: color 0.2s;
+    }
+
+    .stat-item.like-btn:hover { color: #e74c3c; }
+    .stat-item.liked { color: #e74c3c; }
+    .stat-item.liked .stat-icon { animation: heartPulse 0.4s ease; }
+
+    @keyframes heartPulse {
+        0% { transform: scale(1); }
+        50% { transform: scale(1.3); }
+        100% { transform: scale(1); }
+    }
+
+    .stat-icon { font-size: 1.1rem; }
+
+    /* === SECTION COMMENTAIRES === */
+    .comments-section {
+        margin-top: 48px;
+        padding-top: 32px;
+        border-top: 2px solid var(--border);
+    }
+
+    .comments-title {
+        font-family: 'Libre Baskerville', serif;
+        font-size: 1.3rem;
+        font-weight: 700;
+        margin-bottom: 28px;
+    }
+
+    .comment-form {
+        background: var(--bg);
+        border: 1px solid var(--border);
+        border-radius: var(--r);
+        padding: 20px;
+        margin-bottom: 32px;
+    }
+
+    .comment-form-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+        margin-bottom: 12px;
+    }
+
+    .comment-input {
+        width: 100%;
+        background: var(--white);
+        border: 1px solid var(--border);
+        color: var(--dark);
+        padding: 10px 14px;
+        border-radius: 8px;
+        font-family: 'DM Sans', sans-serif;
+        font-size: 0.88rem;
+        outline: none;
+        transition: border-color 0.2s;
+    }
+
+    .comment-input:focus { border-color: var(--gold); }
+    .comment-textarea { min-height: 100px; resize: vertical; }
+
+    .comment-submit {
+        background: var(--gold);
+        color: #000;
+        border: none;
+        padding: 12px 24px;
+        border-radius: 8px;
+        font-weight: 700;
+        font-size: 0.9rem;
+        cursor: pointer;
+        transition: opacity 0.2s;
+    }
+
+    .comment-submit:hover { opacity: 0.85; }
+    .comment-submit:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    /* === CARTE COMMENTAIRE === */
+    .comment-card {
+        background: var(--white);
+        border: 1px solid var(--border);
+        border-radius: var(--r);
+        padding: 18px;
+        margin-bottom: 14px;
+        transition: box-shadow 0.2s;
+    }
+
+    .comment-card:hover { box-shadow: 0 2px 12px rgba(0,0,0,0.04); }
+
+    .comment-header {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 10px;
+    }
+
+    .comment-avatar {
+        width: 38px;
+        height: 38px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, var(--gold), #d4ae6a);
+        color: #fff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 700;
+        font-size: 0.9rem;
+    }
+
+    .comment-author { font-weight: 600; font-size: 0.9rem; }
+    .comment-date { font-size: 0.75rem; color: var(--dim); margin-left: auto; }
+    .comment-body { font-size: 0.88rem; color: var(--dark); line-height: 1.6; }
+
+    .comment-reply-btn {
+        background: none;
+        border: none;
+        color: var(--gold);
+        font-size: 0.8rem;
+        font-weight: 600;
+        cursor: pointer;
+        margin-top: 8px;
+        padding: 4px 0;
+    }
+
+    .comment-reply-btn:hover { text-decoration: underline; }
+
+    /* === RECHERCHE D'ARTICLES === */
+    .search-bar {
+        padding: 24px 0;
+        border-bottom: 1px solid var(--border);
+        margin-bottom: 24px;
+    }
+
+    .search-input-wrap {
+        position: relative;
+        max-width: 400px;
+    }
+
+    .search-input-wrap input {
+        width: 100%;
+        background: var(--white);
+        border: 1px solid var(--border);
+        color: var(--dark);
+        padding: 12px 16px 12px 44px;
+        border-radius: 50px;
+        font-size: 0.9rem;
+        outline: none;
+        transition: border-color 0.2s;
+    }
+
+    .search-input-wrap input:focus { border-color: var(--gold); }
+    .search-input-wrap .search-icon {
+        position: absolute;
+        left: 16px;
+        top: 50%;
+        transform: translateY(-50%);
+        font-size: 1rem;
+        color: var(--dim);
+    }
+
+    /* === TAGS NUAGE === */
+    .tags-cloud {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+    .tag-btn {
+        padding: 6px 14px;
+        border-radius: 50px;
+        border: 1.5px solid var(--border);
+        background: var(--white);
+        color: var(--mid);
+        font-size: 0.78rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.15s;
+    }
+
+    .tag-btn:hover, .tag-btn.active {
+        border-color: var(--gold);
+        color: var(--gold);
+        background: rgba(197, 160, 89, 0.06);
+    }
+
+    /* === BADGE TEMPS DE LECTURE === */
+    .read-time-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        background: rgba(197, 160, 89, 0.1);
+        color: var(--gold);
+        padding: 3px 10px;
+        border-radius: 50px;
+        font-size: 0.72rem;
+        font-weight: 600;
+        margin-left: 8px;
+    }
+
+    /* === ARTICLES SIMILAIRES === */
+    .related-articles {
+        margin-top: 48px;
+        padding-top: 32px;
+        border-top: 2px solid var(--border);
+    }
+
+    .related-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 16px;
+        margin-top: 20px;
+    }
+
+    @media (max-width: 768px) {
+        .related-grid { grid-template-columns: 1fr; }
+        .comment-form-grid { grid-template-columns: 1fr; }
+        .article-stats-bar { gap: 16px; }
+    }
+
+    /* === NEWSLETTER WIDGET === */
+    .newsletter-input {
+        width: 100%;
+        background: var(--bg);
+        border: 1px solid var(--border);
+        color: var(--dark);
+        padding: 10px 14px;
+        border-radius: 8px;
+        font-size: 0.85rem;
+        outline: none;
+        margin-bottom: 8px;
+        transition: border-color 0.2s;
+    }
+
+    .newsletter-input:focus { border-color: var(--gold); }
+
+    .newsletter-btn {
+        width: 100%;
+        background: var(--gold);
+        color: #000;
+        border: none;
+        padding: 10px;
+        border-radius: 8px;
+        font-weight: 700;
+        font-size: 0.85rem;
+        cursor: pointer;
+    }
+
+    /* === PAGINATION === */
+    .pagination {
+        display: flex;
+        gap: 8px;
+        justify-content: center;
+        margin-top: 32px;
+    }
+
+    .page-btn {
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        border: 1px solid var(--border);
+        background: var(--white);
+        color: var(--mid);
+        font-size: 0.85rem;
+        font-weight: 600;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.15s;
+    }
+
+    .page-btn:hover { border-color: var(--gold); color: var(--gold); }
+    .page-btn.active { background: var(--gold); color: #000; border-color: var(--gold); }
     </style>
 </head>
 <body>
@@ -414,6 +708,14 @@ Votre contenu ici. Vous pouvez utiliser le **gras**, *l'italique*, des listes à
 
     <div class="main-layout">
         <div>
+            <!-- ✅ BARRE DE RECHERCHE (NOUVEAU) -->
+            <div class="search-bar">
+                <div class="search-input-wrap">
+                    <span class="search-icon">🔍</span>
+                    <input type="search" id="articles-search" placeholder="Rechercher un article..." oninput="searchArticles(this.value)">
+                </div>
+            </div>
+
             <h2 class="section-title">Derniers articles</h2>
             <div class="articles-grid" id="articles-grid"></div>
         </div>
@@ -431,6 +733,14 @@ Votre contenu ici. Vous pouvez utiliser le **gras**, *l'italique*, des listes à
                 <h3 class="widget-title">🏷️ Catégories</h3>
                 <div id="cats-widget" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:4px;"></div>
             </div>
+
+            <!-- ✅ WIDGET NEWSLETTER (NOUVEAU) -->
+            <div class="widget">
+                <h3 class="widget-title">📧 Newsletter</h3>
+                <p style="font-size:0.82rem;color:var(--mid);margin-bottom:12px;">Recevez nos meilleures recettes chaque semaine !</p>
+                <input type="email" class="newsletter-input" id="newsletter-email" placeholder="Votre email">
+                <button class="newsletter-btn" onclick="subscribeNewsletter()">S'abonner</button>
+            </div>
         </aside>
     </div>
 </div>
@@ -446,6 +756,7 @@ Votre contenu ici. Vous pouvez utiliser le **gras**, *l'italique*, des listes à
         <span id="art-read-disp"></span>
     </div>
     <div class="article-content" id="art-body"></div>
+    <!-- ✅ La stats-bar, les commentaires et les articles similaires seront injectés dynamiquement par JS -->
     <div class="share-bar">
         <button class="share-btn share-fb" id="share-fb">f Partager</button>
         <button class="share-btn share-wa" id="share-wa">📲 WhatsApp</button>
@@ -464,7 +775,6 @@ Votre contenu ici. Vous pouvez utiliser le **gras**, *l'italique*, des listes à
     </div>
     <p class="footer-copy">© 2026 Jo D. Digital · Lomé, Togo</p>
 </footer>
-
 <script>
 'use strict';
 
@@ -566,6 +876,36 @@ function getAllArticles() {
     return supabaseArticles.length > 0 ? supabaseArticles : DEFAULT_ARTICLES;
 }
 
+// ═══════════════════════════════════════════════════════
+// FONCTIONS UTILITAIRES
+// ═══════════════════════════════════════════════════════
+
+function getClientIP() {
+    const stored = localStorage.getItem('blog_fingerprint');
+    if (stored) return stored;
+    const fp = 'fp_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+    localStorage.setItem('blog_fingerprint', fp);
+    return fp;
+}
+
+function calculateReadTime(content) {
+    const words = content.split(/\s+/).length;
+    return Math.max(1, Math.ceil(words / 200));
+}
+
+function formatDate(dateStr) {
+    return new Date(dateStr).toLocaleDateString('fr-FR', {
+        day: 'numeric', month: 'long', year: 'numeric'
+    });
+}
+
+function escapeHTML(str) {
+    if (!str && str !== 0) return '';
+    const div = document.createElement('div');
+    div.textContent = String(str);
+    return div.innerHTML;
+}
+
 function toast(msg, type='ok', dur=3500) {
     const el = document.createElement('div');
     el.className = `toast ${type}`;
@@ -574,10 +914,326 @@ function toast(msg, type='ok', dur=3500) {
     setTimeout(() => el.remove(), dur);
 }
 
+// ═══════════════════════════════════════════════════════
+// SYSTÈME DE LIKES
+// ═══════════════════════════════════════════════════════
+
+async function toggleLike(articleId) {
+    const userIP = getClientIP();
+    const btn = document.querySelector('.stat-item.like-btn');
+    const countEl = document.getElementById('likes-count');
+    if (!btn || !countEl) return;
+
+    try {
+        const { data: existing } = await supabaseClient
+            .from('blog_likes')
+            .select('id')
+            .eq('article_id', articleId)
+            .eq('user_ip', userIP)
+            .single();
+
+        if (existing) {
+            await supabaseClient.from('blog_likes').delete().eq('id', existing.id);
+            btn.classList.remove('liked');
+            btn.querySelector('.stat-icon').textContent = '🤍';
+        } else {
+            await supabaseClient.from('blog_likes').insert({
+                article_id: articleId,
+                user_ip: userIP
+            });
+            btn.classList.add('liked');
+            btn.querySelector('.stat-icon').textContent = '❤️';
+        }
+
+        const { data: count } = await supabaseClient.rpc('count_article_likes', {
+            article_uid: articleId
+        });
+        countEl.textContent = count || 0;
+
+    } catch (e) {
+        console.error('Like error:', e);
+    }
+}
+
+async function checkIfLiked(articleId) {
+    const userIP = getClientIP();
+    try {
+        const { data } = await supabaseClient
+            .from('blog_likes')
+            .select('id')
+            .eq('article_id', articleId)
+            .eq('user_ip', userIP)
+            .single();
+        return !!data;
+    } catch {
+        return false;
+    }
+}
+
+async function getLikesCount(articleId) {
+    try {
+        const { data: count } = await supabaseClient.rpc('count_article_likes', {
+            article_uid: articleId
+        });
+        return count || 0;
+    } catch {
+        return 0;
+    }
+}
+
+// ═══════════════════════════════════════════════════════
+// SYSTÈME DE VUES
+// ═══════════════════════════════════════════════════════
+
+async function incrementView(articleId) {
+    try {
+        await supabaseClient.rpc('increment_blog_view', {
+            article_uid: articleId
+        });
+    } catch (e) {
+        console.error('View error:', e);
+    }
+}
+
+async function getTotalViews(articleId) {
+    try {
+        const { data } = await supabaseClient
+            .from('blog_views')
+            .select('view_count')
+            .eq('article_id', articleId);
+        return (data || []).reduce((s, v) => s + (v.view_count || 0), 0);
+    } catch {
+        return 0;
+    }
+}
+
+// ═══════════════════════════════════════════════════════
+// SYSTÈME DE COMMENTAIRES
+// ═══════════════════════════════════════════════════════
+
+async function loadComments(articleId) {
+    const container = document.getElementById('comments-list');
+    if (!container) return;
+
+    try {
+        const { data: comments } = await supabaseClient
+            .from('blog_comments')
+            .select('*')
+            .eq('article_id', articleId)
+            .eq('is_approved', true)
+            .order('created_at', { ascending: true });
+
+        const countEl = document.getElementById('comments-count');
+        if (countEl) countEl.textContent = (comments || []).length;
+
+        if (!comments?.length) {
+            container.innerHTML = '<p style="color:var(--dim);text-align:center;padding:20px;">Soyez le premier à commenter ! 💬</p>';
+            return;
+        }
+
+        container.innerHTML = comments.map(comment => `
+            <div class="comment-card">
+                <div class="comment-header">
+                    <div class="comment-avatar">${escapeHTML(comment.author_name.charAt(0).toUpperCase())}</div>
+                    <span class="comment-author">${escapeHTML(comment.author_name)}</span>
+                    <span class="comment-date">${formatDate(comment.created_at)}</span>
+                </div>
+                <div class="comment-body">${escapeHTML(comment.content)}</div>
+            </div>
+        `).join('');
+
+    } catch (e) {
+        console.error('Comments error:', e);
+        container.innerHTML = '<p style="color:var(--dim);text-align:center;padding:20px;">Impossible de charger les commentaires.</p>';
+    }
+}
+
+async function submitComment(articleId) {
+    const nameInput = document.getElementById('comment-name');
+    const contentInput = document.getElementById('comment-content');
+    const submitBtn = document.getElementById('comment-submit-btn');
+
+    if (!nameInput?.value?.trim() || !contentInput?.value?.trim()) {
+        toast('Veuillez remplir tous les champs.', 'err');
+        return;
+    }
+
+    const name = nameInput.value.trim();
+    const content = contentInput.value.trim();
+
+    if (name.length < 2 || name.length > 100) {
+        toast('Nom doit faire entre 2 et 100 caractères.', 'err');
+        return;
+    }
+    if (content.length < 1 || content.length > 2000) {
+        toast('Commentaire doit faire moins de 2000 caractères.', 'err');
+        return;
+    }
+
+    submitBtn.disabled = true;
+    submitBtn.textContent = '⏳ Envoi...';
+
+    try {
+        await supabaseClient.from('blog_comments').insert({
+            article_id: articleId,
+            author_name: escapeHTML(name),
+            content: escapeHTML(content),
+            is_approved: true
+        });
+
+        nameInput.value = '';
+        contentInput.value = '';
+        toast('Commentaire publié ! Merci 🙏', 'ok');
+        loadComments(articleId);
+
+    } catch (e) {
+        toast('Erreur lors de l\'envoi.', 'err');
+    } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = '💬 Publier le commentaire';
+    }
+}
+
+// ═══════════════════════════════════════════════════════
+// ARTICLES SIMILAIRES
+// ═══════════════════════════════════════════════════════
+
+function renderRelatedArticles(currentArticle) {
+    const container = document.getElementById('related-articles');
+    if (!container) return;
+
+    const all = getAllArticles();
+    const related = all
+        .filter(a => a.id !== currentArticle.id)
+        .filter(a => a.category === currentArticle.category)
+        .slice(0, 3);
+
+    if (!related.length) {
+        container.style.display = 'none';
+        return;
+    }
+
+    container.style.display = 'block';
+    container.innerHTML = `
+        <h3 class="comments-title">📚 Articles similaires</h3>
+        <div class="related-grid">
+            ${related.map(a => `
+                <div class="art-card" onclick="location.href='?article=${a.id || a.slug}'" style="cursor:pointer;">
+                    ${a.image ? `<div class="art-img"><img src="${a.image}" alt="${escapeHTML(a.title)}" loading="lazy"></div>` : `<div class="art-img">🍽️</div>`}
+                    <div class="art-body">
+                        <p class="art-cat">${a.category}</p>
+                        <h3 class="art-title">${escapeHTML(a.title)}</h3>
+                        <div class="art-meta">
+                            <span>📅 ${formatDate(a.date)}</span>
+                            <span class="read-time-badge">⏱ ${calculateReadTime(a.content)} min</span>
+                        </div>
+                    </div>
+                </div>
+            `).join('')}
+        </div>
+    `;
+}
+
+// ═══════════════════════════════════════════════════════
+// RECHERCHE
+// ═══════════════════════════════════════════════════════
+
+function searchArticles(query) {
+    const q = query.toLowerCase().trim();
+    if (!q) {
+        renderArticles();
+        return;
+    }
+    const all = getAllArticles();
+    const filtered = all.filter(a =>
+        a.title.toLowerCase().includes(q) ||
+        a.excerpt.toLowerCase().includes(q) ||
+        a.category.toLowerCase().includes(q) ||
+        a.content.toLowerCase().includes(q)
+    );
+    renderFilteredArticles(filtered);
+}
+
+function renderFilteredArticles(articles) {
+    const grid = document.getElementById('articles-grid');
+    grid.innerHTML = '';
+    if (!articles.length) {
+        grid.innerHTML = '<div style="text-align:center;padding:40px;color:var(--dim);"><span style="font-size:2rem;display:block;margin-bottom:12px;">🔍</span>Aucun article trouvé.</div>';
+        return;
+    }
+    articles.forEach((art, i) => {
+        const card = document.createElement('div');
+        card.className = 'art-card';
+        card.innerHTML = `
+            ${art.image ? `<div class="art-img"><img src="${art.image}" alt="${escapeHTML(art.title)}" loading="lazy"></div>` : `<div class="art-img">🍽️</div>`}
+            <div class="art-body">
+                <div>
+                    <p class="art-cat">${art.category}</p>
+                    <h3 class="art-title">${escapeHTML(art.title)}</h3>
+                    <p class="art-excerpt">${escapeHTML(art.excerpt)}</p>
+                </div>
+                <div class="art-meta">
+                    <span>📅 ${formatDate(art.date)}</span>
+                    <span class="read-time-badge">⏱ ${calculateReadTime(art.content)} min</span>
+                    <span class="read-more">Lire →</span>
+                </div>
+            </div>
+            ${art.removable !== false ? `<button class="art-delete-btn" data-id="${art.id}">🗑️ Supprimer</button>` : ''}
+        `;
+        card.addEventListener('click', e => {
+            if (e.target.closest('.art-delete-btn')) return;
+            history.pushState({}, '', `?article=${art.id || art.slug}`);
+            showArticleEnhanced(art.id || art.slug);
+        });
+        const delBtn = card.querySelector('.art-delete-btn');
+        if (delBtn) {
+            delBtn.addEventListener('click', e => {
+                e.stopPropagation();
+                deleteArticle(art.id);
+            });
+        }
+        grid.appendChild(card);
+    });
+}
+
+// ═══════════════════════════════════════════════════════
+// NEWSLETTER
+// ═══════════════════════════════════════════════════════
+
+async function subscribeNewsletter() {
+    const emailInput = document.getElementById('newsletter-email');
+    const email = emailInput?.value?.trim();
+
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        toast('Email invalide.', 'err');
+        return;
+    }
+
+    try {
+        const { error } = await supabaseClient.from('blog_subscribers').insert({ email });
+        if (error) {
+            if (error.code === '23505') {
+                toast('Vous êtes déjà abonné ! 📧', 'ok');
+            } else {
+                throw error;
+            }
+        } else {
+            toast('Abonnement réussi ! 🎉 Vérifiez votre boîte mail.', 'ok');
+            emailInput.value = '';
+        }
+    } catch (e) {
+        toast('Erreur d\'abonnement.', 'err');
+    }
+}
+
+// ═══════════════════════════════════════════════════════
+// INITIALISATION
+// ═══════════════════════════════════════════════════════
+
 function init() {
     const params = new URLSearchParams(location.search);
     const artId = params.get('article');
-    if (artId) showArticle(artId);
+    if (artId) showArticleEnhanced(artId);
     else showList();
 }
 
@@ -599,17 +1255,17 @@ function renderArticles(filter = null) {
         const card = document.createElement('div');
         card.className = `art-card ${i === 0 && !filter ? 'featured' : ''}`;
         const imgHtml = art.image
-            ? `<div class="art-img"><img src="${art.image}" alt="${art.title}" loading="${i>0?'lazy':'eager'}"></div>`
+            ? `<div class="art-img"><img src="${art.image}" alt="${escapeHTML(art.title)}" loading="${i>0?'lazy':'eager'}"></div>`
             : `<div class="art-img">🍽️</div>`;
         card.innerHTML = `
             ${imgHtml}
             <div class="art-body">
-                <div><p class="art-cat">${art.category}</p><h3 class="art-title">${art.title}</h3><p class="art-excerpt">${art.excerpt}</p></div>
-                <div class="art-meta"><span>📅 ${new Date(art.date).toLocaleDateString('fr-FR',{day:'numeric',month:'long',year:'numeric'})}</span><span class="read-more">Lire →</span></div>
+                <div><p class="art-cat">${art.category}</p><h3 class="art-title">${escapeHTML(art.title)}</h3><p class="art-excerpt">${escapeHTML(art.excerpt)}</p></div>
+                <div class="art-meta"><span>📅 ${formatDate(art.date)}</span><span class="read-time-badge">⏱ ${calculateReadTime(art.content)} min</span><span class="read-more">Lire →</span></div>
             </div>
             ${art.removable !== false ? `<button class="art-delete-btn" data-id="${art.id}">🗑️ Supprimer</button>` : ''}
         `;
-        card.addEventListener('click', e => { if (e.target.closest('.art-delete-btn')) return; history.pushState({}, '', `?article=${art.id || art.slug}`); showArticle(art.id || art.slug); });
+        card.addEventListener('click', e => { if (e.target.closest('.art-delete-btn')) return; history.pushState({}, '', `?article=${art.id || art.slug}`); showArticleEnhanced(art.id || art.slug); });
         const delBtn = card.querySelector('.art-delete-btn');
         if (delBtn) { delBtn.addEventListener('click', e => { e.stopPropagation(); deleteArticle(art.id); }); }
         grid.appendChild(card);
@@ -617,29 +1273,108 @@ function renderArticles(filter = null) {
     if (isAdmin) renderAdminList();
 }
 
-function showArticle(idOrSlug) {
+// ═══════════════════════════════════════════════════════
+// showArticleEnhanced() — VERSION AMÉLIORÉE
+// ═══════════════════════════════════════════════════════
+
+async function showArticleEnhanced(idOrSlug) {
     const arts = getAllArticles();
     const art = arts.find(a => a.id === idOrSlug || a.slug === idOrSlug);
     if (!art) { history.pushState({}, '', 'blog.html'); showList(); return; }
     currentArt = art;
+
+    // Masquer liste, afficher article
     document.getElementById('list-view').style.display = 'none';
     document.getElementById('article-view').style.display = 'block';
     window.scrollTo({ top: 0, behavior: 'instant' });
     document.title = art.title + ' — Blog Restos Lomé';
+
+    // Cover
     const cover = document.getElementById('art-cover');
-    if (art.image) { cover.src = art.image; cover.alt = art.title; cover.style.display = 'block'; } else cover.style.display = 'none';
+    if (art.image) { cover.src = art.image; cover.alt = art.title; cover.style.display = 'block'; }
+    else cover.style.display = 'none';
+
+    // Metadata
     document.getElementById('art-cat-disp').textContent = art.category;
     document.getElementById('art-title-disp').textContent = art.title;
-    document.getElementById('art-date-disp').textContent = '📅 ' + new Date(art.date).toLocaleDateString('fr-FR',{day:'numeric',month:'long',year:'numeric'});
-    const words = art.content.split(/\s+/).length;
-    document.getElementById('art-read-disp').textContent = `⏱ ${Math.ceil(words/200)} min de lecture`;
+    document.getElementById('art-date-disp').textContent = '📅 ' + formatDate(art.date);
+    document.getElementById('art-read-disp').textContent = `⏱ ${calculateReadTime(art.content)} min de lecture`;
 
-    // ✅ Affichage sécurisé avec DOMPurify (protection XSS)
+    // Contenu (Markdown → HTML sécurisé)
     const rawHTML = marked.parse(art.content);
     const cleanHTML = DOMPurify.sanitize(rawHTML, DOMPurifyConfig);
     document.getElementById('art-body').innerHTML = cleanHTML;
 
-    // ✅ URL de partage avec slug unique
+    // === AJOUTER STATS BAR ===
+    const [likesCount, viewsCount, isLiked] = await Promise.all([
+        getLikesCount(art.id),
+        getTotalViews(art.id),
+        checkIfLiked(art.id)
+    ]);
+
+    // Supprimer ancienne stats bar si elle existe
+    const oldStatsBar = document.querySelector('.article-stats-bar');
+    if (oldStatsBar) oldStatsBar.remove();
+
+    const statsBar = document.createElement('div');
+    statsBar.className = 'article-stats-bar';
+    statsBar.innerHTML = `
+        <div class="stat-item like-btn ${isLiked ? 'liked' : ''}" onclick="toggleLike('${art.id}')">
+            <span class="stat-icon">${isLiked ? '❤️' : '🤍'}</span>
+            <span id="likes-count">${likesCount}</span> likes
+        </div>
+        <div class="stat-item">
+            <span class="stat-icon">👁️</span>
+            <span id="views-count">${viewsCount}</span> vues
+        </div>
+        <div class="stat-item">
+            <span class="stat-icon">💬</span>
+            <span id="comments-count">0</span> commentaires
+        </div>
+    `;
+
+    // Insérer après le contenu
+    const artBody = document.getElementById('art-body');
+    artBody.insertAdjacentElement('afterend', statsBar);
+
+    // === SECTION COMMENTAIRES ===
+    // Supprimer anciennes sections si elles existent
+    const oldComments = document.querySelector('.comments-section');
+    if (oldComments) oldComments.remove();
+    const oldRelated = document.querySelector('.related-articles');
+    if (oldRelated) oldRelated.remove();
+
+    const commentsSection = document.createElement('div');
+    commentsSection.className = 'comments-section';
+    commentsSection.innerHTML = `
+        <h3 class="comments-title">💬 Commentaires</h3>
+        <div class="comment-form">
+            <div class="comment-form-grid">
+                <input type="text" class="comment-input" id="comment-name" placeholder="Votre nom *" maxlength="100">
+            </div>
+            <textarea class="comment-input comment-textarea" id="comment-content" placeholder="Votre commentaire... (max 2000 caractères)" maxlength="2000"></textarea>
+            <button class="comment-submit" id="comment-submit-btn" onclick="submitComment('${art.id}')">💬 Publier le commentaire</button>
+        </div>
+        <div id="comments-list"></div>
+    `;
+
+    // Section articles similaires
+    const relatedSection = document.createElement('div');
+    relatedSection.className = 'related-articles';
+    relatedSection.id = 'related-articles';
+
+    // Ajouter après la stats bar
+    statsBar.insertAdjacentElement('afterend', commentsSection);
+    commentsSection.insertAdjacentElement('afterend', relatedSection);
+
+    // Charger les commentaires et articles similaires
+    loadComments(art.id);
+    renderRelatedArticles(art);
+
+    // Incrémenter la vue
+    incrementView(art.id);
+
+    // === BOUTONS DE PARTAGE ===
     const articleSlug = art.slug || art.id;
     const absoluteUrl = window.location.origin + window.location.pathname + '?article=' + articleSlug;
     const url = encodeURIComponent(absoluteUrl);
@@ -647,6 +1382,14 @@ function showArticle(idOrSlug) {
     document.getElementById('share-fb').onclick = () => window.open(`https://www.facebook.com/sharer/sharer.php?u=${url}`, '_blank');
     document.getElementById('share-wa').onclick = () => window.open(`https://wa.me/?text=${txt}%20${url}`, '_blank');
     document.getElementById('share-x').onclick  = () => window.open(`https://twitter.com/intent/tweet?url=${url}&text=${txt}`, '_blank');
+}
+
+// ═══════════════════════════════════════════════════════
+// showArticle() — version simple (compatibilité)
+// ═══════════════════════════════════════════════════════
+
+function showArticle(idOrSlug) {
+    showArticleEnhanced(idOrSlug);
 }
 
 async function loadRestos() {
@@ -657,7 +1400,7 @@ async function loadRestos() {
         list.innerHTML = '';
         data.forEach(r => {
             const row = document.createElement('div'); row.className = 'resto-mini';
-            row.innerHTML = `<div class="resto-mini-logo">${r.logo_url ? `<img src="${r.logo_url}" alt="${r.name}">` : '🍽️'}</div><div><p class="resto-mini-name">${r.name}</p><p class="resto-mini-cat">${r.opening_hours||'Menu digital'}</p></div><span class="resto-mini-arrow">→</span>`;
+            row.innerHTML = `<div class="resto-mini-logo">${r.logo_url ? `<img src="${r.logo_url}" alt="${escapeHTML(r.name)}">` : '🍽️'}</div><div><p class="resto-mini-name">${escapeHTML(r.name)}</p><p class="resto-mini-cat">${r.opening_hours||'Menu digital'}</p></div><span class="resto-mini-arrow">→</span>`;
             row.addEventListener('click', () => window.location.href = `/view.html?id=${r.slug}`);
             list.appendChild(row);
         });
@@ -729,7 +1472,7 @@ function renderAdminList() {
     list.innerHTML = '';
     getAllArticles().forEach(art => {
         const row = document.createElement('div'); row.className = 'admin-art-row';
-        row.innerHTML = `<div class="admin-art-info"><p class="admin-art-title">${art.title}</p><p class="admin-art-meta">${art.category} · ${new Date(art.date).toLocaleDateString('fr-FR')} ${!art.removable?'· <em style="color:rgba(255,255,255,.3)">Article par défaut</em>':''}</p></div>${art.removable ? `<button class="btn-del" data-id="${art.id}">🗑️</button>` : ''}`;
+        row.innerHTML = `<div class="admin-art-info"><p class="admin-art-title">${escapeHTML(art.title)}</p><p class="admin-art-meta">${art.category} · ${formatDate(art.date)} ${!art.removable?'· <em style="color:rgba(255,255,255,.3)">Article par défaut</em>':''}</p></div>${art.removable ? `<button class="btn-del" data-id="${art.id}">🗑️</button>` : ''}`;
         const del = row.querySelector('.btn-del'); if (del) del.addEventListener('click', () => deleteArticle(art.id));
         list.appendChild(row);
     });
@@ -756,7 +1499,7 @@ async function unlock() {
 function toggleAdmin(on) { isAdmin = on; const panel = document.getElementById('admin-panel'); document.body.classList.toggle('admin-mode', on); if (on) { panel.classList.add('show'); renderAdminList(); panel.scrollIntoView({ behavior: 'smooth', block: 'start' }); toast('Mode admin activé.'); } else { panel.classList.remove('show'); toast('Mode admin désactivé.'); } renderArticles(); }
 document.getElementById('close-admin-btn').addEventListener('click', () => toggleAdmin(false));
 document.getElementById('back-btn').addEventListener('click', () => { history.pushState({}, '', 'blog.html'); showList(); });
-window.addEventListener('popstate', () => { const p = new URLSearchParams(location.search); if (p.get('article')) showArticle(p.get('article')); else showList(); });
+window.addEventListener('popstate', () => { const p = new URLSearchParams(location.search); if (p.get('article')) showArticleEnhanced(p.get('article')); else showList(); });
 
 const blogThemeBtn = document.getElementById('blog-theme-toggle');
 if (blogThemeBtn) {
