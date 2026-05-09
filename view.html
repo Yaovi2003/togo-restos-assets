@@ -687,16 +687,27 @@ async function loadReviews(){try{const{data:rev}=await supabaseClient.from('revi
 
         // Fetch personnalisé : cache:'no-store' + headers no-cache
         // L'URL n'est PAS modifiée pour ne pas casser PostgREST
-        const noCacheFetch=(url,opts={})=>fetch(url,{
-            ...opts,
-            cache:'no-store',
-            headers:{
-                ...opts.headers,
-                'Cache-Control':'no-cache, no-store, must-revalidate',
-                'Pragma':'no-cache',
-                'Expires':'0'
-            }
-        });
+        //
+        // ⚠️ IMPORTANT : Supabase passe ses headers (apikey, Authorization…)
+        // sous forme d'un objet Headers natif. On NE PEUT PAS faire
+        // {...opts.headers} sur un Headers natif — cela ne copie rien et
+        // efface apikey/Authorization → 401.
+        // Solution : convertir en objet plat via Object.fromEntries() d'abord.
+        const noCacheFetch=(url,opts={})=>{
+            const flatHeaders=opts.headers instanceof Headers
+                ? Object.fromEntries(opts.headers.entries())
+                : (opts.headers||{});
+            return fetch(url,{
+                ...opts,
+                cache:'no-store',
+                headers:{
+                    ...flatHeaders,
+                    'Cache-Control':'no-cache, no-store, must-revalidate',
+                    'Pragma':'no-cache',
+                    'Expires':'0'
+                }
+            });
+        };
 
         supabaseClient=supabase.createClient(CONFIG.supabaseUrl,CONFIG.supabaseKey,{
             global:{fetch:noCacheFetch}
