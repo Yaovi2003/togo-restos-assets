@@ -873,7 +873,14 @@ async function loadSupabaseArticles() {
 }
 
 function getAllArticles() {
-    return supabaseArticles.length > 0 ? supabaseArticles : DEFAULT_ARTICLES;
+    const allArticles = [...supabaseArticles];
+    const supabaseIds = new Set(allArticles.map(a => a.id));
+    for (const art of DEFAULT_ARTICLES) {
+        if (!supabaseIds.has(art.id)) {
+            allArticles.push(art);
+        }
+    }
+    return allArticles;
 }
 
 // ═══════════════════════════════════════════════════════
@@ -1278,7 +1285,8 @@ function renderArticles(filter = null) {
 // ═══════════════════════════════════════════════════════
 
 async function showArticleEnhanced(idOrSlug) {
-    const arts = getAllArticles();
+    await loadSupabaseArticles();
+	const arts = getAllArticles();
     const art = arts.find(a => a.id === idOrSlug || a.slug === idOrSlug);
     if (!art) { history.pushState({}, '', 'blog.html'); showList(); return; }
     currentArt = art;
