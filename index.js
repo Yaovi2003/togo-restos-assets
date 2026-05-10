@@ -124,6 +124,12 @@ export default {
             newUrl.pathname = url.pathname + '.html';
             return Response.redirect(newUrl.toString(), 301);
         }
+		// ═══════════════════════════════════════════════════════
+        // ROUTE : /sitemap.xml → Servir le sitemap directement
+        // ═══════════════════════════════════════════════════════
+        if (url.pathname === '/sitemap.xml') {
+            return env.ASSETS.fetch(request);
+        }
 
         // ═══════════════════════════════════════════════════════
         // ROUTE PAR DÉFAUT → Fichiers statiques
