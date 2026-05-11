@@ -914,7 +914,7 @@ async function handleSubscribe(request, env) {
                 'Content-Type': 'application/json',
                 'apikey':        supabaseKey,
                 'Authorization': `Bearer ${supabaseKey}`,
-                'Prefer':        'resolution=merge-duplicates', /* upsert sur restaurant_id+endpoint */
+                'Prefer':        'resolution=merge-duplicates, return=minimal',
             },
             body: JSON.stringify({
                 restaurant_id: restaurantId,
