@@ -906,7 +906,7 @@ async function handleSubscribe(request, env) {
         }
 
         const supabaseUrl = env.SUPABASE_URL;
-        const supabaseKey = env.SUPABASE_SERVICE_KEY; /* service_role requis (RLS désactivé) */
+        const supabaseKey = env.SUPABASE_SERVICE_KEY || env.SUPABASE_ANON_KEY;
 
         const res = await fetch(`${supabaseUrl}/rest/v1/push_subscriptions`, {
             method: 'POST',
@@ -947,7 +947,7 @@ async function handleUnsubscribe(request, env) {
         if (!endpoint) return jsonError('endpoint requis.', 400);
 
         const supabaseUrl = env.SUPABASE_URL;
-        const supabaseKey = env.SUPABASE_SERVICE_KEY;
+        const supabaseKey = env.SUPABASE_SERVICE_KEY || env.SUPABASE_ANON_KEY;
 
         const encoded = encodeURIComponent(endpoint);
         await fetch(`${supabaseUrl}/rest/v1/push_subscriptions?endpoint=eq.${encoded}`, {
@@ -984,7 +984,7 @@ async function handlePush(request, env) {
         }
 
         const supabaseUrl = env.SUPABASE_URL;
-        const supabaseKey = env.SUPABASE_SERVICE_KEY;
+        const supabaseKey = env.SUPABASE_SERVICE_KEY || env.SUPABASE_ANON_KEY;
 
         /* ── Charger les abonnements pour ce restaurant ── */
         const subsRes = await fetch(
