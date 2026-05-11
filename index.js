@@ -130,6 +130,18 @@ export default {
         if (url.pathname === '/sitemap.xml') {
             return env.ASSETS.fetch(request);
         }
+		
+		        // ═══════════════════════════════════════════════════════
+        // ROUTES PUSH NOTIFICATIONS
+        // ═══════════════════════════════════════════════════════
+        if (url.pathname === '/api/vapid-public-key' && request.method === 'GET')
+            return handleVapidPublicKey(env);
+        if (url.pathname === '/api/subscribe' && request.method === 'POST')
+            return handleSubscribe(request, env);
+        if (url.pathname === '/api/subscribe' && request.method === 'DELETE')
+            return handleUnsubscribe(request, env);
+        if (url.pathname === '/api/push' && request.method === 'POST')
+            return handlePush(request, env);
 
         // ═══════════════════════════════════════════════════════
         // ROUTE PAR DÉFAUT → Fichiers statiques
@@ -659,8 +671,432 @@ async function handleGitHubCallback(request, env, url) {
             headers: { 'Content-Type': 'text/html; charset=utf-8' },
         });
 
-    } catch (err) {
+        } catch (err) {
         console.error('Callback error:', err);
         return new Response('Erreur serveur : ' + err.message, { status: 500 });
     }
 }
+
+// ================================================================
+// FONCTIONS PUSH NOTIFICATIONS
+// ================================================================
+
+/* ══════════════════════════════════════════════════════════════
+   SECTION 1 — HELPERS BASE64URL & CRYPTO
+══════════════════════════════════════════════════════════════ */
+
+function base64urlToUint8Array(b64) {
+    const padding = '='.repeat((4 - (b64.length % 4)) % 4);
+    const base64  = (b64 + padding).replace(/-/g, '+').replace(/_/g, '/');
+    const binary  = atob(base64);
+    return Uint8Array.from([...binary].map(c => c.charCodeAt(0)));
+}
+
+function uint8ArrayToBase64url(arr) {
+    return btoa(String.fromCharCode(...arr))
+        .replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+}
+
+function concat(...arrays) {
+    const total = arrays.reduce((s, a) => s + a.length, 0);
+    const out   = new Uint8Array(total);
+    let offset  = 0;
+    for (const a of arrays) { out.set(a, offset); offset += a.length; }
+    return out;
+}
+
+function utf8(str) { return new TextEncoder().encode(str); }
+
+
+/* ── HKDF-Extract : PRK = HMAC-SHA256(salt, IKM) ── */
+async function hkdfExtract(salt, ikm) {
+    const key = await crypto.subtle.importKey(
+        'raw', salt, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']
+    );
+    return new Uint8Array(await crypto.subtle.sign('HMAC', key, ikm));
+}
+
+/* ── HKDF-Expand : OKM = HMAC-SHA256(PRK, info || 0x01) [length bytes] ── */
+async function hkdfExpand(prk, info, length) {
+    const key = await crypto.subtle.importKey(
+        'raw', prk, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']
+    );
+    const input  = concat(info, new Uint8Array([0x01]));
+    const result = new Uint8Array(await crypto.subtle.sign('HMAC', key, input));
+    return result.slice(0, length);
+}
+
+
+/* ══════════════════════════════════════════════════════════════
+   SECTION 2 — VAPID JWT (ES256 / ECDSA P-256)
+══════════════════════════════════════════════════════════════ */
+
+/**
+ * Crée un JWT VAPID signé avec la clé privée P-256.
+ *
+ * @param {string} endpoint      - URL du push service (ex: https://fcm.googleapis.com/…)
+ * @param {string} subject       - "mailto:contact@example.com"
+ * @param {string} privateJwkStr - JSON string de la JWK privée (kty,crv,x,y,d)
+ */
+async function createVapidJWT(endpoint, subject, privateJwkStr) {
+    const url      = new URL(endpoint);
+    const audience = `${url.protocol}//${url.host}`;
+
+    const headerB64  = uint8ArrayToBase64url(utf8(JSON.stringify({ typ: 'JWT', alg: 'ES256' })));
+    const payloadB64 = uint8ArrayToBase64url(utf8(JSON.stringify({
+        aud: audience,
+        exp: Math.floor(Date.now() / 1000) + 43200, // 12 h
+        sub: subject,
+    })));
+
+    const signingInput = `${headerB64}.${payloadB64}`;
+
+    const privateKey = await crypto.subtle.importKey(
+        'jwk',
+        JSON.parse(privateJwkStr),
+        { name: 'ECDSA', namedCurve: 'P-256' },
+        false,
+        ['sign']
+    );
+
+    const signature = await crypto.subtle.sign(
+        { name: 'ECDSA', hash: 'SHA-256' },
+        privateKey,
+        utf8(signingInput)
+    );
+
+    return `${signingInput}.${uint8ArrayToBase64url(new Uint8Array(signature))}`;
+}
+
+
+/* ══════════════════════════════════════════════════════════════
+   SECTION 3 — CHIFFREMENT PAYLOAD (RFC 8291 / aes128gcm)
+══════════════════════════════════════════════════════════════ */
+
+/**
+ * Chiffre le payload JSON selon RFC 8291 (Web Push Message Encryption).
+ *
+ * @param {{ endpoint, keys: { p256dh, auth } }} subscription
+ * @param {string} payloadJson - JSON stringifié du payload
+ * @returns {Uint8Array} corps HTTP chiffré (aes128gcm content-encoding)
+ */
+async function encryptWebPush(subscription, payloadJson) {
+    const clientPublicKeyBytes = base64urlToUint8Array(subscription.keys.p256dh);
+    const authSecretBytes      = base64urlToUint8Array(subscription.keys.auth);
+    const plaintextBytes       = utf8(payloadJson);
+
+    /* ── 1. Sel aléatoire 16 octets ── */
+    const salt = crypto.getRandomValues(new Uint8Array(16));
+
+    /* ── 2. Paire ECDH éphémère côté serveur ── */
+    const serverECDH = await crypto.subtle.generateKey(
+        { name: 'ECDH', namedCurve: 'P-256' },
+        true,
+        ['deriveBits']
+    );
+    const serverPublicKeyRaw = new Uint8Array(
+        await crypto.subtle.exportKey('raw', serverECDH.publicKey)
+    );
+
+    /* ── 3. Clé publique client ── */
+    const clientPublicKey = await crypto.subtle.importKey(
+        'raw',
+        clientPublicKeyBytes,
+        { name: 'ECDH', namedCurve: 'P-256' },
+        false,
+        []
+    );
+
+    /* ── 4. Secret ECDH partagé ── */
+    const sharedSecretRaw = new Uint8Array(
+        await crypto.subtle.deriveBits(
+            { name: 'ECDH', public: clientPublicKey },
+            serverECDH.privateKey,
+            256
+        )
+    );
+
+    /* ── 5. PRK_key = HKDF-Extract(auth_secret, shared_secret) ── */
+    const prkKey = await hkdfExtract(authSecretBytes, sharedSecretRaw);
+
+    /* ── 6. IKM = HKDF-Expand(PRK_key, "WebPush: info\0" + client_pub + server_pub, 32) ── */
+    const keyInfo = concat(
+        utf8('WebPush: info\x00'),
+        clientPublicKeyBytes,
+        serverPublicKeyRaw
+    );
+    const ikm = await hkdfExpand(prkKey, keyInfo, 32);
+
+    /* ── 7. PRK = HKDF-Extract(salt, IKM) ── */
+    const prk = await hkdfExtract(salt, ikm);
+
+    /* ── 8. CEK = HKDF-Expand(PRK, "Content-Encoding: aes128gcm\0\1", 16) ── */
+    const cek = await hkdfExpand(
+        prk,
+        concat(utf8('Content-Encoding: aes128gcm\x00'), new Uint8Array([0x01])),
+        16
+    );
+
+    /* ── 9. Nonce = HKDF-Expand(PRK, "Content-Encoding: nonce\0\1", 12) ── */
+    const nonce = await hkdfExpand(
+        prk,
+        concat(utf8('Content-Encoding: nonce\x00'), new Uint8Array([0x01])),
+        12
+    );
+
+    /* ── 10. Chiffrement AES-128-GCM ── */
+    /* Padding : plaintext + 0x02 (délimiteur RFC 8188) */
+    const paddedPlaintext = concat(plaintextBytes, new Uint8Array([0x02]));
+
+    const aesKey = await crypto.subtle.importKey(
+        'raw', cek, { name: 'AES-GCM' }, false, ['encrypt']
+    );
+    const ciphertext = new Uint8Array(
+        await crypto.subtle.encrypt(
+            { name: 'AES-GCM', iv: nonce, tagLength: 128 },
+            aesKey,
+            paddedPlaintext
+        )
+    );
+
+    /* ── 11. En-tête RFC 8188 ── */
+    /* salt(16) + rs(4 big-endian) + idlen(1) + keyid(serverPublicKey) + ciphertext */
+    const rs      = new Uint8Array([0x00, 0x00, 0x10, 0x00]); // 4096 en big-endian
+    const idlen   = new Uint8Array([serverPublicKeyRaw.length]);  // 65
+
+    return concat(salt, rs, idlen, serverPublicKeyRaw, ciphertext);
+}
+
+
+/* ══════════════════════════════════════════════════════════════
+   SECTION 4 — ROUTES
+══════════════════════════════════════════════════════════════ */
+
+/** GET /api/vapid-public-key — retourne la clé publique VAPID */
+function handleVapidPublicKey(env) {
+    if (!env.VAPID_PUBLIC_KEY) {
+        return new Response(JSON.stringify({ error: 'VAPID_PUBLIC_KEY non configurée.' }), {
+            status: 500, headers: { 'Content-Type': 'application/json' }
+        });
+    }
+    return new Response(JSON.stringify({ vapidPublicKey: env.VAPID_PUBLIC_KEY }), {
+        headers: {
+            'Content-Type': 'application/json',
+            'Cache-Control': 'public, max-age=86400',
+        }
+    });
+}
+
+
+/** POST /api/subscribe — sauvegarde un abonnement push dans Supabase */
+async function handleSubscribe(request, env) {
+    try {
+        const { restaurantId, subscription } = await request.json();
+
+        if (!restaurantId || !subscription?.endpoint || !subscription?.keys?.p256dh) {
+            return jsonError('Données invalides.', 400);
+        }
+
+        /* Valider que l'endpoint est bien une URL https */
+        try {
+            const u = new URL(subscription.endpoint);
+            if (u.protocol !== 'https:') throw new Error();
+        } catch {
+            return jsonError('Endpoint invalide.', 400);
+        }
+
+        const supabaseUrl = env.SUPABASE_URL;
+        const supabaseKey = env.SUPABASE_SERVICE_KEY; /* service_role requis (RLS désactivé) */
+
+        const res = await fetch(`${supabaseUrl}/rest/v1/push_subscriptions`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'apikey':        supabaseKey,
+                'Authorization': `Bearer ${supabaseKey}`,
+                'Prefer':        'resolution=merge-duplicates', /* upsert sur restaurant_id+endpoint */
+            },
+            body: JSON.stringify({
+                restaurant_id: restaurantId,
+                endpoint:      subscription.endpoint,
+                p256dh:        subscription.keys.p256dh,
+                auth:          subscription.keys.auth,
+                user_agent:    request.headers.get('User-Agent')?.substring(0, 200) || null,
+            }),
+        });
+
+        if (!res.ok) {
+            const err = await res.text();
+            return jsonError('Erreur Supabase : ' + err, 500);
+        }
+
+        return new Response(JSON.stringify({ ok: true }), {
+            headers: { 'Content-Type': 'application/json' }
+        });
+
+    } catch (e) {
+        return jsonError(e.message, 500);
+    }
+}
+
+
+/** DELETE /api/subscribe — supprime un abonnement par endpoint */
+async function handleUnsubscribe(request, env) {
+    try {
+        const { endpoint } = await request.json();
+        if (!endpoint) return jsonError('endpoint requis.', 400);
+
+        const supabaseUrl = env.SUPABASE_URL;
+        const supabaseKey = env.SUPABASE_SERVICE_KEY;
+
+        const encoded = encodeURIComponent(endpoint);
+        await fetch(`${supabaseUrl}/rest/v1/push_subscriptions?endpoint=eq.${encoded}`, {
+            method: 'DELETE',
+            headers: {
+                'apikey':        supabaseKey,
+                'Authorization': `Bearer ${supabaseKey}`,
+            },
+        });
+
+        return new Response(JSON.stringify({ ok: true }), {
+            headers: { 'Content-Type': 'application/json' }
+        });
+
+    } catch (e) {
+        return jsonError(e.message, 500);
+    }
+}
+
+
+/**
+ * POST /api/push — envoie une notification push à tous les
+ * appareils abonnés pour ce restaurant.
+ *
+ * Body : { restaurantId, payload: { title, body, url, tag } }
+ */
+async function handlePush(request, env) {
+    try {
+        const { restaurantId, payload } = await request.json();
+
+        if (!restaurantId || !payload) return jsonError('restaurantId et payload requis.', 400);
+        if (!env.VAPID_PUBLIC_KEY || !env.VAPID_PRIVATE_JWK || !env.VAPID_SUBJECT) {
+            return jsonError('Secrets VAPID non configurés.', 500);
+        }
+
+        const supabaseUrl = env.SUPABASE_URL;
+        const supabaseKey = env.SUPABASE_SERVICE_KEY;
+
+        /* ── Charger les abonnements pour ce restaurant ── */
+        const subsRes = await fetch(
+            `${supabaseUrl}/rest/v1/push_subscriptions?restaurant_id=eq.${encodeURIComponent(restaurantId)}`,
+            {
+                headers: {
+                    'apikey':        supabaseKey,
+                    'Authorization': `Bearer ${supabaseKey}`,
+                },
+            }
+        );
+
+        if (!subsRes.ok) return jsonError('Erreur lecture abonnements.', 500);
+
+        const subscriptions = await subsRes.json();
+        if (!subscriptions?.length) {
+            return new Response(JSON.stringify({ ok: true, sent: 0, message: 'Aucun abonné.' }), {
+                headers: { 'Content-Type': 'application/json' }
+            });
+        }
+
+        const payloadJson = JSON.stringify(payload);
+        const expiredEndpoints = [];
+        let   sent = 0;
+
+        /* ── Envoyer à chaque abonnement ── */
+        await Promise.allSettled(
+            subscriptions.map(async (sub) => {
+                try {
+                    /* Chiffrer le payload */
+                    const encryptedBody = await encryptWebPush(
+                        { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
+                        payloadJson
+                    );
+
+                    /* Créer le JWT VAPID pour cet endpoint */
+                    const vapidJWT = await createVapidJWT(
+                        sub.endpoint,
+                        env.VAPID_SUBJECT,
+                        env.VAPID_PRIVATE_JWK
+                    );
+
+                    /* Envoyer la requête au push service */
+                    const pushRes = await fetch(sub.endpoint, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type':     'application/octet-stream',
+                            'Content-Encoding': 'aes128gcm',
+                            'Authorization':    `vapid t=${vapidJWT},k=${env.VAPID_PUBLIC_KEY}`,
+                            'TTL':              '60',
+                            'Urgency':          'high',
+                        },
+                        body: encryptedBody,
+                    });
+
+                    if (pushRes.status === 201 || pushRes.status === 200) {
+                        sent++;
+                    } else if (pushRes.status === 404 || pushRes.status === 410) {
+                        /* Abonnement expiré ou révoqué — à nettoyer */
+                        expiredEndpoints.push(sub.endpoint);
+                    } else {
+                        const errText = await pushRes.text();
+                        console.error(`Push failed ${pushRes.status}:`, errText);
+                    }
+                } catch (e) {
+                    console.error('Push send error:', e);
+                }
+            })
+        );
+
+        /* ── Nettoyer les abonnements expirés ── */
+        if (expiredEndpoints.length > 0) {
+            await Promise.allSettled(
+                expiredEndpoints.map(ep =>
+                    fetch(
+                        `${supabaseUrl}/rest/v1/push_subscriptions?endpoint=eq.${encodeURIComponent(ep)}`,
+                        {
+                            method: 'DELETE',
+                            headers: {
+                                'apikey':        supabaseKey,
+                                'Authorization': `Bearer ${supabaseKey}`,
+                            },
+                        }
+                    )
+                )
+            );
+        }
+
+        return new Response(JSON.stringify({
+            ok:       true,
+            sent,
+            total:    subscriptions.length,
+            expired:  expiredEndpoints.length,
+        }), { headers: { 'Content-Type': 'application/json' } });
+
+    } catch (e) {
+        return jsonError(e.message, 500);
+    }
+}
+
+
+/* ── Helper réponse erreur JSON ── */
+function jsonError(message, status = 400) {
+    return new Response(JSON.stringify({ error: message }), {
+        status,
+        headers: { 'Content-Type': 'application/json' }
+    });
+}
+
+
+/* ══════════════════════════════════════════════════════════════
+   EXPORT (si votre Worker utilise des modules ES)
+   Sinon, copier les fonctions directement dans le Worker global.
+══════════════════════════════════════════════════════════════ */
+// export { handleVapidPublicKey, handleSubscribe, handleUnsubscribe, handlePush };
