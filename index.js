@@ -667,11 +667,11 @@ async function handleGitHubCallback(request, env, url) {
 </body>
 </html>`;
 
-        return new Response(html, {
+                return new Response(html, {
             headers: { 'Content-Type': 'text/html; charset=utf-8' },
         });
 
-        } catch (err) {
+    } catch (err) {
         console.error('Callback error:', err);
         return new Response('Erreur serveur : ' + err.message, { status: 500 });
     }
