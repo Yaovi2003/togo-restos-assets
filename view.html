@@ -599,10 +599,112 @@ function splitBill(){if(!Object.keys(cart).length)return;const total=Object.valu
 function takeSelfie(dishName,dishImageUrl){const canvas=document.createElement('canvas');canvas.width=800;canvas.height=600;const ctx=canvas.getContext('2d');ctx.fillStyle='#0a0a0a';ctx.fillRect(0,0,800,600);ctx.strokeStyle='#c5a059';ctx.lineWidth=8;ctx.strokeRect(20,20,760,560);ctx.fillStyle='#c5a059';ctx.font='bold 28px serif';ctx.textAlign='center';ctx.fillText(`🍽️ ${dishName}`,400,90);ctx.fillText(resto?.name||'',400,135);if(dishImageUrl&&dishImageUrl.startsWith('http')){const img=new Image();img.crossOrigin='anonymous';img.onload=function(){ctx.fillStyle='#1a1a1a';ctx.fillRect(60,170,680,280);const maxW=680,maxH=280;let w=img.width,h=img.height;const ratio=Math.min(maxW/w,maxH/h);w=Math.round(w*ratio);h=Math.round(h*ratio);const x=60+(680-w)/2,y=170+(280-h)/2;ctx.drawImage(img,x,y,w,h);ajouterQRCode()};img.onerror=function(){dessinerFallback()};img.src=sanitizeURL(dishImageUrl)}else{dessinerFallback()}function dessinerFallback(){ctx.fillStyle='#1a1a1a';ctx.fillRect(60,170,680,280);ctx.fillStyle='#fff';ctx.font='80px sans-serif';ctx.textAlign='center';ctx.fillText('🍽️',400,280);ctx.fillStyle='#c5a059';ctx.font='bold 36px serif';ctx.fillText(dishName,400,350);ctx.fillStyle='#fff';ctx.font='18px sans-serif';ctx.fillText('Commandez sur Restos Lomé',400,400);ajouterQRCode()}function ajouterQRCode(){const qrDiv=document.createElement('div');qrDiv.style.position='absolute';qrDiv.style.left='-9999px';document.body.appendChild(qrDiv);new QRCode(qrDiv,{text:`${location.origin}/view.html?id=${encodeURIComponent(resto?.slug||'')}`,width:100,height:100,colorDark:'#000',colorLight:'#fff'});setTimeout(()=>{const qrImg=qrDiv.querySelector('img')||qrDiv.querySelector('canvas');if(qrImg){ctx.drawImage(qrImg,350,460,100,100)}document.body.removeChild(qrDiv);ctx.fillStyle='#fff';ctx.font='14px sans-serif';ctx.fillText('Scannez pour voir le menu !',400,580);const a=document.createElement('a');a.download=`selfie-${(dishName||'plat').replace(/\s/g,'-')}.png`;a.href=canvas.toDataURL('image/png');a.click()},800)}}
 function notifyWhenReady(dishName){const phone=prompt('Votre numéro WhatsApp pour être prévenu :','228');if(!phone)return;const msg=`🔔 *${escapeHTML(dishName)} est prêt !*\n\n🍽️ ${escapeHTML(resto?.name||'')}\n\nCommandez maintenant !`;window.open(`https://wa.me/${sanitizePhone(phone)}?text=${encodeURIComponent(msg)}`,'_blank','noopener,noreferrer')}
 
-function generateReel(){if(!resto)return;const canvas=document.createElement('canvas');canvas.width=1080;canvas.height=1920;const ctx=canvas.getContext('2d');const grad=ctx.createLinearGradient(0,0,0,1920);grad.addColorStop(0,'#0a0a0a');grad.addColorStop(1,'#1a1a1a');ctx.fillStyle=grad;ctx.fillRect(0,0,1080,1920);ctx.fillStyle='#c5a059';ctx.font='bold 60px serif';ctx.textAlign='center';ctx.fillText('🍽️ '+resto.name,540,200);ctx.fillStyle='#fff';ctx.font='40px sans-serif';ctx.fillText('Découvrez notre menu digital !',540,400);ctx.fillText('Scannez le QR Code 👇',540,500);const qrDiv=document.createElement('div');qrDiv.style.position='absolute';qrDiv.style.left='-9999px';document.body.appendChild(qrDiv);new QRCode(qrDiv,{text:`${location.origin}/view.html?id=${encodeURIComponent(resto.slug)}`,width:300,height:300,colorDark:'#000',colorLight:'#fff'});setTimeout(()=>{const qrImg=qrDiv.querySelector('img')||qrDiv.querySelector('canvas');if(qrImg){ctx.drawImage(qrImg,390,600,300,300)}document.body.removeChild(qrDiv);ctx.fillStyle='#c5a059';ctx.font='30px sans-serif';ctx.fillText('Restos Lomé — Commandez en ligne',540,1100);const a=document.createElement('a');a.download=`reel-${resto.slug}.png`;a.href=canvas.toDataURL('image/png');a.click();alert('✅ Image prête !\n\n1. Ouvrez TikTok/Instagram\n2. Ajoutez cette image\n3. Ajoutez un son\n4. Publiez !')},1000)}
+function generateReel(){
+  if(!resto)return;
+  const canvas=document.createElement('canvas');
+  canvas.width=1080;canvas.height=1920;
+  const ctx=canvas.getContext('2d');
+  const grad=ctx.createLinearGradient(0,0,0,1920);
+  grad.addColorStop(0,'#0a0a0a');grad.addColorStop(1,'#1a1a1a');
+  ctx.fillStyle=grad;ctx.fillRect(0,0,1080,1920);
+  ctx.fillStyle='#c5a059';ctx.font='bold 60px serif';ctx.textAlign='center';
+  ctx.fillText('🍽️ '+resto.name,540,200);
+  ctx.fillStyle='#fff';ctx.font='40px sans-serif';
+  ctx.fillText('Découvrez notre menu digital !',540,400);
+  ctx.fillText('Scannez le QR Code 👇',540,500);
+  const qrDiv=document.createElement('div');
+  qrDiv.style.position='absolute';qrDiv.style.left='-9999px';
+  document.body.appendChild(qrDiv);
+  new QRCode(qrDiv,{text:`${location.origin}/view.html?id=${encodeURIComponent(resto.slug)}`,width:300,height:300,colorDark:'#000',colorLight:'#fff'});
 
-async function shareWithSelfie(platform){if(!resto)return;const menuUrl=`${location.origin}/view.html?id=${encodeURIComponent(resto.slug)}`;const canvas=document.createElement('canvas');canvas.width=1200;canvas.height=630;const ctx=canvas.getContext('2d');const grad=ctx.createLinearGradient(0,0,1200,630);grad.addColorStop(0,'#0a0a0a');grad.addColorStop(1,'#1c1c1c');ctx.fillStyle=grad;ctx.fillRect(0,0,1200,630);ctx.strokeStyle='#c5a059';ctx.lineWidth=6;ctx.strokeRect(15,15,1170,600);ctx.fillStyle='#c5a059';ctx.font='bold 48px serif';ctx.fillText('🍽️ '+resto.name,60,100);ctx.fillStyle='#fff';ctx.font='28px sans-serif';ctx.fillText('Découvrez notre menu digital !',60,180);ctx.fillText('Commandez facilement en ligne 📱',60,230);const qrDiv=document.createElement('div');qrDiv.style.position='absolute';qrDiv.style.left='-9999px';document.body.appendChild(qrDiv);new QRCode(qrDiv,{text:menuUrl,width:250,height:250,colorDark:'#000',colorLight:'#fff'});await new Promise(resolve=>setTimeout(resolve,1000));const qrImg=qrDiv.querySelector('img')||qrDiv.querySelector('canvas');if(qrImg){ctx.fillStyle='#fff';ctx.fillRect(880,190,270,270);ctx.drawImage(qrImg,890,200,250,250)}document.body.removeChild(qrDiv);ctx.fillStyle='#000';ctx.font='14px sans-serif';ctx.fillText('Scannez-moi !',1015,475);ctx.fillStyle='#c5a059';ctx.font='22px sans-serif';ctx.fillText('Restos Lomé — Les saveurs du Togo',60,550);const text=`🍽️ ${escapeHTML(resto.name)} — Menu Digital\n\n📋 ${escapeHTML(resto.description||'Découvrez nos plats !')}\n📍 ${escapeHTML(resto.address||'Lomé, Togo')}\n\n🔗 ${menuUrl}`;const encodedText=encodeURIComponent(text);const encodedUrl=encodeURIComponent(menuUrl);if(platform==='facebook'){window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}&quote=${encodedText}`,'_blank','noopener,noreferrer')}else if(platform==='whatsapp'){window.open(`https://wa.me/?text=${encodedText}`,'_blank','noopener,noreferrer')}else if(platform==='twitter'){window.open(`https://twitter.com/intent/tweet?text=${encodedText}&url=${encodedUrl}`,'_blank','noopener,noreferrer')}else if(platform==='tiktok'){const a=document.createElement('a');a.download=`${resto.slug}-tiktok.png`;a.href=canvas.toDataURL('image/png');a.click();alert('✅ Image enregistrée !\n\n📱 Ouvrez TikTok → "+" → Upload\n📝 Collez ce texte :\n'+text)}else if(platform==='instagram'){const a=document.createElement('a');a.download=`${resto.slug}-insta.png`;a.href=canvas.toDataURL('image/png');a.click();alert('✅ Image enregistrée !\n\n📱 Ouvrez Instagram → "+" → Post\n📝 Collez ce texte :\n'+text)}}
+  const finalize=()=>{
+    const qrCanvas=qrDiv.querySelector('canvas');
+    const qrImgEl=qrDiv.querySelector('img');
+    const dessiner=(el)=>{
+      if(el)ctx.drawImage(el,390,600,300,300);
+      document.body.removeChild(qrDiv);
+      ctx.fillStyle='#c5a059';ctx.font='30px sans-serif';
+      ctx.fillText('Restos Lomé — Commandez en ligne',540,1100);
+      const a=document.createElement('a');
+      a.download=`reel-${resto.slug}.png`;
+      a.href=canvas.toDataURL('image/png');
+      a.click();
+      alert('✅ Image prête !\n\n1. Ouvrez TikTok/Instagram\n2. Ajoutez cette image\n3. Ajoutez un son\n4. Publiez !');
+    };
+    if(qrCanvas){
+      dessiner(qrCanvas);
+    }else if(qrImgEl){
+      if(qrImgEl.complete&&qrImgEl.naturalWidth>0){
+        dessiner(qrImgEl);
+      }else{
+        qrImgEl.onload=()=>dessiner(qrImgEl);
+        qrImgEl.onerror=()=>dessiner(null);
+      }
+    }else{
+      dessiner(null);
+    }
+  };
+  setTimeout(finalize,400);
+}
 
+async function shareWithSelfie(platform){
+  if(!resto)return;
+  const menuUrl=`${location.origin}/view.html?id=${encodeURIComponent(resto.slug)}`;
+  const canvas=document.createElement('canvas');
+  canvas.width=1200;canvas.height=630;
+  const ctx=canvas.getContext('2d');
+  const grad=ctx.createLinearGradient(0,0,1200,630);
+  grad.addColorStop(0,'#0a0a0a');grad.addColorStop(1,'#1c1c1c');
+  ctx.fillStyle=grad;ctx.fillRect(0,0,1200,630);
+  ctx.strokeStyle='#c5a059';ctx.lineWidth=6;ctx.strokeRect(15,15,1170,600);
+  ctx.fillStyle='#c5a059';ctx.font='bold 48px serif';
+  ctx.fillText('🍽️ '+resto.name,60,100);
+  ctx.fillStyle='#fff';ctx.font='28px sans-serif';
+  ctx.fillText('Découvrez notre menu digital !',60,180);
+  ctx.fillText('Commandez facilement en ligne 📱',60,230);
+  const qrDiv=document.createElement('div');
+  qrDiv.style.position='absolute';qrDiv.style.left='-9999px';
+  document.body.appendChild(qrDiv);
+  new QRCode(qrDiv,{text:menuUrl,width:250,height:250,colorDark:'#000',colorLight:'#fff'});
+
+  await new Promise(resolve=>setTimeout(resolve,400));
+  const qrCanvas=qrDiv.querySelector('canvas');
+  const qrImgEl=qrDiv.querySelector('img');
+
+  await new Promise(resolve=>{
+    if(qrCanvas){
+      resolve();
+    }else if(qrImgEl){
+      if(qrImgEl.complete&&qrImgEl.naturalWidth>0){
+        resolve();
+      }else{
+        qrImgEl.onload=resolve;
+        qrImgEl.onerror=resolve;
+      }
+    }else{
+      resolve();
+    }
+  });
+
+  const qrEl=qrCanvas||qrImgEl;
+  if(qrEl){
+    ctx.fillStyle='#fff';ctx.fillRect(880,190,270,270);
+    ctx.drawImage(qrEl,890,200,250,250);
+  }
+  document.body.removeChild(qrDiv);
+  ctx.fillStyle='#000';ctx.font='14px sans-serif';
+  ctx.fillText('Scannez-moi !',1015,475);
+  ctx.fillStyle='#c5a059';ctx.font='22px sans-serif';
+  ctx.fillText('Restos Lomé — Les saveurs du Togo',60,550);
+  const text=`🍽️ ${escapeHTML(resto.name)} — Menu Digital\n\n📋 ${escapeHTML(resto.description||'Découvrez nos plats !')}\n📍 ${escapeHTML(resto.address||'Lomé, Togo')}\n\n🔗 ${menuUrl}`;
+  const encodedText=encodeURIComponent(text);
+  const encodedUrl=encodeURIComponent(menuUrl);
+  if(platform==='facebook'){window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}&quote=${encodedText}`,'_blank','noopener,noreferrer')}
+  else if(platform==='whatsapp'){window.open(`https://wa.me/?text=${encodedText}`,'_blank','noopener,noreferrer')}
+  else if(platform==='twitter'){window.open(`https://twitter.com/intent/tweet?text=${encodedText}&url=${encodedUrl}`,'_blank','noopener,noreferrer')}
+  else if(platform==='tiktok'){const a=document.createElement('a');a.download=`${resto.slug}-tiktok.png`;a.href=canvas.toDataURL('image/png');a.click();alert('✅ Image enregistrée !\n\n📱 Ouvrez TikTok → "+" → Upload\n📝 Collez ce texte :\n'+text)}
+  else if(platform==='instagram'){const a=document.createElement('a');a.download=`${resto.slug}-insta.png`;a.href=canvas.toDataURL('image/png');a.click();alert('✅ Image enregistrée !\n\n📱 Ouvrez Instagram → "+" → Post\n📝 Collez ce texte :\n'+text)}
+}
 async function loadEventsView(){try{const{data:events}=await supabaseClient.from('events').select('*').eq('restaurant_id',resto.id).eq('is_published',true).gte('event_date',new Date().toISOString()).order('event_date',{ascending:true});const badge=document.getElementById('badge-events');const list=document.getElementById('events-list-view');if(!events?.length){badge.textContent='0';badge.classList.remove('show');list.innerHTML='<p style="color:var(--ivory-muted);text-align:center;padding:20px;">Aucun événement à venir.</p>';return}badge.textContent=events.length;badge.classList.add('show');list.innerHTML=events.map(ev=>`<div style="background:var(--walnut);border:1px solid var(--gold-border);border-radius:var(--r2);padding:16px;margin-bottom:12px;"><div style="display:flex;align-items:center;gap:12px;">${ev.poster_url?`<img src="${sanitizeURL(ev.poster_url)}" alt="${escapeHTML(ev.title)}" style="width:60px;height:60px;object-fit:cover;border-radius:8px;">`:'<div style="width:60px;height:60px;background:var(--sepia);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:1.5rem;">🎭</div>'}<div style="flex:1;"><strong style="font-size:.9rem;color:var(--gold);">${escapeHTML(ev.title)}</strong><p style="font-size:.75rem;color:var(--ivory-dim);">📅 ${new Date(ev.event_date).toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long',year:'numeric'})} · 🕐 ${new Date(ev.event_date).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})}</p>${ev.description?`<p style="font-size:.78rem;color:var(--ivory-muted);margin-top:4px;">${escapeHTML(ev.description)}</p>`:''}${ev.ticket_url?`<a href="${sanitizeURL(ev.ticket_url)}" target="_blank" rel="noopener noreferrer" style="display:inline-block;margin-top:8px;background:var(--gold);color:var(--ebony);padding:6px 14px;border-radius:50px;font-size:.72rem;font-weight:700;text-decoration:none;">🎟️ Réserver</a>`:''}</div></div></div>`).join('')}catch(e){console.error(e)}}
 
 function hideLoader(){$('loader').classList.add('out');$('app').style.display='block'}
