@@ -6,7 +6,7 @@
     <title>Commander — Restos Lomé</title>
 
     <!-- CSP — BUG-FIX: suppression frame-ancestors (ignoré en meta), ajout cdn.jsdelivr.net dans connect-src -->
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com 'unsafe-inline'; style-src 'self' https://fonts.googleapis.com 'unsafe-inline'; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://*.supabase.co https://cdn.jsdelivr.net;">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com 'unsafe-inline'; style-src 'self' https://fonts.googleapis.com 'unsafe-inline'; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https: blob:; connect-src 'self' https://*.supabase.co https://cdn.jsdelivr.net https://cdnjs.cloudflare.com;">
 
     <link rel="manifest" href="/manifest.json">
     <meta name="mobile-web-app-capable" content="yes">
@@ -324,6 +324,20 @@ $('submit-order-btn').addEventListener('click', async () => {
             type: deliveryType === 'livraison' ? 'livraison' : 'sur_place',
             description: `Commande ${escapeHTML(name)}`
         });
+		        // ── Notifier le gérant (non bloquant) ──
+        fetch(`${location.origin}/api/push`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            restaurantId: restaurantData.id,
+            payload: {
+              title: `🍽️ Nouvelle commande — ${restaurantData.name}`,
+              body:  `${escapeHTML(name)} · ${fmt(total)} · ${deliveryType === 'livraison' ? '🛵 Livraison' : '🏪 Sur place'}`,
+              url:   '/admin.html?panel=orders-admin',
+              tag:   'new-order',
+            }
+          })
+        }).catch(() => {}); // silencieux si le push échoue
 
         let waMsg = `*NOUVELLE COMMANDE — ${escapeHTML(restaurantData.name)}*\n\n👤 ${escapeHTML(name)}\n📞 ${phone}`;
         if (address) waMsg += `\n📍 ${escapeHTML(address)}`;
