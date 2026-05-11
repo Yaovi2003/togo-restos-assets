@@ -18,6 +18,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.min.js"></script>
     <script src="config.js"></script>
+	<script src="push-client.js"></script>
 
     <style>
         :root {
@@ -787,6 +788,7 @@ async function initApp(user){
     const{data:profile,error}=await db.from('profiles').select('*, restaurants(*)').eq('id',user.id).single();
     if(error||!profile?.restaurant_id){toast('Aucun restaurant lié.','error');return}
     currentProfile=profile;currentRestaurant=profile.restaurants;
+	window.dispatchEvent(new CustomEvent('admin:ready',{detail:{restaurantId:profile.restaurant_id}}));
     document.getElementById('sidebar-resto-name').textContent=currentRestaurant.name;
     document.getElementById('sidebar-slug').textContent=`@${currentRestaurant.slug}`;
     // Synchroniser l'en-tête mobile
@@ -1463,5 +1465,6 @@ document.getElementById('mobile-logout-btn').addEventListener('click',()=>{
 <script src="admin-patch.js"></script>
 <script src="admin-analytics-patch.js"></script>
 <script src="admin-caisse-patch.js"></script>
+<script src="admin-push-patch.js"></script>
 </body>
 </html>
