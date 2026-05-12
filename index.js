@@ -127,9 +127,7 @@ export default {
 		// ═══════════════════════════════════════════════════════
         // ROUTE : /sitemap.xml → Servir le sitemap directement
         // ═══════════════════════════════════════════════════════
-        if (url.pathname === '/sitemap.xml') {
-            return env.ASSETS.fetch(request);
-        }
+        
 		
 		        // ═══════════════════════════════════════════════════════
         // ROUTES PUSH NOTIFICATIONS
