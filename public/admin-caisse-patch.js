@@ -306,7 +306,7 @@ const POS_PAY_LABELS = { especes: '💵 Espèces', tmoney: '📱 TMoney', flooz:
                 <div class="pos-cat-tabs" id="pos-cat-tabs"></div>
                 <div class="pos-items-grid" id="pos-items-grid">
                     <div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--text-dim);">
-                        <div class="an-spinner" style="margin:0 auto 10px;"></div>
+                        <div class="btn-spinner" style="margin:0 auto 10px;"></div>
                         Chargement du menu…
                     </div>
                 </div>
@@ -458,20 +458,33 @@ function renderPosGrid() {
         return;
     }
 
-    grid.innerHTML = items.map(item => `
+    // ✅ BUG-FIX : les onclick inline avec JSON.stringify cassaient l'attribut HTML
+    //    quand un nom de plat contenait des guillemets (ex : Poulet "grillé").
+    //    Solution : les données sont stockées en data-attributes et lues par
+    //    posAddItemByCard() — aucun risque d'injection ou de troncature.
+    grid.innerHTML = items.map(item => {
+        const safeId    = escapeHTML(item.id);
+        const safeName  = escapeHTML(item.name);
+        const safePrice = Number(item.price);
+        const safeImg   = item.image_url ? escapeHTML(item.image_url) : '';
+        return `
         <div class="pos-item-card${item.is_available === false ? ' out-of-stock' : ''}"
-            onclick="posAddItem('${item.id}', ${JSON.stringify(item.name).replace(/</g,'&lt;')}, ${item.price})">
+            data-item-id="${safeId}"
+            data-item-name="${safeName}"
+            data-item-price="${safePrice}"
+            onclick="posAddItemByCard(this)">
             <div class="pos-item-img">
-                ${item.image_url
-                    ? `<img src="${item.image_url}" alt="${item.name}" loading="lazy">`
+                ${safeImg
+                    ? `<img src="${safeImg}" alt="${safeName}" loading="lazy">`
                     : '🍽️'}
             </div>
             <div class="pos-item-body">
-                <div class="pos-item-name">${item.name}</div>
-                <div class="pos-item-price">${Number(item.price).toLocaleString('fr-FR')} FCFA</div>
+                <div class="pos-item-name">${safeName}</div>
+                <div class="pos-item-price">${safePrice.toLocaleString('fr-FR')} FCFA</div>
             </div>
             <button class="pos-item-add-btn" tabindex="-1">+ Ajouter</button>
-        </div>`).join('');
+        </div>`;
+    }).join('');
 }
 
 
@@ -485,6 +498,15 @@ window.posAddItem = function(id, name, price) {
         posCart[id] = { name, price, qty: 1 };
     }
     renderTicket();
+};
+
+/* ✅ BUG-FIX : helper utilisé par les cartes POS (data-attributes) */
+window.posAddItemByCard = function(el) {
+    const card  = el.closest('.pos-item-card');
+    const id    = card.dataset.itemId;
+    const name  = card.dataset.itemName;
+    const price = parseFloat(card.dataset.itemPrice);
+    posAddItem(id, name, price);
 };
 
 window.posUpdateQty = function(id, delta) {
@@ -554,7 +576,7 @@ window.posValidateOrder = async function() {
 
     const validateBtn = document.getElementById('pos-validate-btn');
     validateBtn.disabled = true;
-    validateBtn.innerHTML = '<div class="an-spinner"></div> Enregistrement…';
+    validateBtn.innerHTML = '<div class="btn-spinner"></div> Enregistrement…';
 
     const customerName  = (document.getElementById('pos-customer-name')?.value || '').trim() || 'Client caisse';
     const customerPhone = (document.getElementById('pos-customer-phone')?.value || '').replace(/[^0-9+]/g,'') || null;
@@ -658,7 +680,6 @@ window.posPrintReceipt = function() {
     </style>
     </head><body>${content.querySelector('.pos-receipt-head').outerHTML.replace(/<button[^>]*>.*?<\/button>/gs,'')}
     <hr>
-    ${content.getElementById ? '' : document.getElementById('pos-receipt-items').innerHTML}
     <div>${document.getElementById('pos-receipt-items').innerHTML}</div>
     <hr>
     <div class="row total">
