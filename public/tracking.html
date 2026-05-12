@@ -1,0 +1,644 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Suivi de commande — Restos Lomé</title>
+
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net 'unsafe-inline'; style-src 'self' https://fonts.googleapis.com 'unsafe-inline'; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https: blob:; connect-src 'self' https://*.supabase.co https://cdn.jsdelivr.net;">
+
+    <link rel="manifest" href="/manifest.json">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+    <script src="config.js"></script>
+
+    <style>
+        :root {
+            --gold:    #c5a059;
+            --gold-d:  rgba(197,160,89,0.12);
+            --gold-b:  rgba(197,160,89,0.28);
+            --bg:      #060605;
+            --s:       #111110;
+            --s2:      #191918;
+            --s3:      #222220;
+            --line:    rgba(255,255,255,0.07);
+            --line2:   rgba(255,255,255,0.12);
+            --ivory:   #f0ece4;
+            --dim:     #7a7570;
+            --muted:   #4a4642;
+            --success: #2ecc71;
+            --danger:  #e74c3c;
+            --r:       14px;
+            --mono:    'IBM Plex Mono', monospace;
+        }
+
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        html { height: 100%; }
+
+        body {
+            font-family: 'DM Sans', sans-serif;
+            background: var(--bg);
+            color: var(--ivory);
+            min-height: 100vh;
+            padding: 0 0 60px;
+            -webkit-font-smoothing: antialiased;
+            position: relative;
+        }
+
+        /* ── Arrière-plan décoratif ── */
+        body::before {
+            content: '';
+            position: fixed; top: 0; left: 0; right: 0; height: 340px;
+            background: radial-gradient(ellipse 70% 50% at 50% -10%, rgba(197,160,89,0.09) 0%, transparent 70%);
+            pointer-events: none; z-index: 0;
+        }
+
+        /* ── Header ── */
+        .top-bar {
+            position: sticky; top: 0; z-index: 100;
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 0 20px; height: 56px;
+            background: rgba(6,6,5,0.85); backdrop-filter: blur(12px);
+            border-bottom: 0.5px solid var(--line);
+        }
+        .top-bar-brand {
+            font-family: 'Syne', sans-serif; font-size: .95rem; font-weight: 800;
+            color: var(--gold); letter-spacing: -.01em;
+        }
+        .top-bar-back {
+            font-size: .8rem; color: var(--dim); cursor: pointer;
+            display: flex; align-items: center; gap: 5px;
+            background: none; border: none; font-family: inherit;
+            transition: color .2s;
+        }
+        .top-bar-back:hover { color: var(--ivory); }
+
+        /* ── Layout ── */
+        .container { max-width: 480px; margin: 0 auto; padding: 28px 20px 0; position: relative; }
+
+        /* ── States ── */
+        #state-loading, #state-error { text-align: center; padding: 60px 20px; }
+        .pulse-ring {
+            width: 52px; height: 52px; border-radius: 50%;
+            border: 2px solid var(--gold-b); border-top-color: var(--gold);
+            animation: spin .9s linear infinite; margin: 0 auto 20px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .state-label { font-size: .9rem; color: var(--dim); }
+        #state-error .err-icon { font-size: 2.5rem; margin-bottom: 14px; }
+        #state-error p { color: var(--dim); font-size: .9rem; line-height: 1.6; }
+
+        /* ── Carte restaurant ── */
+        .resto-card {
+            display: flex; align-items: center; gap: 14px;
+            background: var(--s); border: 0.5px solid var(--line2);
+            border-radius: var(--r); padding: 14px 16px; margin-bottom: 20px;
+        }
+        .resto-logo {
+            width: 46px; height: 46px; border-radius: 10px;
+            background: var(--s2); flex-shrink: 0; overflow: hidden;
+            display: flex; align-items: center; justify-content: center; font-size: 1.4rem;
+        }
+        .resto-logo img { width: 100%; height: 100%; object-fit: cover; }
+        .resto-name { font-family: 'Syne', sans-serif; font-size: 1rem; font-weight: 700; }
+        .order-ref {
+            font-family: var(--mono); font-size: .72rem; color: var(--dim); margin-top: 3px;
+        }
+
+        /* ── Timeline ── */
+        .timeline-card {
+            background: var(--s); border: 0.5px solid var(--line2);
+            border-radius: var(--r); padding: 22px 20px; margin-bottom: 16px;
+        }
+        .timeline-card-title {
+            font-size: .72rem; text-transform: uppercase; letter-spacing: .09em;
+            color: var(--dim); font-weight: 600; margin-bottom: 22px;
+        }
+
+        .timeline { display: flex; flex-direction: column; gap: 0; }
+
+        .tl-step {
+            display: flex; align-items: flex-start; gap: 14px;
+            position: relative;
+        }
+
+        /* Ligne verticale entre les steps */
+        .tl-step:not(:last-child)::after {
+            content: '';
+            position: absolute;
+            left: 17px; top: 36px;
+            width: 2px; height: calc(100% - 12px);
+            background: var(--line2);
+            transition: background .5s;
+        }
+        .tl-step.done:not(:last-child)::after { background: var(--gold-b); }
+
+        .tl-dot-wrap {
+            width: 36px; height: 36px; flex-shrink: 0;
+            display: flex; align-items: center; justify-content: center;
+            position: relative; z-index: 1;
+        }
+
+        .tl-dot {
+            width: 36px; height: 36px; border-radius: 50%;
+            border: 2px solid var(--line2); background: var(--s2);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1rem; transition: all .4s;
+        }
+        .tl-step.done   .tl-dot { border-color: var(--gold-b); background: var(--gold-d); }
+        .tl-step.active .tl-dot {
+            border-color: var(--gold); background: var(--gold-d);
+            box-shadow: 0 0 0 4px rgba(197,160,89,0.15);
+            animation: dotPulse 2s ease-in-out infinite;
+        }
+        @keyframes dotPulse {
+            0%,100% { box-shadow: 0 0 0 4px rgba(197,160,89,0.15); }
+            50%      { box-shadow: 0 0 0 8px rgba(197,160,89,0.06); }
+        }
+
+        .tl-body { flex: 1; padding: 6px 0 28px; }
+        .tl-step:last-child .tl-body { padding-bottom: 4px; }
+
+        .tl-label {
+            font-size: .95rem; font-weight: 600; color: var(--muted);
+            transition: color .4s; line-height: 1.2;
+        }
+        .tl-step.done   .tl-label { color: var(--dim); }
+        .tl-step.active .tl-label { color: var(--gold); }
+
+        .tl-desc { font-size: .78rem; color: var(--muted); margin-top: 4px; line-height: 1.5; }
+        .tl-step.done   .tl-desc,
+        .tl-step.active .tl-desc { color: var(--dim); }
+
+        .tl-time {
+            font-family: var(--mono); font-size: .68rem; color: var(--muted);
+            margin-top: 5px; display: none;
+        }
+        .tl-step.done   .tl-time { display: block; color: var(--muted); }
+        .tl-step.active .tl-time { display: block; color: var(--gold); }
+
+        /* Badge statut live */
+        .live-badge {
+            display: inline-flex; align-items: center; gap: 6px;
+            background: var(--gold-d); border: 1px solid var(--gold-b);
+            color: var(--gold); font-size: .72rem; font-weight: 600;
+            padding: 4px 12px; border-radius: 50px;
+            font-family: var(--mono); letter-spacing: .05em;
+            margin-bottom: 16px;
+        }
+        .live-dot {
+            width: 6px; height: 6px; border-radius: 50%; background: var(--gold);
+            animation: livePulse 1.4s ease-in-out infinite;
+        }
+        @keyframes livePulse {
+            0%,100% { opacity: 1; transform: scale(1); }
+            50%      { opacity: .4; transform: scale(.7); }
+        }
+
+        /* ── Carte commande ── */
+        .order-card {
+            background: var(--s); border: 0.5px solid var(--line2);
+            border-radius: var(--r); overflow: hidden; margin-bottom: 16px;
+        }
+        .order-card-head {
+            padding: 14px 18px 12px; border-bottom: 0.5px solid var(--line);
+            font-size: .72rem; text-transform: uppercase; letter-spacing: .09em;
+            color: var(--dim); font-weight: 600;
+        }
+        .order-item {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 11px 18px; border-bottom: 0.5px solid var(--line);
+        }
+        .order-item:last-child { border-bottom: none; }
+        .order-item-name { font-size: .88rem; }
+        .order-item-qty  { font-family: var(--mono); font-size: .75rem; color: var(--dim); margin-left: 8px; }
+        .order-item-price{ font-family: var(--mono); font-size: .85rem; color: var(--gold); font-weight: 500; }
+        .order-total-row {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 14px 18px;
+            border-top: 0.5px solid var(--line2);
+            background: var(--s2);
+        }
+        .order-total-lbl { font-size: .8rem; color: var(--dim); font-weight: 600; text-transform: uppercase; letter-spacing: .06em; }
+        .order-total-val { font-family: var(--mono); font-size: 1.1rem; color: var(--gold); font-weight: 500; }
+
+        /* ── Infos client ── */
+        .info-card {
+            background: var(--s); border: 0.5px solid var(--line2);
+            border-radius: var(--r); padding: 16px 18px; margin-bottom: 16px;
+        }
+        .info-row {
+            display: flex; gap: 10px; align-items: flex-start;
+            padding: 7px 0; border-bottom: 0.5px solid var(--line);
+            font-size: .85rem;
+        }
+        .info-row:last-child { border-bottom: none; }
+        .info-icon { width: 20px; flex-shrink: 0; color: var(--gold); text-align: center; }
+        .info-lbl  { color: var(--dim); width: 90px; flex-shrink: 0; }
+        .info-val  { color: var(--ivory); flex: 1; word-break: break-word; }
+
+        /* ── CTA WhatsApp ── */
+        .wa-btn {
+            display: flex; align-items: center; justify-content: center; gap: 8px;
+            width: 100%; padding: 14px; border-radius: var(--r);
+            background: #25d366; color: #fff;
+            border: none; font-family: 'Syne', sans-serif;
+            font-size: .9rem; font-weight: 700; cursor: pointer;
+            transition: opacity .2s; text-decoration: none; margin-bottom: 12px;
+        }
+        .wa-btn:hover { opacity: .88; }
+
+        /* ── Livré : état final ── */
+        .done-banner {
+            background: rgba(46,204,113,.08); border: 1px solid rgba(46,204,113,.25);
+            border-radius: var(--r); padding: 20px; text-align: center; margin-bottom: 16px;
+        }
+        .done-banner .done-icon { font-size: 2.2rem; margin-bottom: 8px; }
+        .done-banner h3 { font-family: 'Syne', sans-serif; font-size: 1rem; color: var(--success); margin-bottom: 4px; }
+        .done-banner p  { font-size: .82rem; color: var(--dim); }
+
+        /* ── Footer note ── */
+        .footer-note {
+            text-align: center; font-size: .72rem; color: var(--muted); margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+
+<!-- Navigation -->
+<div class="top-bar">
+    <button class="top-bar-back" onclick="history.back()">← Retour</button>
+    <span class="top-bar-brand">🍽️ Restos Lomé</span>
+    <span style="width:60px;"></span>
+</div>
+
+<!-- État : chargement -->
+<div id="state-loading" class="container">
+    <div class="pulse-ring"></div>
+    <p class="state-label">Chargement de votre commande…</p>
+</div>
+
+<!-- État : erreur -->
+<div id="state-error" class="container" style="display:none;">
+    <div class="err-icon">⚠️</div>
+    <p id="error-msg-txt">Commande introuvable.</p>
+</div>
+
+<!-- Contenu principal -->
+<div id="main-content" class="container" style="display:none;">
+
+    <!-- Resto -->
+    <div class="resto-card">
+        <div class="resto-logo" id="resto-logo">🍽️</div>
+        <div>
+            <div class="resto-name" id="resto-name">—</div>
+            <div class="order-ref" id="order-ref">CMD-XXXXXXXX</div>
+        </div>
+    </div>
+
+    <!-- Badge LIVE -->
+    <div class="live-badge">
+        <div class="live-dot"></div>
+        <span>Mise à jour en temps réel</span>
+    </div>
+
+    <!-- Bannière livré (cachée par défaut) -->
+    <div class="done-banner" id="done-banner" style="display:none;">
+        <div class="done-icon">🎉</div>
+        <h3>Commande livrée !</h3>
+        <p>Merci d'avoir commandé chez nous. Bon appétit !</p>
+    </div>
+
+    <!-- Timeline -->
+    <div class="timeline-card">
+        <div class="timeline-card-title">Statut de votre commande</div>
+        <div class="timeline" id="timeline">
+            <!-- Steps générés par JS -->
+        </div>
+    </div>
+
+    <!-- Résumé commande -->
+    <div class="order-card" id="order-items-card">
+        <div class="order-card-head">Votre commande</div>
+        <div id="order-items-list"></div>
+        <div class="order-total-row">
+            <span class="order-total-lbl">Total</span>
+            <span class="order-total-val" id="order-total">—</span>
+        </div>
+    </div>
+
+    <!-- Infos client -->
+    <div class="info-card" id="info-card">
+        <div class="info-row">
+            <span class="info-icon">👤</span>
+            <span class="info-lbl">Nom</span>
+            <span class="info-val" id="info-name">—</span>
+        </div>
+        <div class="info-row">
+            <span class="info-icon">📞</span>
+            <span class="info-lbl">Téléphone</span>
+            <span class="info-val" id="info-phone">—</span>
+        </div>
+        <div class="info-row" id="info-address-row" style="display:none;">
+            <span class="info-icon">📍</span>
+            <span class="info-lbl">Adresse</span>
+            <span class="info-val" id="info-address">—</span>
+        </div>
+        <div class="info-row">
+            <span class="info-icon">💳</span>
+            <span class="info-lbl">Paiement</span>
+            <span class="info-val" id="info-payment">—</span>
+        </div>
+        <div class="info-row">
+            <span class="info-icon">🏍️</span>
+            <span class="info-lbl">Type</span>
+            <span class="info-val" id="info-type">—</span>
+        </div>
+    </div>
+
+    <!-- CTA WhatsApp resto -->
+    <a class="wa-btn" id="wa-contact" href="#" target="_blank" rel="noopener noreferrer" style="display:none;">
+        💬 Contacter le restaurant
+    </a>
+
+    <p class="footer-note">
+        Ce suivi se met à jour automatiquement.<br>
+        Inutile de recharger la page.
+    </p>
+</div>
+
+<script>
+'use strict';
+
+/* ── Constantes statut ── */
+const STEPS = [
+    {
+        key: 'confirmé',
+        icon: '✅',
+        label: 'Commande confirmée',
+        desc: 'Votre commande a été reçue par le restaurant.'
+    },
+    {
+        key: 'préparé',
+        icon: '👨‍🍳',
+        label: 'En préparation',
+        desc: 'Le chef s\'affaire en cuisine pour vous.'
+    },
+    {
+        key: 'prêt',
+        icon: '🍽️',
+        label: 'Prêt',
+        desc: 'Votre commande est prête ! Plus qu\'un instant.'
+    },
+    {
+        key: 'livré',
+        icon: '🎉',
+        label: 'Livré',
+        desc: 'Commande livrée. Bon appétit !'
+    }
+];
+
+const STATUS_ORDER = STEPS.map(s => s.key);
+const PAYMENT_LABELS = { especes: '💵 Espèces', tmoney: '📱 TMoney', flooz: '📱 Flooz' };
+const TYPE_LABELS    = { sur_place: '🏪 Sur place', livraison: '🛵 Livraison à domicile' };
+
+let supabaseClient = null;
+let realtimeChannel = null;
+let currentStatus   = null;
+let stepTimestamps  = {};
+
+/* ── Helpers ── */
+function escapeHTML(str) {
+    if (!str && str !== 0) return '';
+    const d = document.createElement('div');
+    d.textContent = String(str);
+    return d.innerHTML;
+}
+function fmt(n) {
+    return Number(n).toLocaleString('fr-FR').replace(/\u202F/g, ' ') + ' FCFA';
+}
+function fmtTime(ts) {
+    if (!ts) return '';
+    return new Date(ts).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+}
+function qs(id) { return document.getElementById(id); }
+
+/* ── Rendu timeline ── */
+function renderTimeline(currentStatus) {
+    const currentIdx = STATUS_ORDER.indexOf(currentStatus);
+    const container  = qs('timeline');
+    container.innerHTML = '';
+
+    STEPS.forEach((step, i) => {
+        const isDone   = i < currentIdx;
+        const isActive = i === currentIdx;
+        const cls      = isDone ? 'done' : isActive ? 'active' : '';
+
+        const ts = stepTimestamps[step.key] || (isActive ? new Date().toISOString() : '');
+        const timeStr = isDone || isActive ? fmtTime(ts) : '';
+
+        const div = document.createElement('div');
+        div.className = `tl-step ${cls}`;
+        div.id = `step-${step.key.replace(/[^a-z]/g, '-')}`;
+        div.innerHTML = `
+            <div class="tl-dot-wrap">
+                <div class="tl-dot">${isDone ? '✓' : step.icon}</div>
+            </div>
+            <div class="tl-body">
+                <div class="tl-label">${step.label}</div>
+                <div class="tl-desc">${step.desc}</div>
+                ${timeStr ? `<div class="tl-time">${isActive ? '⏱ En cours depuis ' : '✓ '}${timeStr}</div>` : ''}
+            </div>`;
+        container.appendChild(div);
+    });
+
+    /* Bannière finale */
+    qs('done-banner').style.display = currentStatus === 'livré' ? 'block' : 'none';
+}
+
+/* ── Mise à jour statut ── */
+function updateStatus(newStatus) {
+    if (!STATUS_ORDER.includes(newStatus)) return;
+    currentStatus = newStatus;
+    stepTimestamps[newStatus] = new Date().toISOString();
+    renderTimeline(newStatus);
+
+    /* Vibration courte si statut avance */
+    if ('vibrate' in navigator) navigator.vibrate([80, 40, 80]);
+}
+
+/* ── Chargement commande ── */
+async function loadOrder(orderId) {
+    /* 1. Commande */
+    const { data: order, error } = await supabaseClient
+        .from('orders')
+        .select('*, restaurants(id, name, slug, logo_url, whatsapp)')
+        .eq('id', orderId)
+        .single();
+
+    if (error || !order) {
+        showError('Commande introuvable. Vérifiez le lien reçu.');
+        return;
+    }
+
+    /* 2. Plats commandés */
+    const { data: items } = await supabaseClient
+        .from('order_items')
+        .select('item_name, item_price, quantity')
+        .eq('order_id', orderId);
+
+    renderOrder(order, items || []);
+    startRealtime(orderId, order.status);
+}
+
+/* ── Rendu de la page ── */
+function renderOrder(order, items) {
+    const resto = order.restaurants || {};
+
+    /* En-tête resto */
+    if (resto.logo_url) {
+        qs('resto-logo').innerHTML = `<img src="${escapeHTML(resto.logo_url)}" alt="${escapeHTML(resto.name)}" loading="eager">`;
+    }
+    qs('resto-name').textContent = resto.name || '—';
+    qs('order-ref').textContent  = `Réf. #${order.id.substring(0, 8).toUpperCase()}`;
+
+    /* Infos client */
+    qs('info-name').textContent    = order.customer_name  || '—';
+    qs('info-phone').textContent   = order.customer_phone || '—';
+    qs('info-payment').textContent = PAYMENT_LABELS[order.payment_method] || order.payment_method || '—';
+    qs('info-type').textContent    = TYPE_LABELS[order.delivery_type]    || order.delivery_type    || '—';
+
+    if (order.customer_address) {
+        qs('info-address').textContent   = order.customer_address;
+        qs('info-address-row').style.display = 'flex';
+    }
+
+    /* Plats */
+    const listEl = qs('order-items-list');
+    if (items.length) {
+        listEl.innerHTML = items.map(it => `
+            <div class="order-item">
+                <div>
+                    <span class="order-item-name">${escapeHTML(it.item_name)}</span>
+                    <span class="order-item-qty">×${it.quantity}</span>
+                </div>
+                <span class="order-item-price">${fmt(it.item_price * it.quantity)}</span>
+            </div>`).join('');
+    } else {
+        listEl.innerHTML = '<div class="order-item" style="color:var(--dim);font-size:.82rem;">Détail non disponible</div>';
+    }
+
+    qs('order-total').textContent = fmt(order.total);
+
+    /* Bouton WhatsApp resto */
+    if (resto.whatsapp) {
+        const waBtn  = qs('wa-contact');
+        waBtn.href   = `https://wa.me/${String(resto.whatsapp).replace(/[^0-9]/g,'')}`;
+        waBtn.style.display = 'flex';
+    }
+
+    /* Timeline initiale */
+    stepTimestamps[order.status] = order.updated_at || order.created_at;
+    updateStatus(order.status);
+
+    /* Affichage */
+    qs('state-loading').style.display = 'none';
+    qs('main-content').style.display  = 'block';
+}
+
+/* ── Supabase Realtime ── */
+function startRealtime(orderId, initialStatus) {
+    realtimeChannel = supabaseClient
+        .channel(`order-track-${orderId}`)
+        .on(
+            'postgres_changes',
+            {
+                event:  'UPDATE',
+                schema: 'public',
+                table:  'orders',
+                filter: `id=eq.${orderId}`
+            },
+            (payload) => {
+                const newStatus = payload.new?.status;
+                if (newStatus && newStatus !== currentStatus) {
+                    stepTimestamps[newStatus] = payload.new.updated_at || new Date().toISOString();
+                    updateStatus(newStatus);
+
+                    /* Toast discret */
+                    showToast(`Statut mis à jour : ${STEPS.find(s=>s.key===newStatus)?.label || newStatus}`);
+                }
+            }
+        )
+        .subscribe((status) => {
+            if (status === 'SUBSCRIBED') {
+                console.log('✅ Realtime connecté pour commande', orderId);
+            }
+        });
+}
+
+/* ── Toast ── */
+function showToast(msg) {
+    const t = document.createElement('div');
+    t.style.cssText = `
+        position:fixed;bottom:24px;left:50%;transform:translateX(-50%);
+        background:#191918;border:1px solid rgba(197,160,89,.3);color:#f0ece4;
+        padding:10px 20px;border-radius:50px;font-size:.82rem;font-weight:600;
+        white-space:nowrap;z-index:999;animation:fadeUp .3s ease;
+        box-shadow:0 8px 24px rgba(0,0,0,.4);
+    `;
+    t.textContent = msg;
+    document.body.appendChild(t);
+    const style = document.createElement('style');
+    style.textContent = `@keyframes fadeUp{from{opacity:0;transform:translateX(-50%) translateY(12px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}`;
+    document.head.appendChild(style);
+    setTimeout(() => t.remove(), 4000);
+}
+
+/* ── Erreur ── */
+function showError(msg) {
+    qs('state-loading').style.display = 'none';
+    qs('state-error').style.display   = 'block';
+    qs('error-msg-txt').textContent   = msg;
+}
+
+/* ── Init ── */
+(async () => {
+    const params  = new URLSearchParams(location.search);
+    const orderId = params.get('id');
+
+    if (!orderId) { showError('Aucun identifiant de commande fourni.'); return; }
+
+    /* Validation UUID basique */
+    if (!/^[0-9a-f-]{36}$/i.test(orderId)) {
+        showError('Identifiant de commande invalide.');
+        return;
+    }
+
+    try {
+        await CONFIG.load();
+        supabaseClient = supabase.createClient(CONFIG.supabaseUrl, CONFIG.supabaseKey);
+        await loadOrder(orderId);
+    } catch (e) {
+        console.error('Erreur init:', e);
+        showError('Impossible de charger la commande. Vérifiez votre connexion.');
+    }
+})();
+
+/* ── Nettoyage à la fermeture ── */
+window.addEventListener('beforeunload', () => {
+    if (realtimeChannel && supabaseClient) {
+        supabaseClient.removeChannel(realtimeChannel);
+    }
+});
+
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js');
+</script>
+</body>
+</html>
