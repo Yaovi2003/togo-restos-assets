@@ -127,7 +127,11 @@ export default {
 		// ═══════════════════════════════════════════════════════
         // ROUTE : /sitemap.xml → Servir le sitemap directement
         // ═══════════════════════════════════════════════════════
-        
+        if (url.pathname === '/sitemap.xml') {
+            return env.ASSETS.fetch(request);
+        }
+		
+        // ═══════════════════════════════════════════════════════
 		
 		        // ═══════════════════════════════════════════════════════
         // ROUTES PUSH NOTIFICATIONS
@@ -669,7 +673,7 @@ async function handleGitHubCallback(request, env, url) {
             headers: { 'Content-Type': 'text/html; charset=utf-8' },
         });
 
-        } catch (err) {
+    } catch (err) {
         console.error('Callback error:', err);
         return new Response('Erreur serveur : ' + err.message, { status: 500 });
     }
