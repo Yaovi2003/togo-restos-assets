@@ -673,5 +673,12 @@ window.posPrintReceipt = function() {
     w.document.close();
     setTimeout(() => { w.print(); w.close(); }, 400);
 };
-
+// Re-bind du listener sur le nouveau bouton caisse
+const caisseBtn = document.querySelector('[data-panel="caisse"]');
+if (caisseBtn) {
+    caisseBtn.addEventListener('click', () => {
+        if (window.innerWidth <= 768) window.closeMobileSidebar?.();
+        window.showPanel('caisse');
+    });
+}
 console.log('✅ admin-caisse-patch.js chargé — Caisse tactile POS');

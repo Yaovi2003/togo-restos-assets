@@ -320,7 +320,16 @@ function waitForAdminReady() {
     }, 1000);
 }
 
-waitForAdminReady();
+// Tentative imm�diate au chargement
+setTimeout(async () => {
+    if (window.currentRestaurant?.id && window.pushClient) {
+        injectPushWidget();
+        await pushClient.init(window.currentRestaurant.id);
+        await refreshPushStatus();
+    } else {
+        waitForAdminReady();
+    }
+}, 500);
 
 /* ── Émettre admin:ready depuis admin.html ──
    Ajouter cette ligne dans la fonction initApp() de admin.html,

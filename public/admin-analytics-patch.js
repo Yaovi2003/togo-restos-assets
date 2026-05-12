@@ -622,5 +622,13 @@ window.showAnalyticsExport = function() {
     const row = document.querySelector('.an-export-row');
     if (row) row.scrollIntoView({ behavior: 'smooth', block: 'center' });
 };
+// Re-bind du listener sur le nouveau bouton analytics
+const analyticsBtn = document.querySelector('[data-panel="analytics"]');
+if (analyticsBtn) {
+    analyticsBtn.addEventListener('click', () => {
+        if (window.innerWidth <= 768) window.closeMobileSidebar?.();
+        window.showPanel('analytics');
+    });
+}
 
 console.log('✅ admin-analytics-patch.js chargé — Panneau Analytiques, heatmap, graphique 30j, export CSV étendu');
