@@ -4,6 +4,9 @@
 // ================================================================
 
 // Rate limiting avec Map (en mémoire, réinitialisé au déploiement)
+// ⚠️ NOTE : chaque instance Worker a son propre Map — le rate limit
+//    est donc par-instance, pas global. Pour un rate limit réel,
+//    migrer vers Cloudflare KV ou Durable Objects.
 const rateLimitMap = new Map();
 
 export default {
@@ -22,7 +25,9 @@ export default {
                 headers: {
                     'Content-Type': 'application/json',
                     'Access-Control-Allow-Origin': '*',
-                    'Cache-Control': 'public, max-age=3600',
+                    // ✅ FIX-1 : était 'public, max-age=3600' — un CDN intermédiaire pouvait
+                    //    mettre en cache la clé Supabase. On passe en no-store.
+                    'Cache-Control': 'private, no-store',
                 },
             });
         }
@@ -91,7 +96,7 @@ export default {
         // ROUTE : /api/proxy-image → Proxy images GitHub (CORS)
         // ═══════════════════════════════════════════════════════
         if (url.pathname === '/api/proxy-image') {
-            const imageUrl = url.searchParams.get('url');
+            let imageUrl = url.searchParams.get('url');
             if (!imageUrl) return new Response('Missing url', { status: 400 });
 
             let parsed;
@@ -107,7 +112,17 @@ export default {
                 return new Response('Forbidden', { status: 403 });
             }
 
-            // Whitelist des domaines autorisés (GitHub)
+            // Convertir github.com/.../blob/BRANCH/PATH → raw.githubusercontent.com/OWNER/REPO/BRANCH/PATH
+            // Les URLs stockées en base sont souvent au format blob au lieu de raw
+            if (parsed.hostname === 'github.com') {
+                // /owner/repo/blob/branch/path/to/file → raw.githubusercontent.com/owner/repo/branch/path/to/file
+                imageUrl = imageUrl
+                    .replace('https://github.com/', 'https://raw.githubusercontent.com/')
+                    .replace('/blob/', '/');
+                parsed = new URL(imageUrl);
+            }
+
+            // Whitelist des domaines autorisés (GitHub CDN)
             const ALLOWED_DOMAINS = [
                 'raw.githubusercontent.com',
                 'user-images.githubusercontent.com',
@@ -467,7 +482,7 @@ async function handlePasswordCheck(request, env, clientIP) {
 async function handleDatabaseProxy(request, env, clientIP) {
     try {
         const body = await request.json();
-        const { method, table, filter = {}, limit = 50, page = 0 } = body;
+        const { method, table, filter = {}, data, limit = 50, page = 0 } = body;
 
         if (!method || !table) {
             return jsonResponse({ error: 'Paramètres manquants' }, 400);
@@ -501,24 +516,67 @@ async function handleDatabaseProxy(request, env, clientIP) {
 
         const supabaseUrl = env.SUPABASE_URL;
         const supabaseKey = env.SUPABASE_ANON_KEY;
-        const queryParams = new URLSearchParams();
 
+        // ✅ FIX-2a : safeLimit calculé une seule fois et utilisé partout
+        const safeLimit = Math.min(limit, 100);
+        // ✅ FIX-2b : offset utilisait `limit` (brut) au lieu de `safeLimit` — le plafond de 100 ne s'appliquait pas
+        const offset    = Math.max(0, Math.min(page, 1000)) * safeLimit;
+
+        // Paramètres de filtre pour GET/PATCH/DELETE
+        const filterParams = new URLSearchParams();
         for (const [key, value] of Object.entries(filter)) {
-            queryParams.append(key, `eq.${value}`);
+            filterParams.append(key, `eq.${value}`);
         }
 
-        const safeLimit = Math.min(limit, 100);
-        const offset    = Math.max(0, Math.min(page, 1000)) * limit;
-        queryParams.append('limit', safeLimit.toString());
-        queryParams.append('offset', offset.toString());
+        let fetchUrl, fetchMethod, fetchBody, extraHeaders = {};
 
-        const response = await fetch(`${supabaseUrl}/rest/v1/${table}?${queryParams}`, {
-            method: 'GET',
+        if (method === 'select') {
+            // ✅ FIX-2c : avant cette correction, insert/update/delete finissaient ici aussi (toujours GET)
+            filterParams.append('limit', safeLimit.toString());
+            filterParams.append('offset', offset.toString());
+            fetchUrl    = `${supabaseUrl}/rest/v1/${table}?${filterParams}`;
+            fetchMethod = 'GET';
+            fetchBody   = undefined;
+
+        } else if (method === 'insert') {
+            if (!data || typeof data !== 'object') {
+                return jsonResponse({ error: 'Paramètre data manquant pour insert' }, 400);
+            }
+            fetchUrl    = `${supabaseUrl}/rest/v1/${table}`;
+            fetchMethod = 'POST';
+            fetchBody   = JSON.stringify(data);
+            extraHeaders = { 'Content-Type': 'application/json', 'Prefer': 'return=representation' };
+
+        } else if (method === 'update') {
+            if (!data || typeof data !== 'object') {
+                return jsonResponse({ error: 'Paramètre data manquant pour update' }, 400);
+            }
+            if (Object.keys(filter).length === 0) {
+                return jsonResponse({ error: 'Un filtre est obligatoire pour update (protection full-table)' }, 400);
+            }
+            fetchUrl    = `${supabaseUrl}/rest/v1/${table}?${filterParams}`;
+            fetchMethod = 'PATCH';
+            fetchBody   = JSON.stringify(data);
+            extraHeaders = { 'Content-Type': 'application/json', 'Prefer': 'return=representation' };
+
+        } else if (method === 'delete') {
+            if (Object.keys(filter).length === 0) {
+                return jsonResponse({ error: 'Un filtre est obligatoire pour delete (protection full-table)' }, 400);
+            }
+            fetchUrl    = `${supabaseUrl}/rest/v1/${table}?${filterParams}`;
+            fetchMethod = 'DELETE';
+            fetchBody   = undefined;
+        }
+
+        const response = await fetch(fetchUrl, {
+            method: fetchMethod,
             headers: {
                 'apikey':        supabaseKey,
                 'Authorization': `Bearer ${supabaseKey}`,
                 'Accept':        'application/json',
+                ...extraHeaders,
             },
+            body: fetchBody,
         });
 
         if (!response.ok) {
@@ -639,7 +697,13 @@ async function handleGitHubCallback(request, env, url) {
             );
         }
 
+        // ✅ FIX-3 : le token était injecté brut dans un template JS — si le token contenait
+        //    des caractères spéciaux (</script>, guillemets, etc.) il pouvait briser le HTML.
+        //    On utilise JSON.stringify pour produire un littéral JS valide et sûr.
         const messagePayload = JSON.stringify({ token, provider: 'github' });
+        // La chaîne complète postMessageée, sérialisée comme littéral JS propre
+        const safePostMessage = JSON.stringify(`authorization:github:success:${messagePayload}`);
+
         const html = `<!DOCTYPE html>
 <html>
 <head><meta charset="utf-8"><title>Connexion en cours...</title></head>
@@ -649,7 +713,7 @@ async function handleGitHubCallback(request, env, url) {
         (function() {
             function receiveMessage(e) {
                 window.opener.postMessage(
-                    'authorization:github:success:${messagePayload.replace(/'/g, "\\'")}',
+                    ${safePostMessage},
                     e.origin
                 );
             }
