@@ -397,7 +397,22 @@ const POS_PAY_LABELS = { especes: '💵 Espèces', tmoney: '📱 TMoney', flooz:
    CHARGEMENT MENU
 ══════════════════════════════════════════════════════════════════ */
 window.loadPosMenu = async function() {
+    let tries = 0;
+    while ((!window.db || !window.currentRestaurant) && tries++ < 20)
+        await new Promise(r => setTimeout(r, 300));
     if (!window.db || !window.currentRestaurant) return;
+        let attempts = 0;
+        await new Promise(resolve => {
+            const wait = setInterval(() => {
+                attempts++;
+                if (window.currentRestaurant || attempts > 20) {
+                    clearInterval(wait);
+                    resolve();
+                }
+            }, 300);
+        });
+        if (!window.currentRestaurant) return;
+    }
 
     try {
         const { data, error } = await db

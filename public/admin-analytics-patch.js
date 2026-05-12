@@ -311,9 +311,14 @@ window.loadAnalytics = async function() {
     const body = document.getElementById('analytics-body');
     if (!body) return;
     if (!window.db || !window.currentRestaurant) {
-        body.innerHTML = '<div class="an-loader">⚠️ Données restaurant non disponibles.</div>';
-        return;
-    }
+    let tries = 0;
+    while ((!window.db || !window.currentRestaurant) && tries++ < 20)
+        await new Promise(r => setTimeout(r, 300));
+}
+if (!window.db || !window.currentRestaurant) {
+    body.innerHTML = '<div class="an-loader">⚠️ Données restaurant non disponibles.</div>';
+    return;
+}
 
     body.innerHTML = '<div class="an-loader"><div class="an-spinner"></div> Chargement…</div>';
 
