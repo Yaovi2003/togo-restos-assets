@@ -28,7 +28,7 @@ export default {
         }
 
         // ═══════════════════════════════════════════════════════
-        // ROUTE : /api/db → Proxy DB sécurisé (NOUVEAU)
+        // ROUTE : /api/db → Proxy DB sécurisé
         // ═══════════════════════════════════════════════════════
         if (url.pathname === '/api/db' && request.method === 'POST') {
             return handleDatabaseProxy(request, env, clientIP);
@@ -49,7 +49,7 @@ export default {
         }
 
         // ═══════════════════════════════════════════════════════
-        // ROUTE : /api/csrf-token → Génération token CSRF (NOUVEAU)
+        // ROUTE : /api/csrf-token → Génération token CSRF
         // ═══════════════════════════════════════════════════════
         if (url.pathname === '/api/csrf-token') {
             return handleCSRFToken(request, env);
@@ -75,8 +75,8 @@ export default {
                 headers: {
                     'Content-Type': 'image/svg+xml',
                     'Cache-Control': 'public, max-age=86400',
-                    'Access-Control-Allow-Origin': '*'
-                }
+                    'Access-Control-Allow-Origin': '*',
+                },
             });
         }
 
@@ -88,16 +88,65 @@ export default {
         }
 
         // ═══════════════════════════════════════════════════════
+        // ROUTE : /api/proxy-image → Proxy images GitHub (CORS)
+        // ═══════════════════════════════════════════════════════
+        if (url.pathname === '/api/proxy-image') {
+            const imageUrl = url.searchParams.get('url');
+            if (!imageUrl) return new Response('Missing url', { status: 400 });
+
+            let parsed;
+            try { parsed = new URL(imageUrl); }
+            catch { return new Response('Invalid url', { status: 400 }); }
+
+            // Bloquer les URLs internes (protection SSRF)
+            if (!['http:', 'https:'].includes(parsed.protocol)) {
+                return new Response('Forbidden', { status: 403 });
+            }
+            const blockedHosts = ['localhost', '127.0.0.1', '0.0.0.0', '169.254.169.254'];
+            if (blockedHosts.some(h => parsed.hostname === h || parsed.hostname.endsWith('.local'))) {
+                return new Response('Forbidden', { status: 403 });
+            }
+
+            // Whitelist des domaines autorisés (GitHub)
+            const ALLOWED_DOMAINS = [
+                'raw.githubusercontent.com',
+                'user-images.githubusercontent.com',
+            ];
+            if (!ALLOWED_DOMAINS.some(d => parsed.hostname === d || parsed.hostname.endsWith('.' + d))) {
+                return new Response('Domain not allowed', { status: 403 });
+            }
+
+            const resp = await fetch(imageUrl, { cf: { cacheTtl: 86400 } });
+            if (!resp.ok) return new Response('Fetch failed', { status: 502 });
+
+            const blob = await resp.arrayBuffer();
+            const contentType = resp.headers.get('content-type') || 'image/jpeg';
+
+            // Vérifier que c'est bien une image
+            if (!contentType.startsWith('image/')) {
+                return new Response('Not an image', { status: 403 });
+            }
+
+            return new Response(blob, {
+                headers: {
+                    'Content-Type': contentType,
+                    'Access-Control-Allow-Origin': '*',
+                    'Cache-Control': 'public, max-age=86400',
+                },
+            });
+        }
+
+        // ═══════════════════════════════════════════════════════
         // ROUTE : /auth → OAuth GitHub (début)
         // ═══════════════════════════════════════════════════════
         if (url.pathname === '/auth') {
             const clientId = env.GITHUB_CLIENT_ID;
             if (!clientId) {
                 return new Response(JSON.stringify({
-                    error: 'GITHUB_CLIENT_ID manquant'
+                    error: 'GITHUB_CLIENT_ID manquant',
                 }), {
                     status: 500,
-                    headers: { 'Content-Type': 'application/json' }
+                    headers: { 'Content-Type': 'application/json' },
                 });
             }
             const githubAuthUrl =
@@ -124,17 +173,16 @@ export default {
             newUrl.pathname = url.pathname + '.html';
             return Response.redirect(newUrl.toString(), 301);
         }
-		// ═══════════════════════════════════════════════════════
+
+        // ═══════════════════════════════════════════════════════
         // ROUTE : /sitemap.xml → Servir le sitemap directement
         // ═══════════════════════════════════════════════════════
         if (url.pathname === '/sitemap.xml') {
             return env.ASSETS.fetch(request);
         }
-		
+
         // ═══════════════════════════════════════════════════════
-		
-		        // ═══════════════════════════════════════════════════════
-        // ROUTES PUSH NOTIFICATIONS
+        // ROUTES : Push notifications
         // ═══════════════════════════════════════════════════════
         if (url.pathname === '/api/vapid-public-key' && request.method === 'GET')
             return handleVapidPublicKey(env);
@@ -152,47 +200,41 @@ export default {
     },
 };
 
-// ═══════════════════════════════════════════════════════════
+// ================================================================
 // FONCTIONS AUXILIAIRES
-// ═══════════════════════════════════════════════════════════
+// ================================================================
 
-// ================================================================
-// VALIDATION MAGIC BYTES POUR IMAGES (NOUVEAU)
-// ================================================================
+// ----------------------------------------------------------------
+// Validation magic bytes pour images
+// ----------------------------------------------------------------
 
 const ALLOWED_MIME_SIGNATURES = {
     'image/webp': { magic: [0x52, 0x49, 0x46, 0x46], description: 'WebP (RIFF)' },
-    'image/jpeg': { magic: [0xFF, 0xD8, 0xFF], description: 'JPEG' },
+    'image/jpeg': { magic: [0xFF, 0xD8, 0xFF],        description: 'JPEG'        },
     'image/png':  { magic: [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A], description: 'PNG' },
 };
 
-const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB
+const MAX_FILE_SIZE   = 5 * 1024 * 1024; // 5 MB
 const ALLOWED_MIME_TYPES = Object.keys(ALLOWED_MIME_SIGNATURES);
 
 function validateImageFile(arrayBuffer, mimeType, fileSize) {
-    // Vérifier la taille
     if (fileSize > MAX_FILE_SIZE) {
         return { valid: false, error: `Fichier trop volumineux. Maximum ${MAX_FILE_SIZE / 1024 / 1024}MB.` };
     }
     if (fileSize < 100) {
         return { valid: false, error: 'Fichier trop petit (< 100 bytes).' };
     }
-
-    // Vérifier le type MIME
     if (!ALLOWED_MIME_TYPES.includes(mimeType)) {
         return { valid: false, error: `Type MIME non autorisé : ${mimeType}. Utilisez WebP, JPEG ou PNG.` };
     }
 
-    // Vérifier les magic bytes (signature réelle du fichier)
-    const bytes = new Uint8Array(arrayBuffer);
+    const bytes     = new Uint8Array(arrayBuffer);
     const signature = ALLOWED_MIME_SIGNATURES[mimeType];
-    
     if (!signature) {
         return { valid: false, error: 'Type de fichier non supporté.' };
     }
 
     const magicMatch = signature.magic.every((byte, i) => bytes[i] === byte);
-    
     if (!magicMatch) {
         return { valid: false, error: `Le contenu du fichier ne correspond pas à ${signature.description}. Fichier corrompu ou déguisé.` };
     }
@@ -200,31 +242,28 @@ function validateImageFile(arrayBuffer, mimeType, fileSize) {
     return { valid: true };
 }
 
-// ================================================================
-// RATE LIMITING (NOUVEAU)
-// ================================================================
+// ----------------------------------------------------------------
+// Rate limiting
+// ----------------------------------------------------------------
 
 function checkRateLimit(ip, action, maxAttempts = 5, windowMs = 15 * 60 * 1000) {
-    const key = `${action}:${ip}`;
-    const now = Date.now();
+    const key    = `${action}:${ip}`;
+    const now    = Date.now();
     const record = rateLimitMap.get(key);
 
     if (!record || (now - record.timestamp > windowMs)) {
         return { allowed: true, remaining: maxAttempts };
     }
-
     if (record.count >= maxAttempts) {
-        const resetAt = record.timestamp + windowMs;
-        const retryAfter = Math.ceil((resetAt - now) / 1000);
+        const retryAfter = Math.ceil((record.timestamp + windowMs - now) / 1000);
         return { allowed: false, remaining: 0, retryAfter };
     }
-
     return { allowed: true, remaining: maxAttempts - record.count };
 }
 
 function incrementRateLimit(ip, action, windowMs = 15 * 60 * 1000) {
-    const key = `${action}:${ip}`;
-    const now = Date.now();
+    const key    = `${action}:${ip}`;
+    const now    = Date.now();
     const record = rateLimitMap.get(key);
 
     if (!record || (now - record.timestamp > windowMs)) {
@@ -236,13 +275,12 @@ function incrementRateLimit(ip, action, windowMs = 15 * 60 * 1000) {
 }
 
 function resetRateLimit(ip, action) {
-    const key = `${action}:${ip}`;
-    rateLimitMap.delete(key);
+    rateLimitMap.delete(`${action}:${ip}`);
 }
 
-// ================================================================
-// ESCAPE XML (pour OG Image)
-// ================================================================
+// ----------------------------------------------------------------
+// Escape XML (pour OG Image)
+// ----------------------------------------------------------------
 
 function escapeXML(str) {
     if (!str) return '';
@@ -254,57 +292,54 @@ function escapeXML(str) {
         .replace(/'/g, '&apos;');
 }
 
-// ================================================================
-// RÉPONSE JSON STANDARDISÉE
-// ================================================================
+// ----------------------------------------------------------------
+// Réponse JSON standardisée
+// ----------------------------------------------------------------
 
 function jsonResponse(data, status = 200, extraHeaders = {}) {
-    const headers = {
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type, X-CSRF-Token',
-        'X-Content-Type-Options': 'nosniff',
-        'X-Frame-Options': 'DENY',
-        'Strict-Transport-Security': 'max-age=31536000; includeSubDomains',
-        'Cache-Control': 'no-store, no-cache, must-revalidate',
-        ...extraHeaders,
-    };
-
-    return new Response(JSON.stringify(data), { status, headers });
+    return new Response(JSON.stringify(data), {
+        status,
+        headers: {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+            'Access-Control-Allow-Headers': 'Content-Type, X-CSRF-Token',
+            'X-Content-Type-Options': 'nosniff',
+            'X-Frame-Options': 'DENY',
+            'Strict-Transport-Security': 'max-age=31536000; includeSubDomains',
+            'Cache-Control': 'no-store, no-cache, must-revalidate',
+            ...extraHeaders,
+        },
+    });
 }
 
-// ================================================================
-// ✅ CORRECTION : Conversion base64 par lots (BUG FIX)
-// Remplace btoa(String.fromCharCode(...bytes)) qui dépasse la
-// pile d'appels pour les fichiers > ~100 Ko
-// ================================================================
+// ----------------------------------------------------------------
+// Conversion base64 par lots (évite le dépassement de pile > 100 Ko)
+// ----------------------------------------------------------------
 
 function arrayBufferToBase64(buffer) {
-    const bytes = new Uint8Array(buffer);
-    const CHUNK_SIZE = 0x8000; // 32768 bytes par lot
+    const bytes      = new Uint8Array(buffer);
+    const CHUNK_SIZE = 0x8000; // 32 768 bytes par lot
     let binary = '';
-    
     for (let i = 0; i < bytes.length; i += CHUNK_SIZE) {
         const chunk = bytes.subarray(i, Math.min(i + CHUNK_SIZE, bytes.length));
         binary += String.fromCharCode.apply(null, chunk);
     }
-    
     return btoa(binary);
 }
 
-// ================================================================
-// UPLOAD IMAGE SÉCURISÉ (CORRIGÉ)
-// ================================================================
+// ----------------------------------------------------------------
+// Upload image sécurisé vers GitHub
+// ----------------------------------------------------------------
 
 async function handleImageUpload(request, env) {
     try {
         console.log('📸 Upload démarré');
         console.log('Repo configuré:', env.GITHUB_REPO);
         console.log('Token présent:', !!env.GITHUB_TOKEN);
-        
+
         const formData = await request.formData();
-        const file = formData.get('image');
+        const file     = formData.get('image');
         const filename = formData.get('filename') || 'image';
 
         if (!file) {
@@ -314,29 +349,23 @@ async function handleImageUpload(request, env) {
 
         console.log('📁 Fichier reçu:', file.name, file.type, file.size);
 
-        // ✅ VALIDATION STRICTE DU FICHIER (NOUVEAU)
-        const arrayBuffer = await file.arrayBuffer();
-        const validation = validateImageFile(arrayBuffer, file.type, file.size);
-        
+        const arrayBuffer  = await file.arrayBuffer();
+        const validation   = validateImageFile(arrayBuffer, file.type, file.size);
         if (!validation.valid) {
             console.error('❌ Validation échouée:', validation.error);
             return jsonResponse({ error: validation.error }, 400);
         }
-
         console.log('✅ Validation réussie');
 
-        // ✅ VALIDATION DU NOM DE FICHIER (NOUVEAU)
         if (typeof filename !== 'string' || !/^[a-zA-Z0-9_-]{1,60}$/.test(filename)) {
             return jsonResponse({ error: 'Nom de fichier invalide. Utilisez uniquement lettres, chiffres, - et _' }, 400);
         }
 
-        // ✅ CORRECTION : Conversion base64 par lots (ne dépasse plus la pile d'appels)
-        const base64 = arrayBufferToBase64(arrayBuffer);
-
+        const base64    = arrayBufferToBase64(arrayBuffer);
         const cleanName = filename.replace(/[^a-z0-9\-_]/gi, '-').toLowerCase();
         const timestamp = Date.now();
-        const randomId = Math.random().toString(36).substring(2, 8);
-        const filePath = `assets/uploads/${cleanName}-${timestamp}-${randomId}.webp`;
+        const randomId  = Math.random().toString(36).substring(2, 8);
+        const filePath  = `assets/uploads/${cleanName}-${timestamp}-${randomId}.webp`;
 
         console.log('📤 Upload vers GitHub:', filePath);
 
@@ -346,14 +375,14 @@ async function handleImageUpload(request, env) {
                 method: 'PUT',
                 headers: {
                     'Authorization': `token ${env.GITHUB_TOKEN}`,
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/vnd.github.v3+json',
-                    'User-Agent': 'Cloudflare-Worker',
+                    'Content-Type':  'application/json',
+                    'Accept':        'application/vnd.github.v3+json',
+                    'User-Agent':    'Cloudflare-Worker',
                 },
                 body: JSON.stringify({
                     message: `feat: upload image ${cleanName}`,
                     content: base64,
-                    branch: 'main',
+                    branch:  'main',
                 }),
             }
         );
@@ -365,11 +394,10 @@ async function handleImageUpload(request, env) {
             throw new Error(err.message || 'Erreur GitHub API');
         }
 
-        const result = await githubResponse.json();
+        const result    = await githubResponse.json();
         console.log('✅ Upload réussi:', result.content?.name);
 
         const publicUrl = `https://raw.githubusercontent.com/${env.GITHUB_REPO}/main/${filePath}`;
-
         return jsonResponse({ success: true, url: publicUrl, path: filePath });
 
     } catch (err) {
@@ -378,9 +406,9 @@ async function handleImageUpload(request, env) {
     }
 }
 
-// ================================================================
-// VÉRIFICATION MOT DE PASSE SÉCURISÉE AVEC RATE LIMITING (MODIFIÉ)
-// ================================================================
+// ----------------------------------------------------------------
+// Vérification mot de passe avec rate limiting
+// ----------------------------------------------------------------
 
 async function handlePasswordCheck(request, env, clientIP) {
     try {
@@ -389,47 +417,32 @@ async function handlePasswordCheck(request, env, clientIP) {
         if (!password || !type) {
             return jsonResponse({ error: 'Paramètres manquants' }, 400);
         }
-
-        // ✅ VALIDATION DES TYPES (NOUVEAU)
         if (!['onboarding', 'blog'].includes(type)) {
             return jsonResponse({ error: 'Type de vérification invalide' }, 400);
         }
-
-        // ✅ VALIDATION LONGUEUR MOT DE PASSE (NOUVEAU)
         if (typeof password !== 'string' || password.length < 8 || password.length > 128) {
-            // On ne révèle pas les critères exacts, mais on rejette
             return jsonResponse({ error: 'Format de mot de passe invalide' }, 400);
         }
 
-        // ✅ RATE LIMITING (NOUVEAU)
-        const action = `pwd-${type}`;
+        const action    = `pwd-${type}`;
         const rateCheck = checkRateLimit(clientIP, action);
-        
         if (!rateCheck.allowed) {
-            return jsonResponse({ 
-                error: `Trop de tentatives. Réessayez dans ${rateCheck.retryAfter} secondes.`,
-                retryAfter: rateCheck.retryAfter
+            return jsonResponse({
+                error:      `Trop de tentatives. Réessayez dans ${rateCheck.retryAfter} secondes.`,
+                retryAfter: rateCheck.retryAfter,
             }, 429, { 'Retry-After': String(rateCheck.retryAfter) });
         }
 
         incrementRateLimit(clientIP, action);
 
-        // ✅ DÉLAI ARTIFICIEL ANTI-TIMING ATTACK (NOUVEAU)
-        const timingDelay = 200 + Math.random() * 300;
-        await new Promise(resolve => setTimeout(resolve, timingDelay));
+        // Délai artificiel anti-timing attack
+        await new Promise(resolve => setTimeout(resolve, 200 + Math.random() * 300));
 
         let valid = false;
-        
-        if (type === 'onboarding') {
-            valid = (password === env.ONBOARDING_MASTER_PASSWORD);
-        } else if (type === 'blog') {
-            valid = (password === env.BLOG_ADMIN_PASSWORD);
-        }
+        if (type === 'onboarding') valid = (password === env.ONBOARDING_MASTER_PASSWORD);
+        else if (type === 'blog')  valid = (password === env.BLOG_ADMIN_PASSWORD);
 
-        if (valid) {
-            // Réinitialiser le compteur en cas de succès
-            resetRateLimit(clientIP, action);
-        }
+        if (valid) resetRateLimit(clientIP, action);
 
         return jsonResponse({ valid });
 
@@ -439,79 +452,65 @@ async function handlePasswordCheck(request, env, clientIP) {
     }
 }
 
-// ================================================================
-// PROXY DB SÉCURISÉ (NOUVEAU)
-// ================================================================
+// ----------------------------------------------------------------
+// Proxy DB sécurisé
+// ----------------------------------------------------------------
 
 async function handleDatabaseProxy(request, env, clientIP) {
     try {
         const body = await request.json();
-        const { method, table, filter = {}, data = null, limit = 50, page = 0 } = body;
+        const { method, table, filter = {}, limit = 50, page = 0 } = body;
 
-        // ✅ VALIDATION DES PARAMÈTRES
         if (!method || !table) {
             return jsonResponse({ error: 'Paramètres manquants' }, 400);
         }
 
-        // ✅ WHITELIST DES TABLES
         const ALLOWED_TABLES = [
             'restaurants', 'menu_items', 'orders', 'reservations',
             'blog_articles', 'gallery_photos', 'local_ads', 'events',
             'profiles', 'stats', 'employees', 'inventory', 'transactions',
-            'cash_register', 'formula_days'
+            'cash_register', 'formula_days',
         ];
-
         if (!ALLOWED_TABLES.includes(table)) {
-            console.warn(`⚠️ Tentative d'accès à une table non autorisée: ${table} par IP: ${clientIP}`);
+            console.warn(`⚠️ Table non autorisée: ${table} — IP: ${clientIP}`);
             return jsonResponse({ error: 'Table non autorisée' }, 403);
         }
 
-        // ✅ WHITELIST DES MÉTHODES
         const ALLOWED_METHODS = ['select', 'insert', 'update', 'delete'];
         if (!ALLOWED_METHODS.includes(method)) {
             return jsonResponse({ error: 'Méthode non autorisée' }, 403);
         }
 
-        // ✅ VALIDATION DES COLONNES DE FILTRE
         const ALLOWED_FILTER_COLUMNS = [
             'id', 'restaurant_id', 'slug', 'category', 'is_active',
-            'is_available', 'is_drink', 'is_published', 'display_order'
+            'is_available', 'is_drink', 'is_published', 'display_order',
         ];
-
         for (const key of Object.keys(filter)) {
             if (!ALLOWED_FILTER_COLUMNS.includes(key)) {
                 return jsonResponse({ error: `Colonne de filtre non autorisée: ${key}` }, 400);
             }
         }
 
-        // ✅ CONSTRUIRE LA REQUÊTE SUPABASE
         const supabaseUrl = env.SUPABASE_URL;
         const supabaseKey = env.SUPABASE_ANON_KEY;
-
-        let queryUrl = `${supabaseUrl}/rest/v1/${table}?`;
-
-        // Ajouter les filtres
         const queryParams = new URLSearchParams();
+
         for (const [key, value] of Object.entries(filter)) {
             queryParams.append(key, `eq.${value}`);
         }
 
-        // Pagination
-        const offset = Math.max(0, Math.min(page, 1000)) * limit;
         const safeLimit = Math.min(limit, 100);
+        const offset    = Math.max(0, Math.min(page, 1000)) * limit;
         queryParams.append('limit', safeLimit.toString());
         queryParams.append('offset', offset.toString());
 
-        queryUrl += queryParams.toString();
-
-        // ✅ EXÉCUTER LA REQUÊTE
-        const response = await fetch(queryUrl, {
+        const response = await fetch(`${supabaseUrl}/rest/v1/${table}?${queryParams}`, {
             method: 'GET',
             headers: {
-                'apikey': supabaseKey,
+                'apikey':        supabaseKey,
                 'Authorization': `Bearer ${supabaseKey}`,
-                'Accept': 'application/json',
-            }
+                'Accept':        'application/json',
+            },
         });
 
         if (!response.ok) {
@@ -520,14 +519,7 @@ async function handleDatabaseProxy(request, env, clientIP) {
         }
 
         const result = await response.json();
-
-        return jsonResponse({
-            success: true,
-            data: result,
-            count: result?.length || 0,
-            page,
-            limit: safeLimit
-        });
+        return jsonResponse({ success: true, data: result, count: result?.length || 0, page, limit: safeLimit });
 
     } catch (err) {
         console.error('Database proxy error:', err);
@@ -535,56 +527,51 @@ async function handleDatabaseProxy(request, env, clientIP) {
     }
 }
 
-// ================================================================
-// CSRF TOKEN (NOUVEAU)
-// ================================================================
+// ----------------------------------------------------------------
+// CSRF token
+// ----------------------------------------------------------------
 
 function handleCSRFToken(request, env) {
-    const token = crypto.randomUUID();
-    
-    return jsonResponse({ token }, 200, {
-        'Cache-Control': 'no-store'
-    });
+    return jsonResponse({ token: crypto.randomUUID() }, 200, { 'Cache-Control': 'no-store' });
 }
 
-// ================================================================
-// RAPPORT JOURNALIER (MODIFIÉ avec validation)
-// ================================================================
+// ----------------------------------------------------------------
+// Rapport journalier WhatsApp
+// ----------------------------------------------------------------
 
 async function handleSendReport(request, env) {
     try {
         const { restaurantId } = await request.json();
 
-        // ✅ VALIDATION
         if (!restaurantId || typeof restaurantId !== 'string') {
             return jsonResponse({ error: 'ID restaurant invalide' }, 400);
         }
 
         const supabaseUrl = env.SUPABASE_URL;
         const supabaseKey = env.SUPABASE_ANON_KEY;
-        const today = new Date().toISOString().split('T')[0];
-        
+        const today       = new Date().toISOString().split('T')[0];
+
         const [transRes, ordersRes, restoRes] = await Promise.all([
             fetch(`${supabaseUrl}/rest/v1/transactions?restaurant_id=eq.${restaurantId}&created_at=gte.${today}`, {
-                headers: { 'apikey': supabaseKey, 'Authorization': `Bearer ${supabaseKey}` }
+                headers: { 'apikey': supabaseKey, 'Authorization': `Bearer ${supabaseKey}` },
             }),
             fetch(`${supabaseUrl}/rest/v1/orders?restaurant_id=eq.${restaurantId}&created_at=gte.${today}`, {
-                headers: { 'apikey': supabaseKey, 'Authorization': `Bearer ${supabaseKey}` }
+                headers: { 'apikey': supabaseKey, 'Authorization': `Bearer ${supabaseKey}` },
             }),
             fetch(`${supabaseUrl}/rest/v1/restaurants?id=eq.${restaurantId}&select=whatsapp,name`, {
-                headers: { 'apikey': supabaseKey, 'Authorization': `Bearer ${supabaseKey}` }
+                headers: { 'apikey': supabaseKey, 'Authorization': `Bearer ${supabaseKey}` },
             }),
         ]);
 
         const transactions = await transRes.json();
-        const orders = await ordersRes.json();
-        const restos = await restoRes.json();
-        const resto = restos?.[0];
+        const orders       = await ordersRes.json();
+        const resto        = (await restoRes.json())?.[0];
 
-        const total = transactions.reduce((s, t) => s + t.amount, 0) || 0;
+        const total    = transactions.reduce((s, t) => s + t.amount, 0) || 0;
         const nbOrders = orders?.length || 0;
 
-        const message = `📊 *RAPPORT JOURNALIER — ${resto?.name || 'Restaurant'}*\n\n` +
+        const message =
+            `📊 *RAPPORT JOURNALIER — ${resto?.name || 'Restaurant'}*\n\n` +
             `📅 Date : ${new Date().toLocaleDateString('fr-FR')}\n` +
             `💰 CA : ${total.toLocaleString()} FCFA\n` +
             `📋 Commandes : ${nbOrders}\n` +
@@ -594,25 +581,25 @@ async function handleSendReport(request, env) {
         if (resto?.whatsapp) {
             const waUrl = `https://wa.me/${resto.whatsapp}?text=${encodeURIComponent(message)}`;
             return new Response(JSON.stringify({ success: true, waUrl }), {
-                headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
+                headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
             });
         }
 
         return new Response(JSON.stringify({ success: false, error: 'Pas de WhatsApp' }), {
-            headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
+            headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
         });
 
     } catch (err) {
         return new Response(JSON.stringify({ error: err.message }), {
             status: 500,
-            headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
+            headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
         });
     }
 }
 
-// ================================================================
-// GITHUB OAUTH (INCHANGÉ)
-// ================================================================
+// ----------------------------------------------------------------
+// GitHub OAuth
+// ----------------------------------------------------------------
 
 async function handleGitHubCallback(request, env, url) {
     const code = url.searchParams.get('code');
@@ -621,24 +608,21 @@ async function handleGitHubCallback(request, env, url) {
     }
 
     try {
-        const tokenRes = await fetch(
-            'https://github.com/login/oauth/access_token',
-            {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json',
-                },
-                body: JSON.stringify({
-                    client_id: env.GITHUB_CLIENT_ID,
-                    client_secret: env.GITHUB_CLIENT_SECRET,
-                    code,
-                }),
-            }
-        );
+        const tokenRes = await fetch('https://github.com/login/oauth/access_token', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept':       'application/json',
+            },
+            body: JSON.stringify({
+                client_id:     env.GITHUB_CLIENT_ID,
+                client_secret: env.GITHUB_CLIENT_SECRET,
+                code,
+            }),
+        });
 
         const tokenData = await tokenRes.json();
-        const token = tokenData.access_token;
+        const token     = tokenData.access_token;
 
         if (!token) {
             return new Response(
@@ -648,7 +632,6 @@ async function handleGitHubCallback(request, env, url) {
         }
 
         const messagePayload = JSON.stringify({ token, provider: 'github' });
-
         const html = `<!DOCTYPE html>
 <html>
 <head><meta charset="utf-8"><title>Connexion en cours...</title></head>
@@ -680,12 +663,12 @@ async function handleGitHubCallback(request, env, url) {
 }
 
 // ================================================================
-// FONCTIONS PUSH NOTIFICATIONS
+// Push Notifications
 // ================================================================
 
-/* ══════════════════════════════════════════════════════════════
-   SECTION 1 — HELPERS BASE64URL & CRYPTO
-══════════════════════════════════════════════════════════════ */
+// ----------------------------------------------------------------
+// Section 1 — Helpers base64url & crypto
+// ----------------------------------------------------------------
 
 function base64urlToUint8Array(b64) {
     const padding = '='.repeat((4 - (b64.length % 4)) % 4);
@@ -709,8 +692,6 @@ function concat(...arrays) {
 
 function utf8(str) { return new TextEncoder().encode(str); }
 
-
-/* ── HKDF-Extract : PRK = HMAC-SHA256(salt, IKM) ── */
 async function hkdfExtract(salt, ikm) {
     const key = await crypto.subtle.importKey(
         'raw', salt, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']
@@ -718,9 +699,8 @@ async function hkdfExtract(salt, ikm) {
     return new Uint8Array(await crypto.subtle.sign('HMAC', key, ikm));
 }
 
-/* ── HKDF-Expand : OKM = HMAC-SHA256(PRK, info || 0x01) [length bytes] ── */
 async function hkdfExpand(prk, info, length) {
-    const key = await crypto.subtle.importKey(
+    const key   = await crypto.subtle.importKey(
         'raw', prk, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']
     );
     const input  = concat(info, new Uint8Array([0x01]));
@@ -728,29 +708,19 @@ async function hkdfExpand(prk, info, length) {
     return result.slice(0, length);
 }
 
+// ----------------------------------------------------------------
+// Section 2 — VAPID JWT (ES256 / ECDSA P-256)
+// ----------------------------------------------------------------
 
-/* ══════════════════════════════════════════════════════════════
-   SECTION 2 — VAPID JWT (ES256 / ECDSA P-256)
-══════════════════════════════════════════════════════════════ */
-
-/**
- * Crée un JWT VAPID signé avec la clé privée P-256.
- *
- * @param {string} endpoint      - URL du push service (ex: https://fcm.googleapis.com/…)
- * @param {string} subject       - "mailto:contact@example.com"
- * @param {string} privateJwkStr - JSON string de la JWK privée (kty,crv,x,y,d)
- */
 async function createVapidJWT(endpoint, subject, privateJwkStr) {
-    const url      = new URL(endpoint);
-    const audience = `${url.protocol}//${url.host}`;
-
+    const u          = new URL(endpoint);
+    const audience   = `${u.protocol}//${u.host}`;
     const headerB64  = uint8ArrayToBase64url(utf8(JSON.stringify({ typ: 'JWT', alg: 'ES256' })));
     const payloadB64 = uint8ArrayToBase64url(utf8(JSON.stringify({
         aud: audience,
         exp: Math.floor(Date.now() / 1000) + 43200, // 12 h
         sub: subject,
     })));
-
     const signingInput = `${headerB64}.${payloadB64}`;
 
     const privateKey = await crypto.subtle.importKey(
@@ -760,137 +730,79 @@ async function createVapidJWT(endpoint, subject, privateJwkStr) {
         false,
         ['sign']
     );
-
     const signature = await crypto.subtle.sign(
         { name: 'ECDSA', hash: 'SHA-256' },
         privateKey,
         utf8(signingInput)
     );
-
     return `${signingInput}.${uint8ArrayToBase64url(new Uint8Array(signature))}`;
 }
 
+// ----------------------------------------------------------------
+// Section 3 — Chiffrement payload (RFC 8291 / aes128gcm)
+// ----------------------------------------------------------------
 
-/* ══════════════════════════════════════════════════════════════
-   SECTION 3 — CHIFFREMENT PAYLOAD (RFC 8291 / aes128gcm)
-══════════════════════════════════════════════════════════════ */
-
-/**
- * Chiffre le payload JSON selon RFC 8291 (Web Push Message Encryption).
- *
- * @param {{ endpoint, keys: { p256dh, auth } }} subscription
- * @param {string} payloadJson - JSON stringifié du payload
- * @returns {Uint8Array} corps HTTP chiffré (aes128gcm content-encoding)
- */
 async function encryptWebPush(subscription, payloadJson) {
     const clientPublicKeyBytes = base64urlToUint8Array(subscription.keys.p256dh);
     const authSecretBytes      = base64urlToUint8Array(subscription.keys.auth);
     const plaintextBytes       = utf8(payloadJson);
 
-    /* ── 1. Sel aléatoire 16 octets ── */
-    const salt = crypto.getRandomValues(new Uint8Array(16));
-
-    /* ── 2. Paire ECDH éphémère côté serveur ── */
+    const salt       = crypto.getRandomValues(new Uint8Array(16));
     const serverECDH = await crypto.subtle.generateKey(
-        { name: 'ECDH', namedCurve: 'P-256' },
-        true,
-        ['deriveBits']
+        { name: 'ECDH', namedCurve: 'P-256' }, true, ['deriveBits']
     );
     const serverPublicKeyRaw = new Uint8Array(
         await crypto.subtle.exportKey('raw', serverECDH.publicKey)
     );
-
-    /* ── 3. Clé publique client ── */
     const clientPublicKey = await crypto.subtle.importKey(
-        'raw',
-        clientPublicKeyBytes,
-        { name: 'ECDH', namedCurve: 'P-256' },
-        false,
-        []
+        'raw', clientPublicKeyBytes, { name: 'ECDH', namedCurve: 'P-256' }, false, []
     );
-
-    /* ── 4. Secret ECDH partagé ── */
     const sharedSecretRaw = new Uint8Array(
         await crypto.subtle.deriveBits(
-            { name: 'ECDH', public: clientPublicKey },
-            serverECDH.privateKey,
-            256
+            { name: 'ECDH', public: clientPublicKey }, serverECDH.privateKey, 256
         )
     );
 
-    /* ── 5. PRK_key = HKDF-Extract(auth_secret, shared_secret) ── */
     const prkKey = await hkdfExtract(authSecretBytes, sharedSecretRaw);
+    const ikm    = await hkdfExpand(prkKey, concat(utf8('WebPush: info\x00'), clientPublicKeyBytes, serverPublicKeyRaw), 32);
+    const prk    = await hkdfExtract(salt, ikm);
+    const cek    = await hkdfExpand(prk, concat(utf8('Content-Encoding: aes128gcm\x00'), new Uint8Array([0x01])), 16);
+    const nonce  = await hkdfExpand(prk, concat(utf8('Content-Encoding: nonce\x00'),     new Uint8Array([0x01])), 12);
 
-    /* ── 6. IKM = HKDF-Expand(PRK_key, "WebPush: info\0" + client_pub + server_pub, 32) ── */
-    const keyInfo = concat(
-        utf8('WebPush: info\x00'),
-        clientPublicKeyBytes,
-        serverPublicKeyRaw
-    );
-    const ikm = await hkdfExpand(prkKey, keyInfo, 32);
-
-    /* ── 7. PRK = HKDF-Extract(salt, IKM) ── */
-    const prk = await hkdfExtract(salt, ikm);
-
-    /* ── 8. CEK = HKDF-Expand(PRK, "Content-Encoding: aes128gcm\0\1", 16) ── */
-    const cek = await hkdfExpand(
-        prk,
-        concat(utf8('Content-Encoding: aes128gcm\x00'), new Uint8Array([0x01])),
-        16
-    );
-
-    /* ── 9. Nonce = HKDF-Expand(PRK, "Content-Encoding: nonce\0\1", 12) ── */
-    const nonce = await hkdfExpand(
-        prk,
-        concat(utf8('Content-Encoding: nonce\x00'), new Uint8Array([0x01])),
-        12
-    );
-
-    /* ── 10. Chiffrement AES-128-GCM ── */
-    /* Padding : plaintext + 0x02 (délimiteur RFC 8188) */
-    const paddedPlaintext = concat(plaintextBytes, new Uint8Array([0x02]));
-
-    const aesKey = await crypto.subtle.importKey(
-        'raw', cek, { name: 'AES-GCM' }, false, ['encrypt']
-    );
+    const aesKey     = await crypto.subtle.importKey('raw', cek, { name: 'AES-GCM' }, false, ['encrypt']);
     const ciphertext = new Uint8Array(
         await crypto.subtle.encrypt(
             { name: 'AES-GCM', iv: nonce, tagLength: 128 },
             aesKey,
-            paddedPlaintext
+            concat(plaintextBytes, new Uint8Array([0x02]))
         )
     );
 
-    /* ── 11. En-tête RFC 8188 ── */
-    /* salt(16) + rs(4 big-endian) + idlen(1) + keyid(serverPublicKey) + ciphertext */
-    const rs      = new Uint8Array([0x00, 0x00, 0x10, 0x00]); // 4096 en big-endian
-    const idlen   = new Uint8Array([serverPublicKeyRaw.length]);  // 65
-
-    return concat(salt, rs, idlen, serverPublicKeyRaw, ciphertext);
+    // En-tête RFC 8188 : salt(16) + rs(4 big-endian) + idlen(1) + keyid + ciphertext
+    return concat(
+        salt,
+        new Uint8Array([0x00, 0x00, 0x10, 0x00]), // rs = 4096
+        new Uint8Array([serverPublicKeyRaw.length]),
+        serverPublicKeyRaw,
+        ciphertext
+    );
 }
 
+// ----------------------------------------------------------------
+// Section 4 — Routes push
+// ----------------------------------------------------------------
 
-/* ══════════════════════════════════════════════════════════════
-   SECTION 4 — ROUTES
-══════════════════════════════════════════════════════════════ */
-
-/** GET /api/vapid-public-key — retourne la clé publique VAPID */
 function handleVapidPublicKey(env) {
     if (!env.VAPID_PUBLIC_KEY) {
         return new Response(JSON.stringify({ error: 'VAPID_PUBLIC_KEY non configurée.' }), {
-            status: 500, headers: { 'Content-Type': 'application/json' }
+            status: 500, headers: { 'Content-Type': 'application/json' },
         });
     }
     return new Response(JSON.stringify({ vapidPublicKey: env.VAPID_PUBLIC_KEY }), {
-        headers: {
-            'Content-Type': 'application/json',
-            'Cache-Control': 'public, max-age=86400',
-        }
+        headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=86400' },
     });
 }
 
-
-/** POST /api/subscribe — sauvegarde un abonnement push dans Supabase */
 async function handleSubscribe(request, env) {
     try {
         const { restaurantId, subscription } = await request.json();
@@ -898,8 +810,6 @@ async function handleSubscribe(request, env) {
         if (!restaurantId || !subscription?.endpoint || !subscription?.keys?.p256dh) {
             return jsonError('Données invalides.', 400);
         }
-
-        /* Valider que l'endpoint est bien une URL https */
         try {
             const u = new URL(subscription.endpoint);
             if (u.protocol !== 'https:') throw new Error();
@@ -913,7 +823,7 @@ async function handleSubscribe(request, env) {
         const res = await fetch(`${supabaseUrl}/rest/v1/push_subscriptions`, {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/json',
+                'Content-Type':  'application/json',
                 'apikey':        supabaseKey,
                 'Authorization': `Bearer ${supabaseKey}`,
                 'Prefer':        'resolution=merge-duplicates, return=minimal',
@@ -927,13 +837,10 @@ async function handleSubscribe(request, env) {
             }),
         });
 
-        if (!res.ok) {
-            const err = await res.text();
-            return jsonError('Erreur Supabase : ' + err, 500);
-        }
+        if (!res.ok) return jsonError('Erreur Supabase : ' + await res.text(), 500);
 
         return new Response(JSON.stringify({ ok: true }), {
-            headers: { 'Content-Type': 'application/json' }
+            headers: { 'Content-Type': 'application/json' },
         });
 
     } catch (e) {
@@ -941,8 +848,6 @@ async function handleSubscribe(request, env) {
     }
 }
 
-
-/** DELETE /api/subscribe — supprime un abonnement par endpoint */
 async function handleUnsubscribe(request, env) {
     try {
         const { endpoint } = await request.json();
@@ -951,17 +856,13 @@ async function handleUnsubscribe(request, env) {
         const supabaseUrl = env.SUPABASE_URL;
         const supabaseKey = env.SUPABASE_SERVICE_KEY || env.SUPABASE_ANON_KEY;
 
-        const encoded = encodeURIComponent(endpoint);
-        await fetch(`${supabaseUrl}/rest/v1/push_subscriptions?endpoint=eq.${encoded}`, {
+        await fetch(`${supabaseUrl}/rest/v1/push_subscriptions?endpoint=eq.${encodeURIComponent(endpoint)}`, {
             method: 'DELETE',
-            headers: {
-                'apikey':        supabaseKey,
-                'Authorization': `Bearer ${supabaseKey}`,
-            },
+            headers: { 'apikey': supabaseKey, 'Authorization': `Bearer ${supabaseKey}` },
         });
 
         return new Response(JSON.stringify({ ok: true }), {
-            headers: { 'Content-Type': 'application/json' }
+            headers: { 'Content-Type': 'application/json' },
         });
 
     } catch (e) {
@@ -969,13 +870,6 @@ async function handleUnsubscribe(request, env) {
     }
 }
 
-
-/**
- * POST /api/push — envoie une notification push à tous les
- * appareils abonnés pour ce restaurant.
- *
- * Body : { restaurantId, payload: { title, body, url, tag } }
- */
 async function handlePush(request, env) {
     try {
         const { restaurantId, payload } = await request.json();
@@ -988,98 +882,66 @@ async function handlePush(request, env) {
         const supabaseUrl = env.SUPABASE_URL;
         const supabaseKey = env.SUPABASE_SERVICE_KEY || env.SUPABASE_ANON_KEY;
 
-        /* ── Charger les abonnements pour ce restaurant ── */
         const subsRes = await fetch(
             `${supabaseUrl}/rest/v1/push_subscriptions?restaurant_id=eq.${encodeURIComponent(restaurantId)}`,
-            {
-                headers: {
-                    'apikey':        supabaseKey,
-                    'Authorization': `Bearer ${supabaseKey}`,
-                },
-            }
+            { headers: { 'apikey': supabaseKey, 'Authorization': `Bearer ${supabaseKey}` } }
         );
-
         if (!subsRes.ok) return jsonError('Erreur lecture abonnements.', 500);
 
         const subscriptions = await subsRes.json();
         if (!subscriptions?.length) {
             return new Response(JSON.stringify({ ok: true, sent: 0, message: 'Aucun abonné.' }), {
-                headers: { 'Content-Type': 'application/json' }
+                headers: { 'Content-Type': 'application/json' },
             });
         }
 
-        const payloadJson = JSON.stringify(payload);
+        const payloadJson      = JSON.stringify(payload);
         const expiredEndpoints = [];
-        let   sent = 0;
+        let sent = 0;
 
-        /* ── Envoyer à chaque abonnement ── */
-        await Promise.allSettled(
-            subscriptions.map(async (sub) => {
-                try {
-                    /* Chiffrer le payload */
-                    const encryptedBody = await encryptWebPush(
-                        { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
-                        payloadJson
-                    );
+        await Promise.allSettled(subscriptions.map(async (sub) => {
+            try {
+                const encryptedBody = await encryptWebPush(
+                    { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
+                    payloadJson
+                );
+                const vapidJWT = await createVapidJWT(sub.endpoint, env.VAPID_SUBJECT, env.VAPID_PRIVATE_JWK);
 
-                    /* Créer le JWT VAPID pour cet endpoint */
-                    const vapidJWT = await createVapidJWT(
-                        sub.endpoint,
-                        env.VAPID_SUBJECT,
-                        env.VAPID_PRIVATE_JWK
-                    );
+                const pushRes = await fetch(sub.endpoint, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type':     'application/octet-stream',
+                        'Content-Encoding': 'aes128gcm',
+                        'Authorization':    `vapid t=${vapidJWT},k=${env.VAPID_PUBLIC_KEY}`,
+                        'TTL':              '60',
+                        'Urgency':          'high',
+                    },
+                    body: encryptedBody,
+                });
 
-                    /* Envoyer la requête au push service */
-                    const pushRes = await fetch(sub.endpoint, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type':     'application/octet-stream',
-                            'Content-Encoding': 'aes128gcm',
-                            'Authorization':    `vapid t=${vapidJWT},k=${env.VAPID_PUBLIC_KEY}`,
-                            'TTL':              '60',
-                            'Urgency':          'high',
-                        },
-                        body: encryptedBody,
-                    });
-
-                    if (pushRes.status === 201 || pushRes.status === 200) {
-                        sent++;
-                    } else if (pushRes.status === 404 || pushRes.status === 410) {
-                        /* Abonnement expiré ou révoqué — à nettoyer */
-                        expiredEndpoints.push(sub.endpoint);
-                    } else {
-                        const errText = await pushRes.text();
-                        console.error(`Push failed ${pushRes.status}:`, errText);
-                    }
-                } catch (e) {
-                    console.error('Push send error:', e);
+                if (pushRes.status === 200 || pushRes.status === 201) {
+                    sent++;
+                } else if (pushRes.status === 404 || pushRes.status === 410) {
+                    expiredEndpoints.push(sub.endpoint);
+                } else {
+                    console.error(`Push failed ${pushRes.status}:`, await pushRes.text());
                 }
-            })
-        );
+            } catch (e) {
+                console.error('Push send error:', e);
+            }
+        }));
 
-        /* ── Nettoyer les abonnements expirés ── */
         if (expiredEndpoints.length > 0) {
-            await Promise.allSettled(
-                expiredEndpoints.map(ep =>
-                    fetch(
-                        `${supabaseUrl}/rest/v1/push_subscriptions?endpoint=eq.${encodeURIComponent(ep)}`,
-                        {
-                            method: 'DELETE',
-                            headers: {
-                                'apikey':        supabaseKey,
-                                'Authorization': `Bearer ${supabaseKey}`,
-                            },
-                        }
-                    )
-                )
-            );
+            await Promise.allSettled(expiredEndpoints.map(ep =>
+                fetch(`${supabaseUrl}/rest/v1/push_subscriptions?endpoint=eq.${encodeURIComponent(ep)}`, {
+                    method: 'DELETE',
+                    headers: { 'apikey': supabaseKey, 'Authorization': `Bearer ${supabaseKey}` },
+                })
+            ));
         }
 
         return new Response(JSON.stringify({
-            ok:       true,
-            sent,
-            total:    subscriptions.length,
-            expired:  expiredEndpoints.length,
+            ok: true, sent, total: subscriptions.length, expired: expiredEndpoints.length,
         }), { headers: { 'Content-Type': 'application/json' } });
 
     } catch (e) {
@@ -1087,18 +949,9 @@ async function handlePush(request, env) {
     }
 }
 
-
-/* ── Helper réponse erreur JSON ── */
 function jsonError(message, status = 400) {
     return new Response(JSON.stringify({ error: message }), {
         status,
-        headers: { 'Content-Type': 'application/json' }
+        headers: { 'Content-Type': 'application/json' },
     });
 }
-
-
-/* ══════════════════════════════════════════════════════════════
-   EXPORT (si votre Worker utilise des modules ES)
-   Sinon, copier les fonctions directement dans le Worker global.
-══════════════════════════════════════════════════════════════ */
-// export { handleVapidPublicKey, handleSubscribe, handleUnsubscribe, handlePush };
