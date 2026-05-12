@@ -601,38 +601,30 @@ function takeSelfie(dishName, dishImageUrl) {
   canvas.width = 800; canvas.height = 600;
   const ctx = canvas.getContext('2d');
 
-  // Fond et cadre
   ctx.fillStyle = '#0a0a0a';
   ctx.fillRect(0, 0, 800, 600);
   ctx.strokeStyle = '#c5a059';
   ctx.lineWidth = 8;
   ctx.strokeRect(20, 20, 760, 560);
-
-  // Texte en-tête
   ctx.fillStyle = '#c5a059';
   ctx.font = 'bold 28px serif';
   ctx.textAlign = 'center';
   ctx.fillText('🍽️ ' + dishName, 400, 90);
   ctx.fillText(resto?.name || '', 400, 135);
 
-  // ─── Fonction finale : dessine le QR et télécharge ───────────────
   function ajouterQRCode() {
     const qrDiv = document.createElement('div');
     qrDiv.style.position = 'absolute';
     qrDiv.style.left = '-9999px';
     document.body.appendChild(qrDiv);
-
     new QRCode(qrDiv, {
       text: `${location.origin}/view.html?id=${encodeURIComponent(resto?.slug || '')}`,
       width: 100, height: 100,
       colorDark: '#000', colorLight: '#fff'
     });
-
-    // Attendre le vrai chargement du QR (fix mobile)
     setTimeout(() => {
       const qrCanvas = qrDiv.querySelector('canvas');
       const qrImgEl  = qrDiv.querySelector('img');
-
       const finaliser = (el) => {
         if (el) ctx.drawImage(el, 350, 460, 100, 100);
         document.body.removeChild(qrDiv);
@@ -644,7 +636,6 @@ function takeSelfie(dishName, dishImageUrl) {
         a.href = canvas.toDataURL('image/png');
         a.click();
       };
-
       if (qrCanvas) {
         finaliser(qrCanvas);
       } else if (qrImgEl) {
@@ -660,7 +651,6 @@ function takeSelfie(dishName, dishImageUrl) {
     }, 400);
   }
 
-  // ─── Fallback si pas d'image du plat ─────────────────────────────
   function dessinerFallback() {
     ctx.fillStyle = '#1a1a1a';
     ctx.fillRect(60, 170, 680, 280);
@@ -677,55 +667,40 @@ function takeSelfie(dishName, dishImageUrl) {
     ajouterQRCode();
   }
 
-  // ─── Chargement de la photo du plat ──────────────────────────────
-  if (dishImageUrl && dishImageUrl.startsWith('http')) {
-
-    // Tentative 1 : avec crossOrigin (nécessaire pour toDataURL propre)
-    const img1 = new Image();
-    img1.crossOrigin = 'anonymous';
-
-    img1.onload = function () {
+  function dessinerImage(blob) {
+    const blobUrl = URL.createObjectURL(blob);
+    const img = new Image();
+    img.onload = function () {
       ctx.fillStyle = '#1a1a1a';
       ctx.fillRect(60, 170, 680, 280);
       const maxW = 680, maxH = 280;
-      let w = img1.width, h = img1.height;
+      let w = img.width, h = img.height;
       const ratio = Math.min(maxW / w, maxH / h);
       w = Math.round(w * ratio);
       h = Math.round(h * ratio);
       const x = 60 + (680 - w) / 2;
       const y = 170 + (280 - h) / 2;
-      ctx.drawImage(img1, x, y, w, h);
+      ctx.drawImage(img, x, y, w, h);
+      URL.revokeObjectURL(blobUrl);
       ajouterQRCode();
     };
-
-    img1.onerror = function () {
-      // Tentative 2 : sans crossOrigin (pas de CORS, canvas tainted mais ça marche sur mobile)
-      const img2 = new Image();
-      img2.onload = function () {
-        ctx.fillStyle = '#1a1a1a';
-        ctx.fillRect(60, 170, 680, 280);
-        const maxW = 680, maxH = 280;
-        let w = img2.width, h = img2.height;
-        const ratio = Math.min(maxW / w, maxH / h);
-        w = Math.round(w * ratio);
-        h = Math.round(h * ratio);
-        const x = 60 + (680 - w) / 2;
-        const y = 170 + (280 - h) / 2;
-        try {
-          ctx.drawImage(img2, x, y, w, h);
-        } catch (e) {
-          // Canvas tainted sur iOS strict → on dessine le fallback texte
-          dessinerFallback();
-          return;
-        }
-        ajouterQRCode();
-      };
-      img2.onerror = function () { dessinerFallback(); };
-      img2.src = sanitizeURL(dishImageUrl);
+    img.onerror = function () {
+      URL.revokeObjectURL(blobUrl);
+      dessinerFallback();
     };
+    img.src = blobUrl;
+  }
 
-    img1.src = sanitizeURL(dishImageUrl);
-
+  if (dishImageUrl && dishImageUrl.startsWith('http')) {
+    // fetch() contourne le CORS canvas : l'image est chargée côté JS
+    // puis convertie en blob local → pas de "tainted canvas"
+    fetch(dishImageUrl)
+      .then(r => {
+        if (!r.ok) throw new Error('fetch image failed');
+        return r.blob();
+      })
+      .then(blob => dessinerImage(blob))
+      .catch(() => dessinerFallback());
   } else {
     dessinerFallback();
   }
