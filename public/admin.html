@@ -688,6 +688,7 @@ async function initSupabase(){
         auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:false},
         global:{fetch:noCacheFetch}
     });
+    window.db=db;
 }
 
 function toast(msg,type='info',d=4000){
@@ -788,6 +789,7 @@ async function initApp(user){
     const{data:profile,error}=await db.from('profiles').select('*, restaurants(*)').eq('id',user.id).single();
     if(error||!profile?.restaurant_id){toast('Aucun restaurant lié.','error');return}
     currentProfile=profile;currentRestaurant=profile.restaurants;
+	window.currentRestaurant=currentRestaurant;window.db=db;
 	window.dispatchEvent(new CustomEvent('admin:ready',{detail:{restaurantId:profile.restaurant_id}}));
     document.getElementById('sidebar-resto-name').textContent=currentRestaurant.name;
     document.getElementById('sidebar-slug').textContent=`@${currentRestaurant.slug}`;
