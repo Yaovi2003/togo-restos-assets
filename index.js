@@ -111,13 +111,21 @@ export default {
             const ALLOWED_DOMAINS = [
                 'raw.githubusercontent.com',
                 'user-images.githubusercontent.com',
+                'objects.githubusercontent.com',
             ];
             if (!ALLOWED_DOMAINS.some(d => parsed.hostname === d || parsed.hostname.endsWith('.' + d))) {
                 return new Response('Domain not allowed', { status: 403 });
             }
 
-            const resp = await fetch(imageUrl, { cf: { cacheTtl: 86400 } });
-            if (!resp.ok) return new Response('Fetch failed', { status: 502 });
+            // User-Agent requis par GitHub sinon 403
+            const resp = await fetch(imageUrl, {
+                headers: { 'User-Agent': 'Cloudflare-Worker/1.0' },
+                cf: { cacheTtl: 86400 },
+            });
+            if (!resp.ok) {
+                console.error('proxy-image: GitHub ' + resp.status + ' pour ' + imageUrl);
+                return new Response('Fetch failed: ' + resp.status, { status: 502 });
+            }
 
             const blob = await resp.arrayBuffer();
             const contentType = resp.headers.get('content-type') || 'image/jpeg';

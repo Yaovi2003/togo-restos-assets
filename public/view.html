@@ -692,11 +692,13 @@ function takeSelfie(dishName, dishImageUrl) {
   }
 
   if (dishImageUrl && dishImageUrl.startsWith('http')) {
-    // fetch() contourne le CORS canvas : l'image est chargée côté JS
-    // puis convertie en blob local → pas de "tainted canvas"
-    fetch(dishImageUrl)
+    // Passe par le proxy Worker pour contourner le CORS des CDN externes
+    // (GitHub raw, etc.) → le Worker récupère l'image côté serveur et la
+    // retourne avec Access-Control-Allow-Origin:* → canvas propre, exportable
+    const proxyUrl = `${location.origin}/api/proxy-image?url=${encodeURIComponent(dishImageUrl)}`;
+    fetch(proxyUrl)
       .then(r => {
-        if (!r.ok) throw new Error('fetch image failed');
+        if (!r.ok) throw new Error('proxy image failed');
         return r.blob();
       })
       .then(blob => dessinerImage(blob))
