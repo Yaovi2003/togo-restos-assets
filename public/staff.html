@@ -931,7 +931,7 @@ async function confirmPayment() {
 
     try {
         const { error } = await db.from('orders').update({
-            status:       'paid',
+            status:       'livré',        // ← CHANGÉ : 'paid' → 'livré'
             paid_at:      new Date().toISOString(),
             paid_by:      staffMember.badge_number,
             change_given: change,
