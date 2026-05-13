@@ -805,23 +805,39 @@ async function submitOrder() {
     const total = items.reduce((s, i) => s + i.price * i.quantity, 0);
 
     try {
-        const { error } = await db.from('orders').insert({
+        // 1. Créer la commande sans le champ 'items'
+        const { data: order, error: orderError } = await db.from('orders').insert({
             restaurant_id: restaurant.id,
             table_number: tableNum,
             customer_name: client || `Table ${tableNum}`,
-            items: JSON.stringify(items),
-            total_price: total,
+            subtotal: total,
+            total: total,
             notes: notes || null,
             delivery_type: 'sur_place',
             delivery_fee: 0,
             status: 'pending',
             served_by: staffMember.badge_number,
-        });
-        if (error) throw error;
+        }).select().single();
+
+        if (orderError) throw orderError;
+
+        // 2. Insérer les items dans order_items
+        const orderItems = items.map(item => ({
+            order_id: order.id,
+            item_name: item.name,
+            item_price: item.price,
+            quantity: item.quantity
+        }));
+
+        const { error: itemsError } = await db.from('order_items').insert(orderItems);
+        if (itemsError) throw itemsError;
+
         toast('✅ Commande envoyée en cuisine !', 'success');
         closeModal('modal-order');
         loadServerView();
-    } catch (e) { toast('Erreur : ' + e.message, 'error'); }
+    } catch (e) { 
+        toast('Erreur : ' + e.message, 'error'); 
+    }
 }
 
 /* ══════════════════════════════════════════
