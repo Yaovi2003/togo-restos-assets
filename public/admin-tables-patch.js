@@ -9,6 +9,9 @@
  *  • Copie de l'URL par table
  *  • Bouton "Imprimer tous les QR codes" → page A4 prête à imprimer
  *  • Séparation claire QR Table vs QR général (pour la livraison)
+ *  • [N2] Notifications temps réel — toast + son + badge nav à chaque commande table
+ *  • [N3] Panneau KDS "🍳 Service" — commandes sur place en cours, groupées par table,
+ *         bouton "Servi ✅" pour marquer comme servi
  *
  * INTÉGRATION dans admin.html — avant </body> :
  *    <script src="admin-tables-patch.js"></script>
@@ -147,37 +150,140 @@
     font-size: .75rem; color: rgba(255,255,255,.35);
     margin-top: 10px; text-align: center; line-height: 1.6;
 }
+
+/* ══ [N2] Badge de notification sur le bouton nav ══ */
+.tbl-notif-badge {
+    background: #e74c3c; color: #fff; border-radius: 50%;
+    width: 18px; height: 18px; font-size: .65rem; font-weight: 700;
+    display: inline-flex; align-items: center; justify-content: center;
+    margin-left: auto; flex-shrink: 0;
+    animation: tblBadgePop .25s cubic-bezier(.34,1.56,.64,1);
+}
+@keyframes tblBadgePop {
+    from { transform: scale(0); }
+    to   { transform: scale(1); }
+}
+
+/* ══ [N3] KDS — panneau Service ══ */
+#panel-kds .kds-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 16px;
+}
+.kds-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius-lg); overflow: hidden;
+    display: flex; flex-direction: column;
+    transition: border-color .15s;
+}
+.kds-card.kds-urgent { border-color: rgba(231,76,60,.5); }
+.kds-card-head {
+    padding: 14px 16px 10px;
+    display: flex; align-items: center; justify-content: space-between;
+    border-bottom: 1px solid var(--border);
+}
+.kds-table-name {
+    font-family: 'Syne', sans-serif; font-size: 1rem; font-weight: 800;
+    color: var(--gold, #c5a059);
+}
+.kds-time {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: .72rem; color: rgba(255,255,255,.35);
+}
+.kds-time.kds-late { color: #e74c3c; font-weight: 700; }
+.kds-items {
+    padding: 12px 16px; flex: 1;
+    display: flex; flex-direction: column; gap: 6px;
+}
+.kds-item {
+    display: flex; align-items: baseline; justify-content: space-between;
+    font-size: .85rem;
+}
+.kds-item-name { font-weight: 500; }
+.kds-item-qty {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: .75rem; color: var(--gold, #c5a059);
+    background: rgba(197,160,89,.1); border-radius: 4px;
+    padding: 1px 7px; flex-shrink: 0; margin-left: 8px;
+}
+.kds-client {
+    padding: 0 16px 10px;
+    font-size: .75rem; color: rgba(255,255,255,.4);
+}
+.kds-footer {
+    padding: 10px 16px 14px;
+    display: flex; gap: 8px;
+    border-top: 1px solid var(--border);
+}
+.kds-served-btn {
+    flex: 1; padding: 9px; border-radius: 8px;
+    background: rgba(46,204,113,.1); border: 1px solid rgba(46,204,113,.25);
+    color: #2ecc71; font-size: .82rem; font-weight: 700;
+    cursor: pointer; font-family: inherit; transition: all .15s;
+}
+.kds-served-btn:hover { background: rgba(46,204,113,.2); }
+.kds-empty {
+    text-align: center; padding: 60px 20px;
+    color: rgba(255,255,255,.25); font-size: .9rem; line-height: 1.8;
+}
+.kds-empty-icon { font-size: 2.5rem; display: block; margin-bottom: 12px; }
 `;
     document.head.appendChild(s);
 })();
 
 
 /* ══════════════════════════════════════════════════════════════════
-   INJECTION NAV + PANEL
+   INJECTION NAV + PANELS (Tables & KDS)
 ══════════════════════════════════════════════════════════════════ */
 (function injectNavAndPanel() {
+
+    /* ── Bouton nav "Tables" ── */
     const nav = document.querySelector('.sidebar-nav');
     if (nav && !nav.querySelector('[data-panel="tables"]')) {
         const btn = document.createElement('button');
-        btn.className    = 'nav-item';
+        btn.className     = 'nav-item';
         btn.dataset.panel = 'tables';
-        btn.innerHTML    = '<span class="nav-icon">🪑</span> Tables';
-        const ordersBtn  = nav.querySelector('[data-panel="caisse"]') ||
-                           nav.querySelector('[data-panel="orders-admin"]');
+        btn.innerHTML     = '<span class="nav-icon">🪑</span> Tables';
+        const ordersBtn   = nav.querySelector('[data-panel="caisse"]') ||
+                            nav.querySelector('[data-panel="orders-admin"]');
         ordersBtn
             ? ordersBtn.insertAdjacentElement('afterend', btn)
             : nav.appendChild(btn);
-		btn.addEventListener('click', () => {
-			if (window.innerWidth <= 768) {
-				const overlay = document.getElementById('sidebar-overlay');
-				if (overlay) overlay.classList.remove('visible');
-				document.querySelector('.sidebar')?.classList.remove('mobile-open');
-				document.body.style.overflow = '';
-		   }
-		   if (typeof showPanel === 'function') showPanel('tables');
-		});   
+
+        btn.addEventListener('click', () => {
+            if (window.innerWidth <= 768) {
+                const overlay = document.getElementById('sidebar-overlay');
+                if (overlay) overlay.classList.remove('visible');
+                document.querySelector('.sidebar')?.classList.remove('mobile-open');
+                document.body.style.overflow = '';
+            }
+            if (typeof showPanel === 'function') showPanel('tables');
+        });
     }
 
+    /* ── Bouton nav "Service / KDS" ── */
+    if (nav && !nav.querySelector('[data-panel="kds"]')) {
+        const kdsBtn = document.createElement('button');
+        kdsBtn.className     = 'nav-item';
+        kdsBtn.dataset.panel = 'kds';
+        kdsBtn.innerHTML     = '<span class="nav-icon">🍳</span> Service';
+        const tablesBtn = nav.querySelector('[data-panel="tables"]');
+        tablesBtn
+            ? tablesBtn.insertAdjacentElement('afterend', kdsBtn)
+            : nav.appendChild(kdsBtn);
+
+        kdsBtn.addEventListener('click', () => {
+            if (window.innerWidth <= 768) {
+                const overlay = document.getElementById('sidebar-overlay');
+                if (overlay) overlay.classList.remove('visible');
+                document.querySelector('.sidebar')?.classList.remove('mobile-open');
+                document.body.style.overflow = '';
+            }
+            if (typeof showPanel === 'function') showPanel('kds');
+        });
+    }
+
+    /* ── Panel "Tables" ── */
     const main = document.querySelector('.main-content');
     if (main && !document.getElementById('panel-tables')) {
         const panel = document.createElement('div');
@@ -246,10 +352,35 @@
         main.appendChild(panel);
     }
 
+    /* ── Panel "KDS / Service" ── */
+    if (main && !document.getElementById('panel-kds')) {
+        const kdsPanel = document.createElement('div');
+        kdsPanel.id        = 'panel-kds';
+        kdsPanel.className = 'panel';
+        kdsPanel.style.display = 'none';
+        kdsPanel.innerHTML = `
+        <div class="section-header">
+            <div>
+                <h2 class="section-title">🍳 Service en salle</h2>
+                <p class="section-subtitle">Commandes sur place en attente — mettez à jour au fur et à mesure</p>
+            </div>
+            <button class="btn btn-ghost btn-sm" onclick="loadKDS()">🔄 Rafraîchir</button>
+        </div>
+        <div class="kds-grid" id="kds-grid">
+            <div class="kds-empty">
+                <span class="kds-empty-icon">✅</span>
+                Aucune commande en attente.<br>Tout est servi !
+            </div>
+        </div>`;
+        main.appendChild(kdsPanel);
+    }
+
+    /* ── Patch showPanel pour déclencher les chargements ── */
     const _orig = window.showPanel;
     window.showPanel = function(id) {
-        _orig(id);
+        if (typeof _orig === 'function') _orig(id);
         if (id === 'tables') loadTables();
+        if (id === 'kds')    loadKDS();
     };
 })();
 
@@ -261,7 +392,6 @@ let _qrLibReady = typeof QRCode !== 'undefined';
 
 function _loadQRLib(callback) {
     if (_qrLibReady) { callback(); return; }
-
     const script = document.createElement('script');
     script.src   = 'https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js';
     script.onload  = () => { _qrLibReady = true; callback(); };
@@ -307,7 +437,6 @@ window.loadTables = async function() {
             .order('created_at', { ascending: true });
 
         if (error) {
-            /* La table n'existe pas encore */
             if (error.code === '42P01') {
                 if (grid) grid.innerHTML = `<div class="tbl-empty">
                     <span class="tbl-empty-icon">⚠️</span>
@@ -329,10 +458,10 @@ window.loadTables = async function() {
 
 
 /* ══════════════════════════════════════════════════════════════════
-   RENDU GRILLE
+   RENDU GRILLE TABLES
 ══════════════════════════════════════════════════════════════════ */
 function _renderTables(tables) {
-    const grid     = document.getElementById('tbl-grid');
+    const grid      = document.getElementById('tbl-grid');
     const printNote = document.getElementById('tbl-print-note');
     if (!grid) return;
 
@@ -379,7 +508,6 @@ function _renderTables(tables) {
 
             grid.appendChild(card);
 
-            /* Générer le QR dans le conteneur */
             try {
                 new QRCode(document.getElementById(qrId), {
                     text:         url,
@@ -437,7 +565,7 @@ window.addTable = async function() {
             return;
         }
 
-        numInp.value    = '';
+        numInp.value = '';
         if (capInp) capInp.value = '4';
         if (typeof toast === 'function') toast(`Table "${number}" ajoutée !`, 'success');
         loadTables();
@@ -483,7 +611,6 @@ window.deleteTable = async function(id, label) {
     if (!window.db) return;
 
     try {
-        /* Soft delete — on désactive plutôt que supprimer */
         const { error } = await db
             .from('restaurant_tables')
             .update({ is_active: false })
@@ -532,7 +659,6 @@ window.printAllQR = function() {
 
     const restoName = window.currentRestaurant?.name || 'Restaurant';
 
-    /* Collecter URLs et noms des tables */
     const tableData = [];
     cards.forEach(card => {
         tableData.push({
@@ -541,7 +667,6 @@ window.printAllQR = function() {
         });
     });
 
-    /* Ouvrir une fenêtre d'impression avec QR codes en CSS Grid */
     const w = window.open('', '_blank', 'width=900,height=700');
     w.document.write(`<!DOCTYPE html>
 <html lang="fr">
@@ -611,6 +736,222 @@ tableData.forEach((t, i) => {
 };
 
 
+/* ══════════════════════════════════════════════════════════════════
+   [N2] NOTIFICATIONS TEMPS RÉEL — Realtime Supabase
+   Déclenché dès que admin:ready est émis (après connexion)
+══════════════════════════════════════════════════════════════════ */
+window.addEventListener('admin:ready', ({ detail }) => {
+    if (!window.db) return;
+
+    window.db
+        .channel('kds-new-orders')
+        .on('postgres_changes', {
+            event:  'INSERT',
+            schema: 'public',
+            table:  'orders',
+            filter: `restaurant_id=eq.${detail.restaurantId}`,
+        }, (payload) => {
+            const order = payload.new;
+            if (!order.table_number) return; /* ignorer les livraisons */
+
+            /* Toast persistant 8 secondes */
+            const client = order.customer_name ? ` · ${order.customer_name}` : '';
+            if (typeof toast === 'function') {
+                toast(`🪑 Nouvelle commande — Table ${order.table_number}${client}`, 'warning', 8000);
+            }
+
+            /* Son d'alerte (double bip) */
+            _playAlert();
+
+            /* Badge rouge sur le bouton nav "Tables" */
+            _badgeNav('[data-panel="tables"]');
+
+            /* Badge rouge sur le bouton nav "Service" */
+            _badgeNav('[data-panel="kds"]');
+
+            /* Rafraîchir le KDS si le panneau est ouvert */
+            if (document.getElementById('panel-kds')?.style.display !== 'none') {
+                loadKDS();
+            }
+        })
+        .subscribe();
+});
+
+/* ── Son d'alerte double bip ── */
+function _playAlert() {
+    try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        [0, 0.25].forEach(delay => {
+            const o = ctx.createOscillator();
+            const g = ctx.createGain();
+            o.connect(g);
+            g.connect(ctx.destination);
+            o.frequency.value = 880;
+            o.type = 'sine';
+            g.gain.setValueAtTime(0, ctx.currentTime + delay);
+            g.gain.linearRampToValueAtTime(0.35, ctx.currentTime + delay + 0.02);
+            g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + delay + 0.35);
+            o.start(ctx.currentTime + delay);
+            o.stop(ctx.currentTime + delay + 0.4);
+        });
+    } catch (_) {}
+}
+
+/* ── Badge numérique sur un bouton nav ── */
+function _badgeNav(selector) {
+    const btn = document.querySelector(selector);
+    if (!btn) return;
+
+    /* S'assurer que le bouton est en flex pour aligner le badge */
+    btn.style.display = 'flex';
+
+    let badge = btn.querySelector('.tbl-notif-badge');
+    if (!badge) {
+        badge = document.createElement('span');
+        badge.className = 'tbl-notif-badge';
+        btn.appendChild(badge);
+    }
+
+    const count = (parseInt(badge.dataset.count || '0', 10)) + 1;
+    badge.dataset.count  = count;
+    badge.textContent    = count;
+
+    /* Effacer quand on ouvre le panneau correspondant */
+    btn.addEventListener('click', () => badge.remove(), { once: true });
+}
+
+
+/* ══════════════════════════════════════════════════════════════════
+   [N3] KDS — Charger et afficher les commandes sur place en attente
+══════════════════════════════════════════════════════════════════ */
+window.loadKDS = async function() {
+    const grid = document.getElementById('kds-grid');
+    if (!grid || !window.db || !window.currentRestaurant) return;
+
+    grid.innerHTML = `<div class="kds-empty"><span class="kds-empty-icon">⏳</span>Chargement…</div>`;
+
+    try {
+        /* Récupérer les commandes sur place non encore servies
+           Statuts considérés "en attente" : pending, confirmed, preparing
+           (on exclut delivered / cancelled) */
+        const { data: orders, error } = await window.db
+            .from('orders')
+            .select('id, table_number, customer_name, items, total_price, status, created_at')
+            .eq('restaurant_id', window.currentRestaurant.id)
+            .not('table_number', 'is', null)
+            .in('status', ['pending', 'confirmed', 'preparing'])
+            .order('created_at', { ascending: true });
+
+        if (error) throw error;
+
+        if (!orders || !orders.length) {
+            grid.innerHTML = `<div class="kds-empty">
+                <span class="kds-empty-icon">✅</span>
+                Aucune commande en attente.<br>Tout est servi !
+            </div>`;
+            return;
+        }
+
+        grid.innerHTML = '';
+        orders.forEach(order => _renderKDSCard(grid, order));
+
+    } catch (e) {
+        grid.innerHTML = `<div class="kds-empty" style="color:var(--danger,#e74c3c);">
+            Erreur : ${_esc(e.message)}
+        </div>`;
+    }
+};
+
+/* ── Rendre une carte de commande KDS ── */
+function _renderKDSCard(grid, order) {
+    const card = document.createElement('div');
+    card.className  = 'kds-card';
+    card.dataset.id = order.id;
+
+    /* Calcul du temps d'attente */
+    const waitMin = Math.floor((Date.now() - new Date(order.created_at).getTime()) / 60000);
+    const isLate  = waitMin >= 15;
+    card.classList.toggle('kds-urgent', isLate);
+
+    /* Parser les items (JSON string ou tableau) */
+    let items = [];
+    try {
+        items = typeof order.items === 'string' ? JSON.parse(order.items) : (order.items || []);
+    } catch (_) {}
+
+    const itemsHTML = items.map(item => `
+        <div class="kds-item">
+            <span class="kds-item-name">${_esc(item.name || item.dish_name || '—')}</span>
+            <span class="kds-item-qty">×${item.quantity || item.qty || 1}</span>
+        </div>`).join('');
+
+    const timeLabel = waitMin < 1 ? 'À l\'instant'
+                    : waitMin === 1 ? 'Il y a 1 min'
+                    : `Il y a ${waitMin} min`;
+
+    card.innerHTML = `
+        <div class="kds-card-head">
+            <span class="kds-table-name">🪑 Table ${_esc(order.table_number)}</span>
+            <span class="kds-time${isLate ? ' kds-late' : ''}" title="${new Date(order.created_at).toLocaleTimeString('fr-FR')}">
+                ${isLate ? '⚠️ ' : ''}${timeLabel}
+            </span>
+        </div>
+        <div class="kds-items">
+            ${itemsHTML || '<div style="color:rgba(255,255,255,.3);font-size:.8rem;">Détail indisponible</div>'}
+        </div>
+        ${order.customer_name ? `<div class="kds-client">👤 ${_esc(order.customer_name)}</div>` : ''}
+        <div class="kds-footer">
+            <button class="kds-served-btn" onclick="markServed('${order.id}', this)">
+                ✅ Servi
+            </button>
+        </div>`;
+
+    grid.appendChild(card);
+}
+
+/* ── Marquer une commande comme servie ── */
+window.markServed = async function(orderId, btn) {
+    if (!window.db) return;
+    btn.disabled    = true;
+    btn.textContent = '⏳ Mise à jour…';
+
+    try {
+        const { error } = await window.db
+            .from('orders')
+            .update({ status: 'delivered' })
+            .eq('id', orderId);
+
+        if (error) throw error;
+
+        /* Retirer la carte avec animation */
+        const card = btn.closest('.kds-card');
+        if (card) {
+            card.style.transition = 'opacity .3s, transform .3s';
+            card.style.opacity    = '0';
+            card.style.transform  = 'scale(.95)';
+            setTimeout(() => {
+                card.remove();
+                /* Si plus aucune carte → afficher le message "tout servi" */
+                const grid = document.getElementById('kds-grid');
+                if (grid && !grid.querySelector('.kds-card')) {
+                    grid.innerHTML = `<div class="kds-empty">
+                        <span class="kds-empty-icon">✅</span>
+                        Aucune commande en attente.<br>Tout est servi !
+                    </div>`;
+                }
+            }, 300);
+        }
+
+        if (typeof toast === 'function') toast('Commande marquée comme servie.', 'success');
+
+    } catch (e) {
+        btn.disabled    = false;
+        btn.textContent = '✅ Servi';
+        if (typeof toast === 'function') toast('Erreur : ' + e.message, 'error');
+    }
+};
+
+
 /* ── Helpers ── */
 function _esc(str) {
     const d = document.createElement('div');
@@ -618,4 +959,4 @@ function _esc(str) {
     return d.innerHTML;
 }
 
-console.log('✅ admin-tables-patch.js chargé — panneau Tables + QR par table');
+console.log('✅ admin-tables-patch.js chargé — Tables + QR + Notifications temps réel [N2] + KDS Service [N3]');
