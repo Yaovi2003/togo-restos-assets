@@ -525,7 +525,7 @@ window.assignOrder = async function(orderId, personId, personName, personPhone) 
         /* Mettre à jour la commande */
         const { error } = await db
             .from('orders')
-            .update({ delivery_person_id: personId, status: 'en_préparation' })
+            .update({ delivery_person_id: personId, status: 'préparé' })
             .eq('id', orderId);
         if (error) throw error;
 
