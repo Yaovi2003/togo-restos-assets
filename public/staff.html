@@ -146,6 +146,32 @@ select.field-input{appearance:none;}
 .kds-done-btn:hover{background:rgba(46,204,113,.22);}
 .empty-state{text-align:center;padding:50px 20px;color:rgba(255,255,255,.25);font-size:.9rem;line-height:1.9;}
 .empty-state .icon{font-size:2.4rem;display:block;margin-bottom:12px;}
+/* SERVER TABS */
+.srv-tab-bar {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 16px;
+    border-bottom: 1px solid var(--border);
+}
+.srv-tab {
+    padding: 8px 20px;
+    border-radius: var(--radius) var(--radius) 0 0;
+    font-size: .8rem;
+    font-weight: 600;
+    background: transparent;
+    color: var(--text-dim);
+    cursor: pointer;
+    transition: all .15s;
+    border: none;
+}
+.srv-tab.active {
+    background: var(--surface);
+    color: var(--gold);
+    border-bottom: 2px solid var(--gold);
+}
+.srv-tab:hover {
+    color: var(--text);
+}
     </style>
 </head>
 <body>
@@ -204,7 +230,15 @@ select.field-input{appearance:none;}
 <div class="container">
 
     <!-- VUE SERVEUR -->
-    <div id="view-server" style="display:none;">
+<div id="view-server" style="display:none;">
+    <!-- Barre d'onglets -->
+    <div class="srv-tab-bar">
+        <button class="srv-tab active" onclick="showServerTab('tables')">🪑 Mes tables</button>
+        <button class="srv-tab" onclick="showServerTab('service')">🍳 À servir</button>
+    </div>
+    
+    <!-- Onglet : Mes tables -->
+    <div id="server-tables-view">
         <div style="display:flex;align-items:center;justify-content:space-between;padding-top:8px;margin-bottom:4px;">
             <h2 style="font-family:'Syne',sans-serif;font-size:1.15rem;font-weight:800;">🪑 Mes tables</h2>
             <button class="btn btn-primary btn-sm" onclick="openNewOrder(null)">+ Manuel</button>
@@ -218,6 +252,15 @@ select.field-input{appearance:none;}
             <div class="empty-state"><span class="icon">✅</span>Aucune commande active.</div>
         </div>
     </div>
+    
+    <!-- Onglet : À servir (plats prêts) -->
+    <div id="server-service-view" style="display:none;">
+        <h2 style="font-family:'Syne',sans-serif;font-size:1.15rem;font-weight:800;padding-top:8px;margin-bottom:14px;">🍳 Plats prêts à servir</h2>
+        <div id="srv-ready-list">
+            <div class="empty-state"><span class="icon">⏳</span>Chargement…</div>
+        </div>
+    </div>
+</div>
 
     <!-- VUE CAISSIER -->
     <div id="view-cashier" style="display:none;">
@@ -593,10 +636,106 @@ function _playBip() {
    VUE SERVEUR
 ══════════════════════════════════════════ */
 async function loadServerView() {
-    await Promise.all([_loadTables(), _loadOrders(['pending','confirmed','preparing'])]);
+    await Promise.all([_loadTables(), _loadOrders(['confirmé', 'préparé'])]);
     _renderServerTables();
     _renderServerOrders();
     if (!allMenuItems.length) await _loadMenu();
+    
+    // Rafraîchir l'onglet "À servir" si actif
+    if (document.getElementById('server-service-view')?.style.display !== 'none') {
+        loadReadyToServe();
+    }
+}
+
+/* ── Onglets serveur ── */
+function showServerTab(tab) {
+    const tablesView = document.getElementById('server-tables-view');
+    const serviceView = document.getElementById('server-service-view');
+    const tabs = document.querySelectorAll('.srv-tab');
+    
+    tabs.forEach(t => t.classList.remove('active'));
+    if (tab === 'tables') {
+        tablesView.style.display = 'block';
+        serviceView.style.display = 'none';
+        tabs[0].classList.add('active');
+        loadServerView();
+    } else {
+        tablesView.style.display = 'none';
+        serviceView.style.display = 'block';
+        tabs[1].classList.add('active');
+        loadReadyToServe();
+    }
+}
+
+/* ── Charger les plats prêts à servir (status = 'prêt') ── */
+async function loadReadyToServe() {
+    const list = document.getElementById('srv-ready-list');
+    if (!list) return;
+    
+    try {
+        const { data: orders } = await db
+            .from('orders')
+            .select('*')
+            .eq('restaurant_id', restaurant.id)
+            .eq('status', 'prêt')
+            .not('table_number', 'is', null)
+            .order('created_at', { ascending: true });
+        
+        if (!orders || !orders.length) {
+            list.innerHTML = '<div class="empty-state"><span class="icon">🍽️</span>Aucun plat prêt à servir.</div>';
+            return;
+        }
+        
+        list.innerHTML = '';
+        orders.forEach(order => {
+            const items = _parseItems(order.items);
+            const waitMin = Math.floor((Date.now() - new Date(order.created_at)) / 60000);
+            const card = document.createElement('div');
+            card.className = 'srv-order-card';
+            card.style.borderLeft = '3px solid var(--success)';
+            card.innerHTML = `
+                <div class="srv-order-head">
+                    <span class="srv-order-table">🪑 Table ${_esc(order.table_number)}</span>
+                    ${order.customer_name ? `<span style="font-size:.8rem;color:var(--text-dim);">${_esc(order.customer_name)}</span>` : ''}
+                    <span class="srv-order-time">${waitMin < 1 ? "À l'instant" : waitMin + ' min'}</span>
+                </div>
+                ${items.map(it => `<div class="srv-order-item"><span class="srv-order-item-name">${_esc(it.name)}</span><span class="srv-order-item-qty">×${it.quantity||it.qty||1}</span></div>`).join('')}
+                ${order.notes ? `<div class="srv-order-notes">📝 ${_esc(order.notes)}</div>` : ''}
+                <div class="srv-order-footer">
+                    <button class="btn btn-success btn-sm" onclick="markServedFromReady('${order.id}', this)">✅ Servir</button>
+                </div>`;
+            list.appendChild(card);
+        });
+    } catch (e) {
+        list.innerHTML = '<div class="empty-state"><span class="icon">⚠️</span>Erreur de chargement.</div>';
+    }
+}
+
+/* ── Marquer comme servi depuis l'onglet "À servir" ── */
+async function markServedFromReady(orderId, btn) {
+    btn.disabled = true;
+    btn.textContent = '⏳';
+    
+    try {
+        const { error } = await db
+            .from('orders')
+            .update({ status: 'livré', served_by: staffMember.badge_number })
+            .eq('id', orderId);
+        
+        if (error) throw error;
+        
+        toast('✅ Plat servi !', 'success');
+        
+        if (document.getElementById('server-service-view').style.display !== 'none') {
+            loadReadyToServe();
+        }
+        loadServerView();
+        
+    } catch (e) {
+        toast('Erreur : ' + e.message, 'error');
+        btn.disabled = false;
+        btn.textContent = '✅ Servir';
+    }
 }
 
 async function _loadTables() {
