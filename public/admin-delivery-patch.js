@@ -429,28 +429,55 @@ function _injectAssignButtons() {
     const panel = document.getElementById('panel-orders-admin');
     if (!panel) return;
 
-    const rows = panel.querySelectorAll('[data-order-id], .order-row, tr[data-id]');
-    rows.forEach(row => {
-        if (row.querySelector('.btn-assign-delivery')) return;
+    // Attendre que le tableau soit chargé
+    setTimeout(() => {
+        const tbody = document.getElementById('orders-admin-tbody');
+        if (!tbody) return;
+        
+        const rows = tbody.querySelectorAll('tr');
+        rows.forEach(row => {
+            // Éviter les doublons
+            if (row.querySelector('.btn-assign-delivery')) return;
 
-        /* Uniquement pour les commandes en livraison */
-        const typeEl = row.querySelector('[data-type], .delivery-type, .order-type');
-        const type   = (typeEl?.textContent || row.dataset.type || '').toLowerCase();
-        if (!type.includes('livr') && !type.includes('delivery')) return;
+            // Récupérer le type de commande (colonne "Type" - index 3)
+            const typeCell = row.cells[3];
+            const type = typeCell?.textContent?.toLowerCase() || '';
+            
+            // Uniquement pour les commandes en livraison
+            if (!type.includes('livraison') && !type.includes('livr')) return;
 
-        const orderId = row.dataset.orderId || row.dataset.id || row.getAttribute('data-order-id');
-        if (!orderId) return;
+            // Récupérer l'ID de la commande (colonne "N°" - index 0)
+            const idCell = row.cells[0];
+            let orderId = idCell?.textContent?.replace('#', '').trim() || '';
+            
+            // Si pas d'ID dans la cellule, chercher dans dataset
+            if (!orderId) orderId = row.dataset.orderId || row.dataset.id;
+            if (!orderId) return;
 
-        const existing = row.dataset.deliveryPersonId;
+            // Vérifier le statut (colonne "Statut" - index 5)
+            const statusCell = row.cells[5];
+            const status = statusCell?.textContent?.toLowerCase() || '';
+            if (status === 'livré' || status === 'livrée') return;
 
-        const btn = document.createElement('button');
-        btn.className = `btn-assign-delivery${existing ? ' assigned' : ''}`;
-        btn.textContent = existing ? '🛵 Assigné' : '🛵 Assigner';
-        btn.onclick = (e) => { e.stopPropagation(); openDlvDropdown(orderId, row); };
+            // Récupérer le livreur existant
+            const existing = row.dataset.deliveryPersonId;
 
-        const actions = row.querySelector('.order-actions, .row-actions, td:last-child, .actions');
-        actions ? actions.appendChild(btn) : row.appendChild(btn);
-    });
+            const btn = document.createElement('button');
+            btn.className = `btn-assign-delivery${existing ? ' assigned' : ''}`;
+            btn.textContent = existing ? '🛵 Assigné' : '🛵 Assigner';
+            btn.style.marginLeft = '8px';
+            btn.onclick = (e) => { 
+                e.stopPropagation(); 
+                openDlvDropdown(orderId, row); 
+            };
+
+            // Ajouter le bouton dans la dernière colonne (Actions - index 6)
+            const actionsCell = row.cells[6];
+            if (actionsCell) {
+                actionsCell.appendChild(btn);
+            }
+        });
+    }, 500);
 }
 
 function _startAssignObserver() {
