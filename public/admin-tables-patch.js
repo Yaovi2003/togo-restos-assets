@@ -167,6 +167,15 @@
         ordersBtn
             ? ordersBtn.insertAdjacentElement('afterend', btn)
             : nav.appendChild(btn);
+		btn.addEventListener('click', () => {
+			if (window.innerWidth <= 768) {
+				const overlay = document.getElementById('sidebar-overlay');
+				if (overlay) overlay.classList.remove('visible');
+				document.querySelector('.sidebar')?.classList.remove('mobile-open');
+				document.body.style.overflow = '';
+		   }
+		   if (typeof showPanel === 'function') showPanel('tables');
+		});   
     }
 
     const main = document.querySelector('.main-content');
