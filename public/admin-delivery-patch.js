@@ -437,20 +437,16 @@ function _injectAssignButtons() {
         rows.forEach(row => {
             if (row.querySelector('.btn-assign-delivery')) return;
 
-            // Colonne 3 : Type (🛵 = livraison, 🏪 = sur place)
+            // Colonne 3 : Type (🛵 = livraison)
             const typeCell = row.cells[3];
             const typeIcon = typeCell?.textContent?.trim() || '';
-            
-            // Uniquement pour les commandes en livraison
             if (typeIcon !== '🛵') return;
 
-            // Colonne 0 : ID de la commande
-            const idCell = row.cells[0];
-            let orderId = idCell?.textContent?.replace('#', '').trim() || '';
-            if (!orderId) orderId = row.dataset.orderId || row.dataset.id;
+            // Récupérer l'ID complet depuis data-order-id (ajouté dans admin.html)
+            const orderId = row.dataset.orderId;
             if (!orderId) return;
 
-            // Colonne 5 : Statut (c'est un select)
+            // Colonne 5 : Statut (select)
             const statusSelect = row.cells[5].querySelector('select');
             const status = statusSelect?.value?.toLowerCase() || '';
             if (status === 'livré') return;
@@ -471,7 +467,6 @@ function _injectAssignButtons() {
                 openDlvDropdown(orderId, row); 
             };
 
-            // Colonne 6 : Actions
             const actionsCell = row.cells[6];
             if (actionsCell) {
                 actionsCell.appendChild(btn);

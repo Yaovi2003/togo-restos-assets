@@ -933,7 +933,21 @@ async function loadOrdersAdmin(){
     const{data:orders}=await db.from('orders').select('*').eq('restaurant_id',currentRestaurant.id).order('created_at',{ascending:false}).limit(50);
     const t=document.getElementById('orders-admin-tbody');
     if(!orders?.length){t.innerHTML='<tr><td colspan="7"><div class="empty-placeholder"><div class="icon">📋</div><p>Aucune commande.</p></div></td></tr>';return}
-    t.innerHTML=orders.map(o=>`<tr><td style="font-family:var(--mono);font-size:.78rem;">#${escapeHTML(o.id?.substring(0,8)||'')}</td><td><strong>${escapeHTML(o.customer_name)}</strong></td><td><a href="tel:${escapeHTML(o.customer_phone||'')}" style="color:var(--gold)">${escapeHTML(o.customer_phone||'')}</a></td><td>${o.delivery_type==='livraison'?'🛵':'🏪'}</td><td class="price-mono">${o.total.toLocaleString()} FCFA</td><td><select onchange="updateOrderStatus('${o.id.replace(/'/g,"\\'")}',this.value)" style="background:var(--surface2);border:1px solid var(--border2);color:var(--text);padding:4px 8px;border-radius:6px;font-size:.78rem;"><option value="confirmé"${o.status==='confirmé'?' selected':''}>Confirmé</option><option value="préparé"${o.status==='préparé'?' selected':''}>Préparé</option><option value="prêt"${o.status==='prêt'?' selected':''}>Prêt</option><option value="livré"${o.status==='livré'?' selected':''}>Livré</option><option value="annulé"${o.status==='annulé'?' selected':''}>Annulé</option></select></td><td><a href="https://wa.me/${o.customer_phone?.replace(/[^0-9]/g,'')}?text=${encodeURIComponent('Bonjour '+o.customer_name+', commande #'+o.id?.substring(0,8)+' : '+o.status)}" target="_blank" rel="noopener noreferrer" class="btn btn-ghost btn-sm">💬</a></td></tr>`).join('');
+    t.innerHTML=orders.map(o=>`<tr data-order-id="${o.id}">
+    <td style="font-family:var(--mono);font-size:.78rem;">#${escapeHTML(o.id?.substring(0,8)||'')}</td>
+    <td><strong>${escapeHTML(o.customer_name)}</strong></td>
+    <td><a href="tel:${escapeHTML(o.customer_phone||'')}" style="color:var(--gold)">${escapeHTML(o.customer_phone||'')}</a></td>
+    <td>${o.delivery_type==='livraison'?'🛵':'🏪'}</td>
+    <td class="price-mono">${o.total.toLocaleString()} FCFA</td>
+    <td><select onchange="updateOrderStatus('${o.id.replace(/'/g,"\\'")}',this.value)" style="background:var(--surface2);border:1px solid var(--border2);color:var(--text);padding:4px 8px;border-radius:6px;font-size:.78rem;">
+        <option value="confirmé"${o.status==='confirmé'?' selected':''}>Confirmé</option>
+        <option value="préparé"${o.status==='préparé'?' selected':''}>Préparé</option>
+        <option value="prêt"${o.status==='prêt'?' selected':''}>Prêt</option>
+        <option value="livré"${o.status==='livré'?' selected':''}>Livré</option>
+        <option value="annulé"${o.status==='annulé'?' selected':''}>Annulé</option>
+    </select></td>
+    <td><a href="https://wa.me/${o.customer_phone?.replace(/[^0-9]/g,'')}?text=${encodeURIComponent('Bonjour '+o.customer_name+', commande #'+o.id?.substring(0,8)+' : '+o.status)}" target="_blank" rel="noopener noreferrer" class="btn btn-ghost btn-sm">💬</a></td>
+</tr>`).join('');
 }
 
 async function updateOrderStatus(orderId,status){await db.from('orders').update({status}).eq('id',orderId);toast('Statut mis à jour !','success');loadOrdersAdmin()}
