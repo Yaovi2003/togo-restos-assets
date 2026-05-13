@@ -815,7 +815,7 @@ async function submitOrder() {
             notes: notes || null,
             delivery_type: 'sur_place',
             delivery_fee: 0,
-            status: 'pending',
+            status: 'confirmé',
             served_by: staffMember.badge_number,
         }).select().single();
 
