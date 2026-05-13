@@ -836,7 +836,7 @@ window.loadKDS = async function() {
            (on exclut delivered / cancelled) */
         const { data: orders, error } = await window.db
             .from('orders')
-            .select('id, table_number, customer_name, items, total_price, status, created_at')
+            .select('id, table_number, customer_name, total, status, created_at')
             .eq('restaurant_id', window.currentRestaurant.id)
             .not('table_number', 'is', null)
             .in('status', ['pending', 'confirmed', 'preparing'])
