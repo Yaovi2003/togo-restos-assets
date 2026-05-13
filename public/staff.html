@@ -953,7 +953,7 @@ async function confirmPayment() {
 ══════════════════════════════════════════ */
 async function loadKitchenView() {
     const statuses = kdsFilter === 'all'
-        ? ['pending','confirmed','preparing']
+        ? ['confirmé', 'préparé']   // ← CHANGÉ
         : [kdsFilter];
 
     const { data } = await db.from('orders').select('*')
@@ -995,7 +995,7 @@ async function loadKitchenView() {
 async function markPrepared(orderId, btn) {
     btn.disabled = true; btn.textContent = '⏳';
     try {
-        const { error } = await db.from('orders').update({ status: 'preparing' }).eq('id', orderId);
+        const { error } = await db.from('orders').update({ status: 'prêt' }).eq('id', orderId);
         if (error) throw error;
         const card = btn.closest('.kds-card-staff');
         if (card) { card.style.transition = 'opacity .3s'; card.style.opacity = '0'; setTimeout(() => card.remove(), 300); }
