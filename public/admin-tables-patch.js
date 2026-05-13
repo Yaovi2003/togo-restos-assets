@@ -839,7 +839,7 @@ window.loadKDS = async function() {
             .select('id, table_number, customer_name, total, status, created_at')
             .eq('restaurant_id', window.currentRestaurant.id)
             .not('table_number', 'is', null)
-            .in('status', ['pending', 'confirmed', 'preparing'])
+            .in('status', ['confirmé', 'préparé'])
             .order('created_at', { ascending: true });
 
         if (error) throw error;
