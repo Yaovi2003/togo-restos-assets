@@ -429,49 +429,49 @@ function _injectAssignButtons() {
     const panel = document.getElementById('panel-orders-admin');
     if (!panel) return;
 
-    // Attendre que le tableau soit chargé
     setTimeout(() => {
         const tbody = document.getElementById('orders-admin-tbody');
         if (!tbody) return;
         
         const rows = tbody.querySelectorAll('tr');
         rows.forEach(row => {
-            // Éviter les doublons
             if (row.querySelector('.btn-assign-delivery')) return;
 
-            // Récupérer le type de commande (colonne "Type" - index 3)
+            // Colonne 3 : Type (🛵 = livraison, 🏪 = sur place)
             const typeCell = row.cells[3];
-            const type = typeCell?.textContent?.toLowerCase() || '';
+            const typeIcon = typeCell?.textContent?.trim() || '';
             
             // Uniquement pour les commandes en livraison
-            if (!type.includes('livraison') && !type.includes('livr')) return;
+            if (typeIcon !== '🛵') return;
 
-            // Récupérer l'ID de la commande (colonne "N°" - index 0)
+            // Colonne 0 : ID de la commande
             const idCell = row.cells[0];
             let orderId = idCell?.textContent?.replace('#', '').trim() || '';
-            
-            // Si pas d'ID dans la cellule, chercher dans dataset
             if (!orderId) orderId = row.dataset.orderId || row.dataset.id;
             if (!orderId) return;
 
-            // Vérifier le statut (colonne "Statut" - index 5)
-            const statusCell = row.cells[5];
-            const status = statusCell?.textContent?.toLowerCase() || '';
-            if (status === 'livré' || status === 'livrée') return;
+            // Colonne 5 : Statut (c'est un select)
+            const statusSelect = row.cells[5].querySelector('select');
+            const status = statusSelect?.value?.toLowerCase() || '';
+            if (status === 'livré') return;
 
-            // Récupérer le livreur existant
             const existing = row.dataset.deliveryPersonId;
 
             const btn = document.createElement('button');
             btn.className = `btn-assign-delivery${existing ? ' assigned' : ''}`;
             btn.textContent = existing ? '🛵 Assigné' : '🛵 Assigner';
             btn.style.marginLeft = '8px';
+            btn.style.padding = '5px 12px';
+            btn.style.borderRadius = '6px';
+            btn.style.fontSize = '0.72rem';
+            btn.style.fontWeight = '600';
+            btn.style.cursor = 'pointer';
             btn.onclick = (e) => { 
                 e.stopPropagation(); 
                 openDlvDropdown(orderId, row); 
             };
 
-            // Ajouter le bouton dans la dernière colonne (Actions - index 6)
+            // Colonne 6 : Actions
             const actionsCell = row.cells[6];
             if (actionsCell) {
                 actionsCell.appendChild(btn);
