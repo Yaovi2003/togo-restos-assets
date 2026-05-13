@@ -459,7 +459,19 @@ async function load(){
         $('search').placeholder=t('search');
         if(dishes.some(d=>d.is_drink)){$('menu-type-switch').style.display='flex'}
         try{await supabaseClient.rpc('increment_views',{p_slug:s})}catch(_){}
-        checkNightMode();loadReviews();loadEventsView();hideLoader();
+        checkNightMode();loadReviews();loadEventsView();
+
+        // ⬇️⬇️⬇️ AJOUTER CE CODE ICI ⬇️⬇️⬇️
+        window.dispatchEvent(new CustomEvent('view:seo', {
+            detail: { 
+                restaurant: resto,
+                menuItems: dishes,
+                reviews: []  // les avis sont chargés via loadReviews() plus tard
+            }
+        }));
+        // ⬆️⬆️⬆️ FIN DE L'AJOUT ⬆️⬆️⬆️
+
+        hideLoader();
     }catch(e){console.error(e);showErr()}
 }
 
@@ -976,5 +988,7 @@ if('serviceWorker' in navigator){
 </script>
 <script src="view-patch.js"></script>
 <script src="view-table-patch.js"></script>
+<script src="view-seo-patch.js"></script>
+<script src="view-skeleton-patch.js"></script>
 </body>
 </html>

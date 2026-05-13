@@ -8,6 +8,8 @@
 //    est donc par-instance, pas global. Pour un rate limit réel,
 //    migrer vers Cloudflare KV ou Durable Objects.
 const rateLimitMap = new Map();
+// Sitemap & robots.txt
+import { handleSitemap, handleRobots } from './worker-sitemap-snippet.js';
 
 export default {
     async fetch(request, env) {
@@ -198,10 +200,16 @@ export default {
         }
 
         // ═══════════════════════════════════════════════════════
-        // ROUTE : /sitemap.xml → Servir le sitemap directement
+        // ROUTE : /sitemap.xml → Site dynamique
         // ═══════════════════════════════════════════════════════
         if (url.pathname === '/sitemap.xml') {
-            return env.ASSETS.fetch(request);
+            return handleSitemap(request, env);
+        }
+		// ═══════════════════════════════════════════════════════════
+        // ROUTE : /robots.txt
+        // ═══════════════════════════════════════════════════════════
+        if (url.pathname === '/robots.txt') {
+            return handleRobots(request, env);
         }
 
         // ═══════════════════════════════════════════════════════
