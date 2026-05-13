@@ -372,7 +372,7 @@ function toast(msg, type = 'info', duration = 3500) {
 async function init() {
     try {
         await CONFIG.load();
-        db = supabase.createClient(CONFIG.supabaseUrl, CONFIG.supabaseAnonKey);
+        db = supabase.createClient(CONFIG.supabaseUrl, CONFIG.supabaseKey);
 
         /* Charger le restaurant depuis le slug */
         const { data, error } = await db
