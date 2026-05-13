@@ -159,22 +159,46 @@
     document.head.appendChild(s);
 })();
 
-
 /* ══════════════════════════════════════════════════════════════════
    INJECTION NAV + PANEL
 ══════════════════════════════════════════════════════════════════ */
 (function injectNavAndPanel() {
-    const nav = document.querySelector('.sidebar-nav');
-    if (nav && !nav.querySelector('[data-panel="livreurs"]')) {
-        const btn = document.createElement('button');
-        btn.className     = 'nav-item';
-        btn.dataset.panel = 'livreurs';
-        btn.innerHTML     = '<span class="nav-icon">🛵</span> Livreurs';
-        const ref = nav.querySelector('[data-panel="orders-admin"]') ||
-                    nav.querySelector('[data-panel="caisse"]');
-        ref ? ref.insertAdjacentElement('afterend', btn) : nav.appendChild(btn);
-    }
+    // Attendre que le DOM soit prêt
+    const waitForNav = setInterval(() => {
+        const nav = document.querySelector('.sidebar-nav');
+        if (!nav) return;
+        clearInterval(waitForNav);
 
+        if (!nav.querySelector('[data-panel="livreurs"]')) {
+            const btn = document.createElement('button');
+            btn.className     = 'nav-item';
+            btn.dataset.panel = 'livreurs';
+            btn.innerHTML     = '<span class="nav-icon">🛵</span> Livreurs';
+            
+            // Trouver la position après le panneau Commandes
+            const ordersBtn = nav.querySelector('[data-panel="orders-admin"]') ||
+                              nav.querySelector('[data-panel="caisse"]');
+            
+            if (ordersBtn) {
+                ordersBtn.insertAdjacentElement('afterend', btn);
+            } else {
+                nav.appendChild(btn);
+            }
+            
+            // Attacher l'événement click
+            btn.addEventListener('click', () => {
+                if (window.innerWidth <= 768) {
+                    const overlay = document.getElementById('sidebar-overlay');
+                    if (overlay) overlay.classList.remove('visible');
+                    document.querySelector('.sidebar')?.classList.remove('mobile-open');
+                    document.body.style.overflow = '';
+                }
+                if (typeof showPanel === 'function') showPanel('livreurs');
+            });
+        }
+    }, 100);
+
+    // Création du panneau (ne change pas)
     const main = document.querySelector('.main-content');
     if (main && !document.getElementById('panel-livreurs')) {
         const panel = document.createElement('div');
