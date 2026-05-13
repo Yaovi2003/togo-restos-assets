@@ -823,7 +823,7 @@ function _renderServerOrders() {
 async function markServedStaff(orderId) {
     try {
         const { error } = await db.from('orders').update({
-            status: 'delivered', served_by: staffMember.badge_number
+            status: 'livré', served_by: staffMember.badge_number
         }).eq('id', orderId);
         if (error) throw error;
         toast('Commande marquée comme servie ✅', 'success');

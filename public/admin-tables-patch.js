@@ -918,7 +918,7 @@ window.markServed = async function(orderId, btn) {
     try {
         const { error } = await window.db
             .from('orders')
-            .update({ status: 'delivered' })
+            .update({ status: 'livré' })
             .eq('id', orderId);
 
         if (error) throw error;
