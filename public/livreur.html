@@ -387,7 +387,8 @@ async function updateStatus(orderId, newStatus) {
         const { error } = await db
             .from('orders')
             .update({ status: newStatus })
-            .eq('id', orderId);
+            .eq('id', orderId)
+            .eq('delivery_person_id', personId);
 
         if (error) throw error;
 
