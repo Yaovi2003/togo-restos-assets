@@ -853,9 +853,9 @@ async function loadCashierView() {
     const orders = allDay || [];
 
     /* Stats */
-    const paid    = orders.filter(o => o.status === 'paid');
-    const pending = orders.filter(o => !['paid','cancelled'].includes(o.status));
-    const totalEncaisse = paid.reduce((s, o) => s + (o.total_price || 0), 0);
+    const paid    = orders.filter(o => o.status === 'livré');
+    const pending = orders.filter(o => !['livré','annulé'].includes(o.status));
+    const totalEncaisse = paid.reduce((s, o) => s + (o.total || 0), 0);
 
     document.getElementById('csh-total-day').textContent  = _fmt(totalEncaisse);
     document.getElementById('csh-count-day').textContent  = paid.length;
@@ -882,8 +882,8 @@ async function loadCashierView() {
                 ${items.map(it => `<div class="csh-item-line"><span>${_esc(it.name)} ×${it.quantity||it.qty||1}</span><span style="font-family:var(--mono);font-size:.78rem;">${_fmt((it.price||0)*(it.quantity||it.qty||1))} F</span></div>`).join('')}
             </div>
             <div class="csh-order-footer">
-                <span class="csh-total">${_fmt(o.total_price)} FCFA</span>
-                <button class="btn btn-primary btn-sm" onclick="openPayModal('${o.id}', ${o.total_price})">💰 Encaisser</button>
+                <span class="csh-total">${_fmt(o.total)} FCFA</span>
+                <button class="btn btn-primary btn-sm" onclick="openPayModal('${o.id}', ${o.total})">💰 Encaisser</button>
             </div>`;
         list.appendChild(card);
     });
