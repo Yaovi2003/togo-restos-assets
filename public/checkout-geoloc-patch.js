@@ -488,16 +488,20 @@ async function _loadRestoCoords() {
    INIT — Uniquement si type de commande = livraison
 ══════════════════════════════════════════════════════════════════ */
 function _onReady() {
-    /* Injecter la zone GPS dans le formulaire de livraison */
-    _injectGeoZone();
-
-    /* Observer le sélecteur livraison/sur place */
-    const observer = new MutationObserver(() => _toggleGeoZone());
+    /* Attendre que le DOM soit prêt, puis observer */
+    const observer = new MutationObserver(() => {
+        _injectGeoZone();
+        _toggleGeoZone();
+    });
     observer.observe(document.body, { childList: true, subtree: true, attributes: true });
-
-    /* Première évaluation */
-    _toggleGeoZone();
+    
+    /* Injection initiale */
+    setTimeout(() => {
+        _injectGeoZone();
+        _toggleGeoZone();
+    }, 500);
 }
+
 
 function _toggleGeoZone() {
     const zone       = document.getElementById('geo-zone');
