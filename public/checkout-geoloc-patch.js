@@ -118,13 +118,11 @@ let _restoLng     = null;
 function _injectGeoZone() {
     if (document.getElementById('geo-zone')) return;
 
-    const addrCard = document.getElementById('address-field') ||
-                     document.querySelector('.card:has(#customer-address)');
-    if (!addrCard) return;
+    const addrField = document.getElementById('address-field');
+    if (!addrField) return;
 
-    /* Cacher le champ adresse existant (on le remplace) */
-    const origAddrInp = document.getElementById('customer-address');
-    if (origAddrInp) origAddrInp.closest('.field')?.style?.setProperty('display','none');
+    // Ne plus cacher de champ original — il n'existe plus dans le HTML
+    // On injecte directement dans le conteneur #address-field
 
     const zone = document.createElement('div');
     zone.id        = 'geo-zone';
@@ -167,9 +165,8 @@ function _injectGeoZone() {
             </div>
         </div>`;
 
-    addrCard.appendChild(zone);
+    addrField.appendChild(zone);
 }
-
 
 /* ══════════════════════════════════════════════════════════════════
    GÉOLOCALISATION GPS HAUTE PRÉCISION
@@ -346,15 +343,18 @@ function _updateDeliveryFee(cLat, cLng) {
     if (wrap) wrap.style.display = 'block';
 
     /* Mettre à jour les variables globales du checkout */
-    try {
-        window.deliveryFee = fee;
-        const subtotal = Object.values(window.cartData || {})
-            .reduce((s, i) => s + i.price * i.qty, 0);
-        if (typeof updateTotals === 'function') updateTotals(subtotal);
-        if (typeof displaySummary === 'function') displaySummary();
-        const dlvDisp = document.getElementById('delivery-display');
-        if (dlvDisp) dlvDisp.textContent = fee > 0 ? fee.toLocaleString('fr-FR') + ' FCFA' : 'Gratuit';
-    } catch(_) {}
+    window.deliveryFee = fee;
+    const dlvDisp = document.getElementById('delivery-display');
+    if (dlvDisp) dlvDisp.textContent = fee > 0 ? fee.toLocaleString('fr-FR') + ' FCFA' : 'Gratuit';
+
+    // Utiliser le subtotal exposé par le HTML et appeler updateTotals
+    const subtotal = window._checkoutSubtotal || 0;
+    if (typeof updateTotals === 'function') {
+        updateTotals(subtotal);
+    }
+    if (typeof displaySummary === 'function') {
+        displaySummary();
+    }
 }
 
 
@@ -362,11 +362,17 @@ function _updateDeliveryFee(cLat, cLng) {
    HELPERS UI
 ══════════════════════════════════════════════════════════════════ */
 window._syncGeoAddress = function(val) {
-    /* Synchroniser avec le champ original du checkout */
-    const orig = document.getElementById('customer-address');
-    if (orig) orig.value = val;
+    // Chercher ou créer le champ customer-address (utilisé par le HTML pour la validation)
+    let orig = document.getElementById('customer-address');
+    if (!orig) {
+        orig = document.createElement('input');
+        orig.type = 'hidden';
+        orig.id = 'customer-address';
+        document.getElementById('address-field')?.appendChild(orig);
+    }
+    orig.value = val;
 
-    /* Exposer pour le patch Supabase */
+    // Exposer pour le patch Supabase
     window._geoAddress = val;
 };
 
@@ -504,17 +510,23 @@ function _onReady() {
 
 
 function _toggleGeoZone() {
-    const zone       = document.getElementById('geo-zone');
-    const addrField  = document.getElementById('address-field');
-    if (!zone) {
+    const zone      = document.getElementById('geo-zone');
+    const addrField = document.getElementById('address-field');
+
+    // S'assurer que la zone geo est bien injectée
+    if (!zone && addrField && addrField.style.display !== 'none') {
         _injectGeoZone();
         return;
     }
+
+    if (!zone) return;
+
     const isLivraison = (window.deliveryType === 'livraison') ||
         document.querySelector('.delivery-option.selected[data-type="livraison"]') !== null;
 
-    zone.style.display  = isLivraison ? 'block' : 'none';
-    if (addrField) addrField.style.display = isLivraison ? 'none' : 'block';
+    zone.style.display = isLivraison ? 'block' : 'none';
+    
+    // Ne plus toucher à addrField.style.display — c'est le HTML qui le gère via selectDelivery()
 }
 
 if (document.readyState === 'loading') {

@@ -75,7 +75,8 @@
             <h2 class="card-title">🏍️ Type de commande</h2>
             <div class="delivery-option selected" data-type="sur_place" onclick="selectDelivery('sur_place')"><strong>🏪 Sur place</strong> — Gratuit</div>
             <div class="delivery-option" data-type="livraison" onclick="selectDelivery('livraison')"><strong>🛵 Livraison</strong> — +500 FCFA</div>
-            <div id="address-field" style="display:none;"><div class="field"><label>Adresse de livraison</label><input type="text" id="customer-address" placeholder="Rue, quartier, Lomé" maxlength="200"></div></div>
+			<!-- Conteneur réservé pour le patch géoloc (injecté dynamiquement) -->
+            <div id="address-field" style="display:none;"></div>
         </div>
 
         <div class="card">
@@ -235,8 +236,18 @@ function selectDelivery(type) {
     deliveryType = type;
     document.querySelectorAll('.delivery-option').forEach(d => d.classList.remove('selected'));
     document.querySelector(`[data-type="${type}"]`).classList.add('selected');
-    deliveryFee = type === 'livraison' ? 500 : 0;
-    $('address-field').style.display = type === 'livraison' ? 'block' : 'none';
+    
+    if (type === 'livraison') {
+        deliveryFee = 0; // Le script geo recalculera les frais réels
+        $('address-field').style.display = 'block';
+        // Laisser le script geo injecter sa zone et gérer l'adresse
+    } else {
+        deliveryFee = 0;
+        $('address-field').style.display = 'none';
+        // Réinitialiser les données geo si on repasse en sur-place
+        if (typeof geoClear === 'function') geoClear();
+    }
+    
     const items = Object.values(cartData);
     updateTotals(items.reduce((s, i) => s + i.price * i.qty, 0));
 }
@@ -255,6 +266,8 @@ function updateTotals(subtotal) {
     $('subtotal-display').textContent = fmt(subtotal);
     $('delivery-display').textContent = fmt(deliveryFee);
     $('total-display').textContent = fmt(total);
+    // Exposer pour que le script geo puisse rappeler updateTotals
+    window._checkoutSubtotal = subtotal;
 }
 
 $('submit-order-btn').addEventListener('click', async () => {
@@ -271,8 +284,10 @@ $('submit-order-btn').addEventListener('click', async () => {
     if (!phone) { showError('Veuillez entrer votre numéro WhatsApp.'); $('customer-phone').focus(); return; }
     if (phone.length < 8) { showError('Numéro de téléphone invalide.'); return; }
     if (deliveryType === 'livraison' && !address) { 
-        showError('Veuillez entrer votre adresse de livraison.'); 
-        $('customer-address').focus(); 
+        showError('Veuillez détecter votre position ou entrer une adresse de livraison.');
+		// Focus sur le textarea geo si disponible, sinon ignorer
+		const geoAddrInp = $('geo-addr-inp');
+        if (geoAddrInp) geoAddrInp.focus();
         return; 
     }
     if (address && address.length > 200) { showError('Adresse trop longue (max 200 caractères).'); return; }
