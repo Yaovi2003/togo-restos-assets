@@ -10,6 +10,7 @@
 const rateLimitMap = new Map();
 // Sitemap & robots.txt
 import { handleSitemap, handleRobots } from './worker-sitemap-snippet.js';
+import { handleReverseGeocode, handleDistance } from './worker-geoloc-snippet.js';
 
 export default {
     async fetch(request, env) {
@@ -212,6 +213,16 @@ export default {
         if (url.pathname === '/robots.txt') {
             return handleRobots(request, env);
         }
+		
+		// ═══════════════════════════════════════════════════════
+		// ROUTES : Géolocalisation (reverse geocode + distance)
+		// ═══════════════════════════════════════════════════════
+		if (url.pathname === '/api/reverse-geocode' && request.method === 'GET') {
+			return handleReverseGeocode(request);
+		}
+		if (url.pathname === '/api/distance' && request.method === 'GET') {
+			return handleDistance(request);
+		}	
 
         // ═══════════════════════════════════════════════════════
         // ROUTES : Push notifications

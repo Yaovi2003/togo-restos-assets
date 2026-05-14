@@ -2,643 +2,512 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Suivi de commande — Restos Lomé</title>
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net 'unsafe-inline'; style-src 'self' https://fonts.googleapis.com 'unsafe-inline' https://cdn.jsdelivr.net; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https: blob:; connect-src 'self' https://*.supabase.co https://cdn.jsdelivr.net https://tile.openstreetmap.org;">
 
-    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net 'unsafe-inline'; style-src 'self' https://fonts.googleapis.com 'unsafe-inline'; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https: blob:; connect-src 'self' https://*.supabase.co https://cdn.jsdelivr.net;">
-
-    <link rel="manifest" href="/manifest.json">
-    <meta name="mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.min.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
     <script src="config.js"></script>
 
     <style>
-        :root {
-            --gold:    #c5a059;
-            --gold-d:  rgba(197,160,89,0.12);
-            --gold-b:  rgba(197,160,89,0.28);
-            --bg:      #060605;
-            --s:       #111110;
-            --s2:      #191918;
-            --s3:      #222220;
-            --line:    rgba(255,255,255,0.07);
-            --line2:   rgba(255,255,255,0.12);
-            --ivory:   #f0ece4;
-            --dim:     #7a7570;
-            --muted:   #4a4642;
-            --success: #2ecc71;
-            --danger:  #e74c3c;
-            --r:       14px;
-            --mono:    'IBM Plex Mono', monospace;
+        :root{
+            --gold:#c5a059;--gold-d:rgba(197,160,89,.12);--gold-b:rgba(197,160,89,.28);
+            --bg:#070706;--s:#111110;--s2:#1a1918;--s3:#232220;
+            --line:rgba(255,255,255,.07);--line2:rgba(255,255,255,.13);
+            --ivory:#f0ece4;--dim:#7a7570;--muted:#4a4642;
+            --ok:#2ecc71;--warn:#f39c12;--err:#e74c3c;--r:12px;
         }
-
-        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-        html { height: 100%; }
-
-        body {
-            font-family: 'DM Sans', sans-serif;
-            background: var(--bg);
-            color: var(--ivory);
-            min-height: 100vh;
-            padding: 0 0 60px;
-            -webkit-font-smoothing: antialiased;
-            position: relative;
-        }
-
-        /* ── Arrière-plan décoratif ── */
-        body::before {
-            content: '';
-            position: fixed; top: 0; left: 0; right: 0; height: 340px;
-            background: radial-gradient(ellipse 70% 50% at 50% -10%, rgba(197,160,89,0.09) 0%, transparent 70%);
-            pointer-events: none; z-index: 0;
-        }
+        *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+        html,body{height:100%;background:var(--bg);color:var(--ivory);-webkit-font-smoothing:antialiased}
+        body{font-family:'DM Sans',sans-serif;display:flex;flex-direction:column;overflow:hidden}
 
         /* ── Header ── */
-        .top-bar {
-            position: sticky; top: 0; z-index: 100;
-            display: flex; align-items: center; justify-content: space-between;
-            padding: 0 20px; height: 56px;
-            background: rgba(6,6,5,0.85); backdrop-filter: blur(12px);
-            border-bottom: 0.5px solid var(--line);
-        }
-        .top-bar-brand {
-            font-family: 'Syne', sans-serif; font-size: .95rem; font-weight: 800;
-            color: var(--gold); letter-spacing: -.01em;
-        }
-        .top-bar-back {
-            font-size: .8rem; color: var(--dim); cursor: pointer;
-            display: flex; align-items: center; gap: 5px;
-            background: none; border: none; font-family: inherit;
-            transition: color .2s;
-        }
-        .top-bar-back:hover { color: var(--ivory); }
+        .top{z-index:200;background:rgba(7,7,6,.92);backdrop-filter:blur(14px);border-bottom:.5px solid var(--line2);padding:0 16px;height:54px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+        .top-brand{font-family:'Syne',sans-serif;font-size:.88rem;font-weight:800;color:var(--gold)}
+        .back-btn{background:none;border:none;color:var(--dim);font-size:.8rem;cursor:pointer;font-family:inherit;padding:4px 8px;border-radius:6px;transition:color .15s}
+        .back-btn:hover{color:var(--ivory)}
+
+        /* ── ETA Banner ── */
+        .eta-bar{background:linear-gradient(135deg,rgba(197,160,89,.15),rgba(197,160,89,.06));border-bottom:1px solid rgba(197,160,89,.2);padding:10px 16px;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-shrink:0}
+        .eta-main{font-family:'Syne',sans-serif;font-size:1rem;font-weight:700;color:var(--gold)}
+        .eta-sub{font-size:.72rem;color:rgba(197,160,89,.65);margin-top:2px}
+        .live-badge{display:flex;align-items:center;gap:5px;background:rgba(46,204,113,.1);border:1px solid rgba(46,204,113,.2);border-radius:20px;padding:4px 10px;font-size:.68rem;font-weight:600;color:var(--ok)}
+        .live-dot{width:6px;height:6px;border-radius:50%;background:var(--ok);animation:livePulse 1.4s ease-in-out infinite}
+        @keyframes livePulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(.7)}}
 
         /* ── Layout ── */
-        .container { max-width: 480px; margin: 0 auto; padding: 28px 20px 0; position: relative; }
+        .content{flex:1;display:flex;flex-direction:column;overflow:hidden}
+        #map{flex:1;z-index:1;min-height:200px}
 
-        /* ── States ── */
-        #state-loading, #state-error { text-align: center; padding: 60px 20px; }
-        .pulse-ring {
-            width: 52px; height: 52px; border-radius: 50%;
-            border: 2px solid var(--gold-b); border-top-color: var(--gold);
-            animation: spin .9s linear infinite; margin: 0 auto 20px;
-        }
-        @keyframes spin { to { transform: rotate(360deg); } }
-        .state-label { font-size: .9rem; color: var(--dim); }
-        #state-error .err-icon { font-size: 2.5rem; margin-bottom: 14px; }
-        #state-error p { color: var(--dim); font-size: .9rem; line-height: 1.6; }
+        /* ── Panneau bas ── */
+        .bottom{background:var(--s);border-top:.5px solid var(--line2);max-height:52vh;overflow-y:auto;flex-shrink:0}
+        .bottom::-webkit-scrollbar{width:3px}
+        .bottom::-webkit-scrollbar-thumb{background:var(--line2);border-radius:2px}
 
-        /* ── Carte restaurant ── */
-        .resto-card {
-            display: flex; align-items: center; gap: 14px;
-            background: var(--s); border: 0.5px solid var(--line2);
-            border-radius: var(--r); padding: 14px 16px; margin-bottom: 20px;
-        }
-        .resto-logo {
-            width: 46px; height: 46px; border-radius: 10px;
-            background: var(--s2); flex-shrink: 0; overflow: hidden;
-            display: flex; align-items: center; justify-content: center; font-size: 1.4rem;
-        }
-        .resto-logo img { width: 100%; height: 100%; object-fit: cover; }
-        .resto-name { font-family: 'Syne', sans-serif; font-size: 1rem; font-weight: 700; }
-        .order-ref {
-            font-family: var(--mono); font-size: .72rem; color: var(--dim); margin-top: 3px;
-        }
+        .panel-tabs{display:flex;border-bottom:.5px solid var(--line2);position:sticky;top:0;background:var(--s);z-index:10}
+        .p-tab{flex:1;padding:10px;font-size:.78rem;font-weight:600;color:var(--dim);background:none;border:none;cursor:pointer;font-family:inherit;border-bottom:2px solid transparent;transition:color .15s}
+        .p-tab.on{color:var(--gold);border-bottom-color:var(--gold)}
 
-        /* ── Timeline ── */
-        .timeline-card {
-            background: var(--s); border: 0.5px solid var(--line2);
-            border-radius: var(--r); padding: 22px 20px; margin-bottom: 16px;
-        }
-        .timeline-card-title {
-            font-size: .72rem; text-transform: uppercase; letter-spacing: .09em;
-            color: var(--dim); font-weight: 600; margin-bottom: 22px;
-        }
+        .panel-body{padding:14px 16px}
+        .p-sec{display:none}.p-sec.on{display:block}
 
-        .timeline { display: flex; flex-direction: column; gap: 0; }
+        /* ── Timeline statut ── */
+        .timeline{display:flex;flex-direction:column;gap:0;margin-bottom:8px}
+        .tl-step{display:flex;align-items:flex-start;gap:12px;position:relative}
+        .tl-step:not(:last-child)::after{content:'';position:absolute;left:14px;top:28px;width:2px;height:calc(100% - 10px);background:var(--line2);transition:background .4s}
+        .tl-step.done:not(:last-child)::after{background:var(--gold-b)}
+        .tl-dot{width:28px;height:28px;border-radius:50%;border:2px solid var(--line2);background:var(--s2);display:flex;align-items:center;justify-content:center;font-size:.85rem;flex-shrink:0;z-index:1;transition:all .3s}
+        .tl-step.done   .tl-dot{border-color:var(--gold-b);background:var(--gold-d)}
+        .tl-step.active .tl-dot{border-color:var(--gold);background:var(--gold-d);animation:dotPulse 2s ease-in-out infinite}
+        @keyframes dotPulse{0%,100%{box-shadow:0 0 0 3px rgba(197,160,89,.15)}50%{box-shadow:0 0 0 7px rgba(197,160,89,.05)}}
+        .tl-body{flex:1;padding:4px 0 20px}
+        .tl-step:last-child .tl-body{padding-bottom:4px}
+        .tl-label{font-size:.88rem;font-weight:600;color:var(--muted);transition:color .3s}
+        .tl-step.done   .tl-label{color:var(--dim)}
+        .tl-step.active .tl-label{color:var(--gold)}
+        .tl-sub{font-size:.72rem;color:var(--muted);margin-top:3px}
+        .tl-step.active .tl-sub{color:var(--dim)}
 
-        .tl-step {
-            display: flex; align-items: flex-start; gap: 14px;
-            position: relative;
-        }
+        /* ── Infos commande ── */
+        .info-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:.5px solid var(--line);font-size:.83rem}
+        .info-row:last-child{border-bottom:none}
+        .info-icon{width:18px;text-align:center;flex-shrink:0;color:var(--gold)}
+        .info-lbl{color:var(--dim);width:80px;flex-shrink:0}
+        .info-val{flex:1;word-break:break-word}
+        .info-val.mono{font-family:'IBM Plex Mono',monospace;color:var(--gold)}
 
-        /* Ligne verticale entre les steps */
-        .tl-step:not(:last-child)::after {
-            content: '';
-            position: absolute;
-            left: 17px; top: 36px;
-            width: 2px; height: calc(100% - 12px);
-            background: var(--line2);
-            transition: background .5s;
-        }
-        .tl-step.done:not(:last-child)::after { background: var(--gold-b); }
+        /* ── Chat livreur ── */
+        .chat-msgs{height:150px;overflow-y:auto;background:var(--s2);border:.5px solid var(--line2);border-radius:8px;padding:8px;margin-bottom:8px;display:flex;flex-direction:column;gap:6px}
+        .chat-msgs::-webkit-scrollbar{width:2px}
+        .chat-msgs::-webkit-scrollbar-thumb{background:var(--line2)}
+        .msg{max-width:80%;padding:6px 10px;border-radius:8px;font-size:.78rem;line-height:1.4}
+        .msg.mine{background:var(--gold-d);border:1px solid var(--gold-b);align-self:flex-end}
+        .msg.theirs{background:var(--s3);border:.5px solid var(--line2);align-self:flex-start}
+        .msg-meta{font-size:.64rem;color:var(--dim);margin-top:3px}
+        .chat-inp-row{display:flex;gap:6px}
+        .chat-inp{flex:1;background:var(--s2);border:.5px solid var(--line2);color:var(--ivory);padding:9px 12px;border-radius:8px;font-family:inherit;font-size:.82rem;outline:none;transition:border-color .2s}
+        .chat-inp:focus{border-color:var(--gold)}
+        .chat-send{background:var(--gold);color:#000;border:none;padding:9px 14px;border-radius:8px;font-weight:700;font-size:.8rem;cursor:pointer;font-family:inherit;transition:opacity .2s}
+        .chat-send:hover{opacity:.88}
 
-        .tl-dot-wrap {
-            width: 36px; height: 36px; flex-shrink: 0;
-            display: flex; align-items: center; justify-content: center;
-            position: relative; z-index: 1;
-        }
+        /* ── Contact ── */
+        .contact-row{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+        .btn-contact{padding:10px 16px;border-radius:10px;font-size:.8rem;font-weight:700;cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:6px;text-decoration:none;transition:opacity .2s}
+        .btn-contact:hover{opacity:.85}
+        .btn-wa{background:rgba(37,211,102,.12);border:1px solid rgba(37,211,102,.25);color:#25d366}
+        .btn-maps{background:rgba(52,152,219,.12);border:1px solid rgba(52,152,219,.25);color:#3498db}
 
-        .tl-dot {
-            width: 36px; height: 36px; border-radius: 50%;
-            border: 2px solid var(--line2); background: var(--s2);
-            display: flex; align-items: center; justify-content: center;
-            font-size: 1rem; transition: all .4s;
-        }
-        .tl-step.done   .tl-dot { border-color: var(--gold-b); background: var(--gold-d); }
-        .tl-step.active .tl-dot {
-            border-color: var(--gold); background: var(--gold-d);
-            box-shadow: 0 0 0 4px rgba(197,160,89,0.15);
-            animation: dotPulse 2s ease-in-out infinite;
-        }
-        @keyframes dotPulse {
-            0%,100% { box-shadow: 0 0 0 4px rgba(197,160,89,0.15); }
-            50%      { box-shadow: 0 0 0 8px rgba(197,160,89,0.06); }
-        }
+        /* ── États ── */
+        #state-loading,#state-error{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;z-index:500;background:var(--bg);text-align:center;padding:20px}
+        #state-error{display:none}
+        .spin{width:36px;height:36px;border-radius:50%;border:2px solid var(--gold-b);border-top-color:var(--gold);animation:spin .8s linear infinite}
+        @keyframes spin{to{transform:rotate(360deg)}}
 
-        .tl-body { flex: 1; padding: 6px 0 28px; }
-        .tl-step:last-child .tl-body { padding-bottom: 4px; }
+        /* ── Toast ── */
+        #toast-wrap{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);z-index:999;pointer-events:none}
+        .toast{background:var(--s2);border:.5px solid var(--line2);border-radius:50px;padding:8px 18px;font-size:.78rem;font-weight:600;white-space:nowrap;animation:tIn .3s ease;box-shadow:0 4px 16px rgba(0,0,0,.4)}
+        @keyframes tIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
 
-        .tl-label {
-            font-size: .95rem; font-weight: 600; color: var(--muted);
-            transition: color .4s; line-height: 1.2;
-        }
-        .tl-step.done   .tl-label { color: var(--dim); }
-        .tl-step.active .tl-label { color: var(--gold); }
-
-        .tl-desc { font-size: .78rem; color: var(--muted); margin-top: 4px; line-height: 1.5; }
-        .tl-step.done   .tl-desc,
-        .tl-step.active .tl-desc { color: var(--dim); }
-
-        .tl-time {
-            font-family: var(--mono); font-size: .68rem; color: var(--muted);
-            margin-top: 5px; display: none;
-        }
-        .tl-step.done   .tl-time { display: block; color: var(--muted); }
-        .tl-step.active .tl-time { display: block; color: var(--gold); }
-
-        /* Badge statut live */
-        .live-badge {
-            display: inline-flex; align-items: center; gap: 6px;
-            background: var(--gold-d); border: 1px solid var(--gold-b);
-            color: var(--gold); font-size: .72rem; font-weight: 600;
-            padding: 4px 12px; border-radius: 50px;
-            font-family: var(--mono); letter-spacing: .05em;
-            margin-bottom: 16px;
-        }
-        .live-dot {
-            width: 6px; height: 6px; border-radius: 50%; background: var(--gold);
-            animation: livePulse 1.4s ease-in-out infinite;
-        }
-        @keyframes livePulse {
-            0%,100% { opacity: 1; transform: scale(1); }
-            50%      { opacity: .4; transform: scale(.7); }
-        }
-
-        /* ── Carte commande ── */
-        .order-card {
-            background: var(--s); border: 0.5px solid var(--line2);
-            border-radius: var(--r); overflow: hidden; margin-bottom: 16px;
-        }
-        .order-card-head {
-            padding: 14px 18px 12px; border-bottom: 0.5px solid var(--line);
-            font-size: .72rem; text-transform: uppercase; letter-spacing: .09em;
-            color: var(--dim); font-weight: 600;
-        }
-        .order-item {
-            display: flex; align-items: center; justify-content: space-between;
-            padding: 11px 18px; border-bottom: 0.5px solid var(--line);
-        }
-        .order-item:last-child { border-bottom: none; }
-        .order-item-name { font-size: .88rem; }
-        .order-item-qty  { font-family: var(--mono); font-size: .75rem; color: var(--dim); margin-left: 8px; }
-        .order-item-price{ font-family: var(--mono); font-size: .85rem; color: var(--gold); font-weight: 500; }
-        .order-total-row {
-            display: flex; justify-content: space-between; align-items: center;
-            padding: 14px 18px;
-            border-top: 0.5px solid var(--line2);
-            background: var(--s2);
-        }
-        .order-total-lbl { font-size: .8rem; color: var(--dim); font-weight: 600; text-transform: uppercase; letter-spacing: .06em; }
-        .order-total-val { font-family: var(--mono); font-size: 1.1rem; color: var(--gold); font-weight: 500; }
-
-        /* ── Infos client ── */
-        .info-card {
-            background: var(--s); border: 0.5px solid var(--line2);
-            border-radius: var(--r); padding: 16px 18px; margin-bottom: 16px;
-        }
-        .info-row {
-            display: flex; gap: 10px; align-items: flex-start;
-            padding: 7px 0; border-bottom: 0.5px solid var(--line);
-            font-size: .85rem;
-        }
-        .info-row:last-child { border-bottom: none; }
-        .info-icon { width: 20px; flex-shrink: 0; color: var(--gold); text-align: center; }
-        .info-lbl  { color: var(--dim); width: 90px; flex-shrink: 0; }
-        .info-val  { color: var(--ivory); flex: 1; word-break: break-word; }
-
-        /* ── CTA WhatsApp ── */
-        .wa-btn {
-            display: flex; align-items: center; justify-content: center; gap: 8px;
-            width: 100%; padding: 14px; border-radius: var(--r);
-            background: #25d366; color: #fff;
-            border: none; font-family: 'Syne', sans-serif;
-            font-size: .9rem; font-weight: 700; cursor: pointer;
-            transition: opacity .2s; text-decoration: none; margin-bottom: 12px;
-        }
-        .wa-btn:hover { opacity: .88; }
-
-        /* ── Livré : état final ── */
-        .done-banner {
-            background: rgba(46,204,113,.08); border: 1px solid rgba(46,204,113,.25);
-            border-radius: var(--r); padding: 20px; text-align: center; margin-bottom: 16px;
-        }
-        .done-banner .done-icon { font-size: 2.2rem; margin-bottom: 8px; }
-        .done-banner h3 { font-family: 'Syne', sans-serif; font-size: 1rem; color: var(--success); margin-bottom: 4px; }
-        .done-banner p  { font-size: .82rem; color: var(--dim); }
-
-        /* ── Footer note ── */
-        .footer-note {
-            text-align: center; font-size: .72rem; color: var(--muted); margin-top: 20px;
-        }
+        /* Leaflet dark */
+        .leaflet-popup-content-wrapper{background:var(--s2)!important;color:var(--ivory)!important;border:.5px solid var(--line2)!important;border-radius:10px!important;box-shadow:0 4px 16px rgba(0,0,0,.4)!important}
+        .leaflet-popup-tip{background:var(--s2)!important}
     </style>
 </head>
 <body>
 
-<!-- Navigation -->
-<div class="top-bar">
-    <button class="top-bar-back" onclick="history.back()">← Retour</button>
-    <span class="top-bar-brand">🍽️ Restos Lomé</span>
+<div id="state-loading"><div class="spin"></div><p style="color:var(--dim);font-size:.88rem;">Chargement…</p></div>
+<div id="state-error"><span style="font-size:2rem;">⚠️</span><p id="err-txt" style="color:var(--dim);font-size:.85rem;max-width:280px;line-height:1.6;"></p></div>
+
+<div class="top" id="main-top" style="display:none;">
+    <button class="back-btn" onclick="history.back()">← Retour</button>
+    <span class="top-brand">📦 Suivi commande</span>
     <span style="width:60px;"></span>
 </div>
 
-<!-- État : chargement -->
-<div id="state-loading" class="container">
-    <div class="pulse-ring"></div>
-    <p class="state-label">Chargement de votre commande…</p>
+<div class="eta-bar" id="eta-bar" style="display:none;">
+    <div>
+        <div class="eta-main" id="eta-main">En préparation…</div>
+        <div class="eta-sub"  id="eta-sub">Le livreur n'est pas encore parti</div>
+    </div>
+    <div class="live-badge"><div class="live-dot"></div><span>Live</span></div>
 </div>
 
-<!-- État : erreur -->
-<div id="state-error" class="container" style="display:none;">
-    <div class="err-icon">⚠️</div>
-    <p id="error-msg-txt">Commande introuvable.</p>
+<div class="content" id="main-content" style="display:none;">
+    <div id="map"></div>
+
+    <div class="bottom">
+        <div class="panel-tabs">
+            <button class="p-tab on" onclick="switchTab('status',this)">📋 Statut</button>
+            <button class="p-tab"    onclick="switchTab('info',this)">🧾 Commande</button>
+            <button class="p-tab"    onclick="switchTab('chat',this)">💬 Livreur</button>
+        </div>
+
+        <!-- Statut -->
+        <div class="p-sec on panel-body" id="tab-status">
+            <div class="timeline" id="timeline"></div>
+        </div>
+
+        <!-- Infos commande -->
+        <div class="p-sec panel-body" id="tab-info">
+            <div id="order-info-rows"></div>
+            <div class="contact-row" id="contact-row"></div>
+        </div>
+
+        <!-- Chat livreur -->
+        <div class="p-sec panel-body" id="tab-chat">
+            <div class="chat-msgs" id="chat-msgs">
+                <div style="text-align:center;color:var(--dim);font-size:.78rem;padding:16px;">Chargement du chat…</div>
+            </div>
+            <div class="chat-inp-row">
+                <input type="text" class="chat-inp" id="chat-inp" placeholder="Message au livreur…"
+                    maxlength="500" onkeydown="if(event.key==='Enter')sendMsg()">
+                <button class="chat-send" onclick="sendMsg()">Envoyer</button>
+            </div>
+        </div>
+    </div>
 </div>
 
-<!-- Contenu principal -->
-<div id="main-content" class="container" style="display:none;">
-
-    <!-- Resto -->
-    <div class="resto-card">
-        <div class="resto-logo" id="resto-logo">🍽️</div>
-        <div>
-            <div class="resto-name" id="resto-name">—</div>
-            <div class="order-ref" id="order-ref">CMD-XXXXXXXX</div>
-        </div>
-    </div>
-
-    <!-- Badge LIVE -->
-    <div class="live-badge">
-        <div class="live-dot"></div>
-        <span>Mise à jour en temps réel</span>
-    </div>
-
-    <!-- Bannière livré (cachée par défaut) -->
-    <div class="done-banner" id="done-banner" style="display:none;">
-        <div class="done-icon">🎉</div>
-        <h3>Commande livrée !</h3>
-        <p>Merci d'avoir commandé chez nous. Bon appétit !</p>
-    </div>
-
-    <!-- Timeline -->
-    <div class="timeline-card">
-        <div class="timeline-card-title">Statut de votre commande</div>
-        <div class="timeline" id="timeline">
-            <!-- Steps générés par JS -->
-        </div>
-    </div>
-
-    <!-- Résumé commande -->
-    <div class="order-card" id="order-items-card">
-        <div class="order-card-head">Votre commande</div>
-        <div id="order-items-list"></div>
-        <div class="order-total-row">
-            <span class="order-total-lbl">Total</span>
-            <span class="order-total-val" id="order-total">—</span>
-        </div>
-    </div>
-
-    <!-- Infos client -->
-    <div class="info-card" id="info-card">
-        <div class="info-row">
-            <span class="info-icon">👤</span>
-            <span class="info-lbl">Nom</span>
-            <span class="info-val" id="info-name">—</span>
-        </div>
-        <div class="info-row">
-            <span class="info-icon">📞</span>
-            <span class="info-lbl">Téléphone</span>
-            <span class="info-val" id="info-phone">—</span>
-        </div>
-        <div class="info-row" id="info-address-row" style="display:none;">
-            <span class="info-icon">📍</span>
-            <span class="info-lbl">Adresse</span>
-            <span class="info-val" id="info-address">—</span>
-        </div>
-        <div class="info-row">
-            <span class="info-icon">💳</span>
-            <span class="info-lbl">Paiement</span>
-            <span class="info-val" id="info-payment">—</span>
-        </div>
-        <div class="info-row">
-            <span class="info-icon">🏍️</span>
-            <span class="info-lbl">Type</span>
-            <span class="info-val" id="info-type">—</span>
-        </div>
-    </div>
-
-    <!-- CTA WhatsApp resto -->
-    <a class="wa-btn" id="wa-contact" href="#" target="_blank" rel="noopener noreferrer" style="display:none;">
-        💬 Contacter le restaurant
-    </a>
-
-    <p class="footer-note">
-        Ce suivi se met à jour automatiquement.<br>
-        Inutile de recharger la page.
-    </p>
-</div>
+<div id="toast-wrap"></div>
 
 <script>
 'use strict';
 
-/* ── Constantes statut ── */
-const STEPS = [
-    {
-        key: 'confirmé',
-        icon: '✅',
-        label: 'Commande confirmée',
-        desc: 'Votre commande a été reçue par le restaurant.'
-    },
-    {
-        key: 'préparé',
-        icon: '👨‍🍳',
-        label: 'En préparation',
-        desc: 'Le chef s\'affaire en cuisine pour vous.'
-    },
-    {
-        key: 'prêt',
-        icon: '🍽️',
-        label: 'Prêt',
-        desc: 'Votre commande est prête ! Plus qu\'un instant.'
-    },
-    {
-        key: 'livré',
-        icon: '🎉',
-        label: 'Livré',
-        desc: 'Commande livrée. Bon appétit !'
-    }
+let db=null, map=null, order=null, chatChannel=null, trackingChannel=null;
+let driverMarker=null, clientMarker=null, routeLine=null;
+
+const STEPS=[
+    {key:'confirmé',      icon:'✅',label:'Commande confirmée',  sub:'Votre commande a été reçue.'},
+    {key:'en_préparation',icon:'👨‍🍳',label:'En préparation',      sub:'Le chef est en cuisine.'},
+    {key:'prêt',          icon:'🍽️', label:'Prêt à partir',       sub:'Votre commande est prête.'},
+    {key:'en_route',      icon:'🛵',label:'En route',             sub:'Le livreur est en chemin.'},
+    {key:'livré',         icon:'🎉',label:'Livré',                sub:'Commande livrée. Bon appétit !'},
 ];
+const STATUS_ORDER=STEPS.map(s=>s.key);
 
-const STATUS_ORDER = STEPS.map(s => s.key);
-const PAYMENT_LABELS = { especes: '💵 Espèces', tmoney: '📱 TMoney', flooz: '📱 Flooz' };
-const TYPE_LABELS    = { sur_place: '🏪 Sur place', livraison: '🛵 Livraison à domicile' };
+const fmt=n=>Number(n).toLocaleString('fr-FR').replace(/\u202F/g,' ')+' FCFA';
+function esc(s){const d=document.createElement('div');d.textContent=String(s||'');return d.innerHTML}
+function qs(id){return document.getElementById(id)}
 
-let supabaseClient = null;
-let realtimeChannel = null;
-let currentStatus   = null;
-let stepTimestamps  = {};
-
-/* ── Helpers ── */
-function escapeHTML(str) {
-    if (!str && str !== 0) return '';
-    const d = document.createElement('div');
-    d.textContent = String(str);
-    return d.innerHTML;
-}
-function fmt(n) {
-    return Number(n).toLocaleString('fr-FR').replace(/\u202F/g, ' ') + ' FCFA';
-}
-function fmtTime(ts) {
-    if (!ts) return '';
-    return new Date(ts).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
-}
-function qs(id) { return document.getElementById(id); }
-
-/* ── Rendu timeline ── */
-function renderTimeline(currentStatus) {
-    const currentIdx = STATUS_ORDER.indexOf(currentStatus);
-    const container  = qs('timeline');
-    container.innerHTML = '';
-
-    STEPS.forEach((step, i) => {
-        const isDone   = i < currentIdx;
-        const isActive = i === currentIdx;
-        const cls      = isDone ? 'done' : isActive ? 'active' : '';
-
-        const ts = stepTimestamps[step.key] || (isActive ? new Date().toISOString() : '');
-        const timeStr = isDone || isActive ? fmtTime(ts) : '';
-
-        const div = document.createElement('div');
-        div.className = `tl-step ${cls}`;
-        div.id = `step-${step.key.replace(/[^a-z]/g, '-')}`;
-        div.innerHTML = `
-            <div class="tl-dot-wrap">
-                <div class="tl-dot">${isDone ? '✓' : step.icon}</div>
-            </div>
-            <div class="tl-body">
-                <div class="tl-label">${step.label}</div>
-                <div class="tl-desc">${step.desc}</div>
-                ${timeStr ? `<div class="tl-time">${isActive ? '⏱ En cours depuis ' : '✓ '}${timeStr}</div>` : ''}
-            </div>`;
-        container.appendChild(div);
-    });
-
-    /* Bannière finale */
-    qs('done-banner').style.display = currentStatus === 'livré' ? 'block' : 'none';
+function toast(msg,dur=3500){
+    const w=qs('toast-wrap');w.innerHTML=`<div class="toast">${msg}</div>`;
+    setTimeout(()=>w.innerHTML='',dur);
 }
 
-/* ── Mise à jour statut ── */
-function updateStatus(newStatus) {
-    if (!STATUS_ORDER.includes(newStatus)) return;
-    currentStatus = newStatus;
-    stepTimestamps[newStatus] = new Date().toISOString();
-    renderTimeline(newStatus);
-
-    /* Vibration courte si statut avance */
-    if ('vibrate' in navigator) navigator.vibrate([80, 40, 80]);
+function switchTab(id,btn){
+    document.querySelectorAll('.p-tab').forEach(b=>b.classList.remove('on'));
+    document.querySelectorAll('.p-sec').forEach(s=>s.classList.remove('on'));
+    btn.classList.add('on');qs('tab-'+id).classList.add('on');
+    if(id==='chat')loadChat();
 }
 
-/* ── Chargement commande ── */
-async function loadOrder(orderId) {
-    /* 1. Commande */
-    const { data: order, error } = await supabaseClient
-        .from('orders')
-        .select('*, restaurants(id, name, slug, logo_url, whatsapp)')
-        .eq('id', orderId)
-        .single();
+function showState(id){
+    ['state-loading','state-error'].forEach(s=>qs(s).style.display=s===id?'flex':'none');
+    const isMain=id==='main';
+    qs('main-top').style.display=isMain?'flex':'none';
+    qs('main-content').style.display=isMain?'flex':'none';
+    qs('eta-bar').style.display=isMain?'flex':'none';
+}
 
-    if (error || !order) {
-        showError('Commande introuvable. Vérifiez le lien reçu.');
-        return;
+/* ═══ INIT ═══ */
+(async()=>{
+    const params=new URLSearchParams(location.search);
+    const orderId=params.get('id');
+    if(!orderId||!/^[0-9a-f-]{36}$/i.test(orderId)){
+        qs('err-txt').textContent='Lien de suivi invalide.';showState('state-error');return;
     }
-
-    /* 2. Plats commandés */
-    const { data: items } = await supabaseClient
-        .from('order_items')
-        .select('item_name, item_price, quantity')
-        .eq('order_id', orderId);
-
-    renderOrder(order, items || []);
-    startRealtime(orderId, order.status);
-}
-
-/* ── Rendu de la page ── */
-function renderOrder(order, items) {
-    const resto = order.restaurants || {};
-
-    /* En-tête resto */
-    if (resto.logo_url) {
-        qs('resto-logo').innerHTML = `<img src="${escapeHTML(resto.logo_url)}" alt="${escapeHTML(resto.name)}" loading="eager">`;
-    }
-    qs('resto-name').textContent = resto.name || '—';
-    qs('order-ref').textContent  = `Réf. #${order.id.substring(0, 8).toUpperCase()}`;
-
-    /* Infos client */
-    qs('info-name').textContent    = order.customer_name  || '—';
-    qs('info-phone').textContent   = order.customer_phone || '—';
-    qs('info-payment').textContent = PAYMENT_LABELS[order.payment_method] || order.payment_method || '—';
-    qs('info-type').textContent    = TYPE_LABELS[order.delivery_type]    || order.delivery_type    || '—';
-
-    if (order.customer_address) {
-        qs('info-address').textContent   = order.customer_address;
-        qs('info-address-row').style.display = 'flex';
-    }
-
-    /* Plats */
-    const listEl = qs('order-items-list');
-    if (items.length) {
-        listEl.innerHTML = items.map(it => `
-            <div class="order-item">
-                <div>
-                    <span class="order-item-name">${escapeHTML(it.item_name)}</span>
-                    <span class="order-item-qty">×${it.quantity}</span>
-                </div>
-                <span class="order-item-price">${fmt(it.item_price * it.quantity)}</span>
-            </div>`).join('');
-    } else {
-        listEl.innerHTML = '<div class="order-item" style="color:var(--dim);font-size:.82rem;">Détail non disponible</div>';
-    }
-
-    qs('order-total').textContent = fmt(order.total);
-
-    /* Bouton WhatsApp resto */
-    if (resto.whatsapp) {
-        const waBtn  = qs('wa-contact');
-        waBtn.href   = `https://wa.me/${String(resto.whatsapp).replace(/[^0-9]/g,'')}`;
-        waBtn.style.display = 'flex';
-    }
-
-    /* Timeline initiale */
-    stepTimestamps[order.status] = order.updated_at || order.created_at;
-    updateStatus(order.status);
-
-    /* Affichage */
-    qs('state-loading').style.display = 'none';
-    qs('main-content').style.display  = 'block';
-}
-
-/* ── Supabase Realtime ── */
-function startRealtime(orderId, initialStatus) {
-    realtimeChannel = supabaseClient
-        .channel(`order-track-${orderId}`)
-        .on(
-            'postgres_changes',
-            {
-                event:  'UPDATE',
-                schema: 'public',
-                table:  'orders',
-                filter: `id=eq.${orderId}`
-            },
-            (payload) => {
-                const newStatus = payload.new?.status;
-                if (newStatus && newStatus !== currentStatus) {
-                    stepTimestamps[newStatus] = payload.new.updated_at || new Date().toISOString();
-                    updateStatus(newStatus);
-
-                    /* Toast discret */
-                    showToast(`Statut mis à jour : ${STEPS.find(s=>s.key===newStatus)?.label || newStatus}`);
-                }
-            }
-        )
-        .subscribe((status) => {
-            if (status === 'SUBSCRIBED') {
-                console.log('✅ Realtime connecté pour commande', orderId);
-            }
-        });
-}
-
-/* ── Toast ── */
-function showToast(msg) {
-    const t = document.createElement('div');
-    t.style.cssText = `
-        position:fixed;bottom:24px;left:50%;transform:translateX(-50%);
-        background:#191918;border:1px solid rgba(197,160,89,.3);color:#f0ece4;
-        padding:10px 20px;border-radius:50px;font-size:.82rem;font-weight:600;
-        white-space:nowrap;z-index:999;animation:fadeUp .3s ease;
-        box-shadow:0 8px 24px rgba(0,0,0,.4);
-    `;
-    t.textContent = msg;
-    document.body.appendChild(t);
-    const style = document.createElement('style');
-    style.textContent = `@keyframes fadeUp{from{opacity:0;transform:translateX(-50%) translateY(12px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}`;
-    document.head.appendChild(style);
-    setTimeout(() => t.remove(), 4000);
-}
-
-/* ── Erreur ── */
-function showError(msg) {
-    qs('state-loading').style.display = 'none';
-    qs('state-error').style.display   = 'block';
-    qs('error-msg-txt').textContent   = msg;
-}
-
-/* ── Init ── */
-(async () => {
-    const params  = new URLSearchParams(location.search);
-    const orderId = params.get('id');
-
-    if (!orderId) { showError('Aucun identifiant de commande fourni.'); return; }
-
-    /* Validation UUID basique */
-    if (!/^[0-9a-f-]{36}$/i.test(orderId)) {
-        showError('Identifiant de commande invalide.');
-        return;
-    }
-
-    try {
+    try{
         await CONFIG.load();
-        supabaseClient = supabase.createClient(CONFIG.supabaseUrl, CONFIG.supabaseKey);
-        await loadOrder(orderId);
-    } catch (e) {
-        console.error('Erreur init:', e);
-        showError('Impossible de charger la commande. Vérifiez votre connexion.');
+        db=supabase.createClient(CONFIG.supabaseUrl,CONFIG.supabaseKey);
+    }catch(e){qs('err-txt').textContent='Service indisponible.';showState('state-error');return;}
+
+    try{
+        const{data,error}=await db.from('orders')
+            .select(`id,customer_name,customer_phone,customer_address,customer_lat,customer_lng,
+                     total,status,payment_method,delivery_type,delivery_person_id,
+                     restaurants(name,lat,lng,logo_url,whatsapp),
+                     order_items(item_name,quantity,item_price)`)
+            .eq('id',orderId).single();
+
+        if(error||!data){qs('err-txt').textContent='Commande introuvable.';showState('state-error');return;}
+        order=data;
+        showState('main');
+        initMap();
+        renderTimeline(order.status);
+        renderOrderInfo();
+        updateETA(order.status,null);
+        loadDriverPosition();
+        startRealtime();
+    }catch(e){
+        qs('err-txt').textContent='Impossible de charger la commande.';showState('state-error');
     }
 })();
 
-/* ── Nettoyage à la fermeture ── */
-window.addEventListener('beforeunload', () => {
-    if (realtimeChannel && supabaseClient) {
-        supabaseClient.removeChannel(realtimeChannel);
-    }
-});
+/* ═══ CARTE ═══ */
+function initMap(){
+    map=L.map('map',{zoomControl:false,attributionControl:false});
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19}).addTo(map);
 
-if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js');
+    const bounds=[];
+
+    /* Marqueur restaurant */
+    const resto=order.restaurants;
+    if(resto?.lat&&resto?.lng){
+        const rIcon=L.divIcon({
+            html:`<div style="background:#e74c3c;width:14px;height:14px;border-radius:50%;border:3px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.4);"></div>`,
+            iconSize:[14,14],iconAnchor:[7,7],className:''
+        });
+        L.marker([resto.lat,resto.lng],{icon:rIcon}).addTo(map)
+            .bindPopup(`<b>🍽️ ${esc(resto.name)}</b>`,{className:'dark-popup'});
+        bounds.push([resto.lat,resto.lng]);
+    }
+
+    /* Marqueur client */
+    if(order.customer_lat&&order.customer_lng){
+        const cIcon=L.divIcon({
+            html:'<div style="background:var(--gold,#c5a059);width:14px;height:14px;border-radius:50%;border:3px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.4);"></div>',
+            iconSize:[14,14],iconAnchor:[7,7],className:''
+        });
+        clientMarker=L.marker([order.customer_lat,order.customer_lng],{icon:cIcon}).addTo(map)
+            .bindPopup('<b>📍 Votre adresse</b>',{className:'dark-popup'});
+        bounds.push([order.customer_lat,order.customer_lng]);
+    }
+
+    if(bounds.length)map.fitBounds(bounds,{padding:[30,30]});
+    else map.setView([6.1375,1.2123],13);
+}
+
+function _updateDriverOnMap(lat,lng){
+    if(!map)return;
+    const icon=L.divIcon({
+        html:'<div style="background:#3498db;width:18px;height:18px;border-radius:50%;border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;font-size:9px;">🛵</div>',
+        iconSize:[18,18],iconAnchor:[9,9],className:''
+    });
+    if(driverMarker){driverMarker.setLatLng([lat,lng]);}
+    else{
+        driverMarker=L.marker([lat,lng],{icon}).addTo(map)
+            .bindPopup('<b>🛵 Votre livreur</b>',{className:'dark-popup'});
+    }
+
+    /* Ligne livreur → client */
+    if(order.customer_lat&&order.customer_lng){
+        if(routeLine)map.removeLayer(routeLine);
+        routeLine=L.polyline([[lat,lng],[order.customer_lat,order.customer_lng]],
+            {color:'#3498db',weight:2,dashArray:'5,4',opacity:.5}).addTo(map);
+
+        /* Calculer ETA en temps réel */
+        const dist=_haversine(lat,lng,order.customer_lat,order.customer_lng);
+        const mins=Math.max(1,Math.round(dist/25*60));
+        updateETA('en_route',mins);
+    }
+}
+
+function _haversine(lat1,lng1,lat2,lng2){
+    const R=6371,toR=d=>d*Math.PI/180;
+    const a=Math.sin(toR(lat2-lat1)/2)**2+Math.cos(toR(lat1))*Math.cos(toR(lat2))*Math.sin(toR(lng2-lng1)/2)**2;
+    return R*2*Math.asin(Math.sqrt(a));
+}
+
+/* ═══ POSITION LIVREUR (chargement initial) ═══ */
+async function loadDriverPosition(){
+    if(!order.delivery_person_id)return;
+    try{
+        const{data}=await db.from('delivery_tracking')
+            .select('lat,lng,updated_at')
+            .eq('delivery_person_id',order.delivery_person_id)
+            .eq('order_id',order.id)
+            .order('updated_at',{ascending:false})
+            .limit(1)
+            .single();
+        if(data?.lat&&data?.lng)_updateDriverOnMap(data.lat,data.lng);
+    }catch(_){}
+}
+
+/* ═══ TIMELINE ═══ */
+function renderTimeline(currentStatus){
+    const idx=STATUS_ORDER.indexOf(currentStatus);
+    qs('timeline').innerHTML=STEPS.map((step,i)=>{
+        const isDone=i<idx,isActive=i===idx;
+        const cls=isDone?'done':isActive?'active':'';
+        return`<div class="tl-step ${cls}">
+            <div class="tl-dot">${isDone?'✓':step.icon}</div>
+            <div class="tl-body">
+                <div class="tl-label">${step.label}</div>
+                <div class="tl-sub">${step.sub}</div>
+            </div>
+        </div>`;
+    }).join('');
+}
+
+/* ═══ ETA BANNER ═══ */
+function updateETA(status,minsLeft){
+    const mainEl=qs('eta-main'),subEl=qs('eta-sub');
+    if(!mainEl)return;
+    if(status==='livré'){
+        mainEl.textContent='🎉 Commande livrée !';
+        subEl.textContent='Bon appétit !';
+        return;
+    }
+    if(status==='en_route'&&minsLeft!==null){
+        mainEl.textContent=`~${minsLeft} min`;
+        subEl.textContent='Estimation d\'arrivée';
+        return;
+    }
+    const labels={
+        confirmé:'En attente du restaurant…',
+        en_préparation:'En préparation',
+        prêt:'Prêt — livreur en route bientôt',
+        en_route:'Livreur en chemin',
+    };
+    mainEl.textContent=labels[status]||status;
+    subEl.textContent='Mise à jour automatique';
+}
+
+/* ═══ INFOS COMMANDE ═══ */
+function renderOrderInfo(){
+    const o=order;
+    const resto=o.restaurants||{};
+    const payLabels={especes:'💵 Espèces',tmoney:'📱 TMoney',flooz:'📱 Flooz'};
+    const typeLabels={sur_place:'🏪 Sur place',livraison:'🛵 Livraison'};
+
+    const rows=[
+        {icon:'🏷️',lbl:'Réf.',val:`#${o.id.substring(0,8).toUpperCase()}`,mono:true},
+        {icon:'🍽️',lbl:'Restaurant',val:resto.name||'—'},
+        {icon:'👤',lbl:'Nom',val:o.customer_name||'—'},
+        {icon:'💳',lbl:'Paiement',val:payLabels[o.payment_method]||o.payment_method||'—'},
+        {icon:'🏍️',lbl:'Type',val:typeLabels[o.delivery_type]||o.delivery_type||'—'},
+        {icon:'💰',lbl:'Total',val:fmt(o.total||0),mono:true},
+        ...(o.customer_address?[{icon:'📍',lbl:'Adresse',val:o.customer_address}]:[]),
+    ];
+
+    qs('order-info-rows').innerHTML=rows.map(r=>`
+        <div class="info-row">
+            <span class="info-icon">${r.icon}</span>
+            <span class="info-lbl">${r.lbl}</span>
+            <span class="info-val${r.mono?' mono':''}">${esc(String(r.val))}</span>
+        </div>`).join('');
+
+    /* Boutons de contact */
+    const contacts=[];
+    if(resto.whatsapp){
+        const phone=String(resto.whatsapp).replace(/[^0-9+]/g,'');
+        contacts.push(`<a class="btn-contact btn-wa" href="https://wa.me/${phone}" target="_blank" rel="noopener">📲 Restaurant</a>`);
+    }
+    if(o.customer_lat&&o.customer_lng){
+        contacts.push(`<a class="btn-contact btn-maps" href="https://maps.google.com/?q=${o.customer_lat},${o.customer_lng}" target="_blank" rel="noopener">🗺️ Ma position</a>`);
+    }
+    qs('contact-row').innerHTML=contacts.join('');
+
+    /* Items */
+    const items=o.order_items||[];
+    if(items.length){
+        qs('order-info-rows').insertAdjacentHTML('beforeend',`
+            <div style="margin-top:12px;padding-top:10px;border-top:.5px solid var(--line)">
+                <div style="font-size:.72rem;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--dim);margin-bottom:8px;">Plats commandés</div>
+                ${items.map(i=>`<div class="info-row">
+                    <span class="info-icon">🍽️</span>
+                    <span class="info-val">${esc(i.item_name)} <span style="color:var(--dim);">×${i.quantity}</span></span>
+                    <span class="info-val mono" style="text-align:right;">${fmt(i.item_price*i.quantity)}</span>
+                </div>`).join('')}
+            </div>`);
+    }
+}
+
+/* ═══ CHAT ═══ */
+async function loadChat(){
+    const el=qs('chat-msgs');
+    el.innerHTML='<div style="text-align:center;color:var(--dim);font-size:.78rem;padding:10px;">Chargement…</div>';
+
+    try{
+        const{data}=await db.from('delivery_chats')
+            .select('id,sender_role,sender_name,message,created_at')
+            .eq('order_id',order.id)
+            .in('sender_role',['livreur','client'])
+            .order('created_at',{ascending:true})
+            .limit(60);
+
+        _renderMsgs(data||[]);
+
+        if(chatChannel)db.removeChannel(chatChannel);
+        chatChannel=db.channel(`tracking-chat-${order.id}`)
+            .on('postgres_changes',{event:'INSERT',schema:'public',table:'delivery_chats',filter:`order_id=eq.${order.id}`},
+                p=>{
+                    const msgs=qs('chat-msgs');
+                    msgs.appendChild(_msgEl(p.new));
+                    msgs.scrollTop=msgs.scrollHeight;
+                    if('vibrate' in navigator)navigator.vibrate([50]);
+                })
+            .subscribe();
+    }catch(e){
+        el.innerHTML=`<div style="text-align:center;color:var(--dim);font-size:.78rem;padding:10px;">Chat indisponible.</div>`;
+    }
+}
+
+function _renderMsgs(msgs){
+    const el=qs('chat-msgs');el.innerHTML='';
+    if(!msgs.length){el.innerHTML='<div style="text-align:center;color:var(--dim);font-size:.78rem;padding:10px;">Aucun message. Écrivez au livreur !</div>';return;}
+    msgs.forEach(m=>el.appendChild(_msgEl(m)));
+    el.scrollTop=el.scrollHeight;
+}
+
+function _msgEl(m){
+    const div=document.createElement('div');
+    const isMine=m.sender_role==='client';
+    div.className=`msg ${isMine?'mine':'theirs'}`;
+    const time=new Date(m.created_at).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
+    div.innerHTML=`<div>${esc(m.message)}</div><div class="msg-meta">${isMine?'Vous':esc(m.sender_name||'Livreur')} · ${time}</div>`;
+    return div;
+}
+
+window.sendMsg=async function(){
+    const inp=qs('chat-inp');
+    const msg=inp.value.trim();
+    if(!msg||!order)return;
+    inp.value='';
+    try{
+        await db.from('delivery_chats').insert({
+            order_id:order.id,
+            sender_role:'client',
+            sender_name:order.customer_name||'Client',
+            message:msg,
+        });
+    }catch(e){toast('Erreur: '+e.message);}
+};
+
+/* ═══ REALTIME ═══ */
+function startRealtime(){
+    /* Statut commande */
+    db.channel(`tracking-order-${order.id}`)
+        .on('postgres_changes',{event:'UPDATE',schema:'public',table:'orders',filter:`id=eq.${order.id}`},
+            p=>{
+                const s=p.new.status;
+                order.status=s;
+                renderTimeline(s);
+                updateETA(s,null);
+                toast(s==='livré'?'🎉 Commande livrée !':'📦 Statut mis à jour : '+s);
+                if('vibrate' in navigator)navigator.vibrate([80,40,80]);
+            })
+        .subscribe();
+
+    /* Position GPS livreur */
+    if(order.delivery_person_id){
+        trackingChannel=db.channel(`tracking-gps-${order.delivery_person_id}`)
+            .on('postgres_changes',{event:'*',schema:'public',table:'delivery_tracking',
+                filter:`delivery_person_id=eq.${order.delivery_person_id}`},
+                p=>{
+                    if(p.new?.lat&&p.new?.lng)_updateDriverOnMap(p.new.lat,p.new.lng);
+                })
+            .subscribe();
+    }
+}
+
+window.addEventListener('beforeunload',()=>{
+    if(chatChannel&&db)db.removeChannel(chatChannel);
+    if(trackingChannel&&db)db.removeChannel(trackingChannel);
+});
 </script>
 </body>
 </html>

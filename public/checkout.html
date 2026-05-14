@@ -13,6 +13,8 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+	<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.min.css">
+	<script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 	<script src="checkout-table-patch.js"></script>
     <script src="config.js"></script>
@@ -400,5 +402,6 @@ function trackOrder() {
 init();
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js');
 </script>
+<script src="checkout-geoloc-patch.js"></script>
 </body>
 </html>
