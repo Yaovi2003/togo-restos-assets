@@ -162,9 +162,14 @@ function toast(msg,dur=3000){const w=qs('toast-wrap');w.innerHTML=`<div class="t
 function showState(id){
     ['state-loading','state-error'].forEach(s=>qs(s).style.display=s===id?'flex':'none');
     const mainTop=qs('main-top'),mainLayout=qs('main-layout');
-    if(id==='main'){mainTop.style.display='flex';mainLayout.style.display='grid';}
+    if(id==='main'){
+        mainTop.style.display='flex';
+        mainLayout.style.display='grid';
+    } else {
+        mainTop.style.display='none';
+        mainLayout.style.display='none';
+    }
 }
-
 /* ── Tabs ── */
 function switchTab(id,btn){
     document.querySelectorAll('.p-tab').forEach(b=>b.classList.remove('on'));

@@ -130,7 +130,7 @@ let cartData = {};
 let restaurantData = null;
 let orderId = null;
 let deliveryType = 'sur_place';
-let deliveryFee = 0;
+window.deliveryFee = 0;
 let discountAmount = 0;
 let paymentMethod = 'especes';
 
@@ -238,11 +238,11 @@ function selectDelivery(type) {
     document.querySelector(`[data-type="${type}"]`).classList.add('selected');
     
     if (type === 'livraison') {
-        deliveryFee = 0; // Le script geo recalculera les frais réels
+        window.deliveryFee = 0; // Le script geo recalculera les frais réels
         $('address-field').style.display = 'block';
         // Laisser le script geo injecter sa zone et gérer l'adresse
     } else {
-        deliveryFee = 0;
+        window.deliveryFee = 0;
         $('address-field').style.display = 'none';
         // Réinitialiser les données geo si on repasse en sur-place
         if (typeof geoClear === 'function') geoClear();
@@ -262,9 +262,9 @@ function selectPayment(method) {
 }
 
 function updateTotals(subtotal) {
-    const total = subtotal + deliveryFee - discountAmount;
+    const total = subtotal + window.deliveryFee - discountAmount;
     $('subtotal-display').textContent = fmt(subtotal);
-    $('delivery-display').textContent = fmt(deliveryFee);
+    $('delivery-display').textContent = fmt(window.deliveryFee);
     $('total-display').textContent = fmt(total);
     // Exposer pour que le script geo puisse rappeler updateTotals
     window._checkoutSubtotal = subtotal;
@@ -298,7 +298,7 @@ $('submit-order-btn').addEventListener('click', async () => {
 
     const items = Object.values(cartData);
     const subtotal = items.reduce((s, i) => s + i.price * i.qty, 0);
-    const total = subtotal + deliveryFee - discountAmount;
+    const total = subtotal + window.deliveryFee - discountAmount;
 
     if (total <= 0) {
         showError('Erreur : total de commande invalide.');
@@ -314,7 +314,7 @@ $('submit-order-btn').addEventListener('click', async () => {
             customer_phone: phone,
             customer_address: address ? escapeHTML(address) : null, 
             delivery_type: deliveryType,
-            delivery_fee: deliveryFee, 
+            delivery_fee: window.deliveryFee, 
             subtotal: subtotal, 
             discount: discountAmount,
             total: total, 
@@ -385,7 +385,7 @@ function downloadInvoice() {
     const doc = new jsPDF();
     const items = Object.values(cartData);
     const subtotal = items.reduce((s, i) => s + i.price * i.qty, 0);
-    const total = subtotal + deliveryFee - discountAmount;
+    const total = subtotal + window.deliveryFee - discountAmount;
 
     doc.setFontSize(18); doc.text('FACTURE', 105, 20, { align: 'center' });
     doc.setFontSize(12); doc.text(restaurantData?.name || '', 105, 30, { align: 'center' });
@@ -403,7 +403,7 @@ function downloadInvoice() {
         y += 8; 
     });
     y += 8; doc.line(15, y, 195, y); y += 8;
-    if (deliveryFee > 0) { doc.text(`Livraison : ${fmtPDF(deliveryFee)}`, 15, y); y += 6; }
+    if (window.deliveryFee > 0) { doc.text(`Livraison : ${fmtPDF(window.deliveryFee)}`, 15, y); y += 6; }
     doc.setFontSize(12); doc.text(`TOTAL : ${fmtPDF(total)}`, 15, y);
 
     doc.save(`facture-${orderId?.substring(0, 8) || 'commande'}.pdf`);

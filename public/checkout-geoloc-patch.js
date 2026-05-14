@@ -240,6 +240,9 @@ function _showMap(lat, lng) {
         }).addTo(_geoMap);
     }
 
+    // Forcer Leaflet à recalculer après affichage du conteneur
+    if (_geoMap) setTimeout(() => _geoMap.invalidateSize(), 50);
+
     _geoMap.setView([lat, lng], 17);
 
     /* Marqueur client (draggable pour correction manuelle) */
@@ -351,9 +354,6 @@ function _updateDeliveryFee(cLat, cLng) {
     const subtotal = window._checkoutSubtotal || 0;
     if (typeof updateTotals === 'function') {
         updateTotals(subtotal);
-    }
-    if (typeof displaySummary === 'function') {
-        displaySummary();
     }
 }
 

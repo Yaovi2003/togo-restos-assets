@@ -108,14 +108,13 @@ async function handleDistance(request) {
     const RATE     = 100;   /* FCFA/km */
     const BASE     = 300;
     const FREE_KM  = 1.5;
-    const fee      = distKm > FREE_KM
-        ? Math.ceil((_haversine(rLat, rLng, cLat, cLng) - FREE_KM) * RATE + BASE, 100)
-        : 0;
+    const raw      = (distKm - FREE_KM) * RATE + BASE;
+    const fee      = distKm > FREE_KM ? Math.ceil(raw / 100) * 100 : 0;
     const duration = Math.round(distKm / 25 * 60); /* 25 km/h moyen à Lomé */
 
     return new Response(JSON.stringify({
         distanceKm: Math.round(distKm * 10) / 10,
-        fee:        Math.ceil(fee / 100) * 100,
+        fee,
         duration,
         durationLabel: duration < 60
             ? `${duration} min`

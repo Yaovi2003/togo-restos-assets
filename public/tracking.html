@@ -235,6 +235,8 @@ function showState(id){
         order=data;
         showState('main');
         initMap();
+        // Forcer Leaflet à recalculer après rendu du conteneur
+        setTimeout(() => { if (map) map.invalidateSize(); }, 150);
         renderTimeline(order.status);
         renderOrderInfo();
         updateETA(order.status,null);
@@ -319,12 +321,11 @@ async function loadDriverPosition(){
             .eq('delivery_person_id',order.delivery_person_id)
             .eq('order_id',order.id)
             .order('updated_at',{ascending:false})
-            .limit(1)
-            .single();
-        if(data?.lat&&data?.lng)_updateDriverOnMap(data.lat,data.lng);
+            .limit(1);
+        const row = data?.[0];
+        if(row?.lat&&row?.lng)_updateDriverOnMap(row.lat,row.lng);
     }catch(_){}
 }
-
 /* ═══ TIMELINE ═══ */
 function renderTimeline(currentStatus){
     const idx=STATUS_ORDER.indexOf(currentStatus);
