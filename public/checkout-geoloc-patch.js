@@ -506,8 +506,10 @@ function _onReady() {
 function _toggleGeoZone() {
     const zone       = document.getElementById('geo-zone');
     const addrField  = document.getElementById('address-field');
-    if (!zone) return;
-
+    if (!zone) {
+        _injectGeoZone();
+        return;
+    }
     const isLivraison = (window.deliveryType === 'livraison') ||
         document.querySelector('.delivery-option.selected[data-type="livraison"]') !== null;
 
