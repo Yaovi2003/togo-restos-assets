@@ -771,9 +771,28 @@ function _startGPS(){
 
     if(!gpsBroadcastChannel){
         gpsBroadcastChannel=db.channel(`gps-broadcast-${person.id}`);
-        gpsBroadcastChannel.subscribe();
+        /* Attendre SUBSCRIBED avant de démarrer watchPosition
+           pour éviter le fallback REST sur le premier send() */
+        gpsBroadcastChannel.subscribe((status)=>{
+            if(status==='SUBSCRIBED')_startWatchPosition();
+        });
+    }else{
+        _startWatchPosition();
     }
 
+    gpsActive=true;
+    qs('gps-pill').classList.remove('off','warn');
+    qs('gps-pill').classList.add('on');
+    qs('gps-lbl').textContent='GPS on';
+    toast('📍 GPS activé');
+
+    /* #2 — Démarrer le heartbeat */
+    _lastSuccessfulBroadcast=Date.now();
+    _startHeartbeat();
+}
+
+function _startWatchPosition(){
+    if(gpsWatchId!==null)return; /* déjà démarré */
     gpsWatchId=navigator.geolocation.watchPosition(
         pos=>{
             const{latitude:lat,longitude:lng,heading,speed}=pos.coords;
@@ -784,15 +803,6 @@ function _startGPS(){
         err=>{toast('GPS: '+err.message,'err');_stopGPS();},
         {enableHighAccuracy:true,timeout:15000,maximumAge:5000}
     );
-    gpsActive=true;
-    qs('gps-pill').classList.remove('off','warn');
-    qs('gps-pill').classList.add('on');
-    qs('gps-lbl').textContent='GPS on';
-    toast('📍 GPS activé');
-
-    /* #2 — Démarrer le heartbeat */
-    _lastSuccessfulBroadcast=Date.now();
-    _startHeartbeat();
 }
 
 function _stopGPS(){
@@ -868,11 +878,17 @@ async function _broadcastPosition(lat,lng,heading,speed){
             speed:speed?Math.round(speed*3.6):null,
             recorded_at:new Date().toISOString()
         }));
-        /* delivery_tracking_history est la nouvelle table sans contrainte unique */
-        await db.from('delivery_tracking_history').insert(rows);
-        /* Garder aussi l'upsert sur delivery_tracking pour loadDriverPosition */
+        /* Historique GPS — table créée par la migration SQL */
+        await db.from('delivery_tracking_history').insert(rows).then(()=>{}).catch(()=>{});
+        /* Upsert position courante — delivery_tracking n'a pas recorded_at */
         await db.from('delivery_tracking').upsert(
-            rows.map(r=>({...r,updated_at:r.recorded_at})),
+            rows.map(r=>({
+                delivery_person_id:r.delivery_person_id,
+                order_id:r.order_id,
+                lat:r.lat,lng:r.lng,
+                heading:r.heading,speed:r.speed,
+                updated_at:r.recorded_at
+            })),
             {onConflict:'delivery_person_id,order_id'}
         );
     }catch(_){}
