@@ -4,14 +4,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Suivi de commande — Restos Lomé</title>
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net 'unsafe-inline'; style-src 'self' https://fonts.googleapis.com 'unsafe-inline' https://cdn.jsdelivr.net; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https: blob:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://cdn.jsdelivr.net https://tile.openstreetmap.org;">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net 'unsafe-inline'; style-src 'self' https://fonts.googleapis.com 'unsafe-inline' https://cdn.jsdelivr.net; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https: blob:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://cdn.jsdelivr.net https://tile.openstreetmap.org https://router.project-osrm.org;">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.min.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
     <script src="config.js"></script>
-
     <style>
         :root{
             --gold:#c5a059;--gold-d:rgba(197,160,89,.12);--gold-b:rgba(197,160,89,.28);
@@ -34,9 +33,12 @@
         .eta-bar{background:linear-gradient(135deg,rgba(197,160,89,.15),rgba(197,160,89,.06));border-bottom:1px solid rgba(197,160,89,.2);padding:10px 16px;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-shrink:0}
         .eta-main{font-family:'Syne',sans-serif;font-size:1rem;font-weight:700;color:var(--gold)}
         .eta-sub{font-size:.72rem;color:rgba(197,160,89,.65);margin-top:2px}
-        .live-badge{display:flex;align-items:center;gap:5px;background:rgba(46,204,113,.1);border:1px solid rgba(46,204,113,.2);border-radius:20px;padding:4px 10px;font-size:.68rem;font-weight:600;color:var(--ok)}
+        .live-badge{display:flex;align-items:center;gap:5px;background:rgba(46,204,113,.1);border:1px solid rgba(46,204,113,.2);border-radius:20px;padding:4px 10px;font-size:.68rem;font-weight:600;color:var(--ok);flex-shrink:0}
         .live-dot{width:6px;height:6px;border-radius:50%;background:var(--ok);animation:livePulse 1.4s ease-in-out infinite}
         @keyframes livePulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(.7)}}
+
+        /* #4 — Bannière GPS inactif */
+        #gps-inactive-bar{display:none;background:rgba(120,120,120,.12);border-bottom:1px solid rgba(255,255,255,.08);padding:8px 16px;font-size:.75rem;color:var(--dim);text-align:center;flex-shrink:0}
 
         /* ── Layout ── */
         .content{flex:1;display:flex;flex-direction:column;overflow:hidden}
@@ -79,7 +81,7 @@
         .info-val{flex:1;word-break:break-word}
         .info-val.mono{font-family:'IBM Plex Mono',monospace;color:var(--gold)}
 
-        /* ── Chat livreur ── */
+        /* ── Chat ── */
         .chat-msgs{height:150px;overflow-y:auto;background:var(--s2);border:.5px solid var(--line2);border-radius:8px;padding:8px;margin-bottom:8px;display:flex;flex-direction:column;gap:6px}
         .chat-msgs::-webkit-scrollbar{width:2px}
         .chat-msgs::-webkit-scrollbar-thumb{background:var(--line2)}
@@ -95,10 +97,14 @@
 
         /* ── Contact ── */
         .contact-row{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
-        .btn-contact{padding:10px 16px;border-radius:10px;font-size:.8rem;font-weight:700;cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:6px;text-decoration:none;transition:opacity .2s}
+        .btn-contact{padding:10px 16px;border-radius:10px;font-size:.8rem;font-weight:700;cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:6px;text-decoration:none;transition:opacity .2s;border:none}
         .btn-contact:hover{opacity:.85}
-        .btn-wa{background:rgba(37,211,102,.12);border:1px solid rgba(37,211,102,.25);color:#25d366}
-        .btn-maps{background:rgba(52,152,219,.12);border:1px solid rgba(52,152,219,.25);color:#3498db}
+        .btn-wa{background:rgba(37,211,102,.12);border:1px solid rgba(37,211,102,.25)!important;color:#25d366}
+        .btn-maps{background:rgba(52,152,219,.12);border:1px solid rgba(52,152,219,.25)!important;color:#3498db}
+
+        /* #10 — légende trace historique */
+        .trace-legend{display:flex;align-items:center;gap:6px;font-size:.7rem;color:var(--dim);margin-top:6px}
+        .trace-line{width:24px;height:3px;border-radius:2px;background:#888;opacity:.5}
 
         /* ── États ── */
         #state-loading,#state-error{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;z-index:500;background:var(--bg);text-align:center;padding:20px}
@@ -107,7 +113,7 @@
         @keyframes spin{to{transform:rotate(360deg)}}
 
         /* ── Toast ── */
-        #toast-wrap{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);z-index:999;pointer-events:none}
+        #toast-wrap{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);z-index:999;pointer-events:none;display:flex;flex-direction:column;gap:6px;align-items:center}
         .toast{background:var(--s2);border:.5px solid var(--line2);border-radius:50px;padding:8px 18px;font-size:.78rem;font-weight:600;white-space:nowrap;animation:tIn .3s ease;box-shadow:0 4px 16px rgba(0,0,0,.4)}
         @keyframes tIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
 
@@ -122,7 +128,7 @@
 <div id="state-error"><span style="font-size:2rem;">⚠️</span><p id="err-txt" style="color:var(--dim);font-size:.85rem;max-width:280px;line-height:1.6;"></p></div>
 
 <div class="top" id="main-top" style="display:none;">
-    <button class="back-btn" onclick="history.back()">← Retour</button>
+    <button class="back-btn" id="back-btn">← Retour</button>
     <span class="top-brand">📦 Suivi commande</span>
     <span style="width:60px;"></span>
 </div>
@@ -130,9 +136,14 @@
 <div class="eta-bar" id="eta-bar" style="display:none;">
     <div>
         <div class="eta-main" id="eta-main">En préparation…</div>
-        <div class="eta-sub"  id="eta-sub">Le livreur n'est pas encore parti</div>
+        <div class="eta-sub"  id="eta-sub">Mise à jour automatique</div>
     </div>
     <div class="live-badge"><div class="live-dot"></div><span>Live</span></div>
+</div>
+
+<!-- #4 — Le livreur n'a pas encore activé son GPS -->
+<div id="gps-inactive-bar">
+    🛵 Le livreur n'a pas encore activé son GPS — la carte se mettra à jour dès qu'il démarre
 </div>
 
 <div class="content" id="main-content" style="display:none;">
@@ -140,14 +151,19 @@
 
     <div class="bottom">
         <div class="panel-tabs">
-            <button class="p-tab on" onclick="switchTab('status',this)">📋 Statut</button>
-            <button class="p-tab"    onclick="switchTab('info',this)">🧾 Commande</button>
-            <button class="p-tab"    onclick="switchTab('chat',this)">💬 Livreur</button>
+            <button class="p-tab on" id="tab-btn-status">📋 Statut</button>
+            <button class="p-tab"    id="tab-btn-info">🧾 Commande</button>
+            <button class="p-tab"    id="tab-btn-chat">💬 Livreur</button>
         </div>
 
         <!-- Statut -->
         <div class="p-sec on panel-body" id="tab-status">
             <div class="timeline" id="timeline"></div>
+            <!-- #10 — légende trace -->
+            <div class="trace-legend" id="trace-legend" style="display:none;">
+                <div class="trace-line"></div>
+                <span>Chemin parcouru par le livreur</span>
+            </div>
         </div>
 
         <!-- Infos commande -->
@@ -162,9 +178,8 @@
                 <div style="text-align:center;color:var(--dim);font-size:.78rem;padding:16px;">Chargement du chat…</div>
             </div>
             <div class="chat-inp-row">
-                <input type="text" class="chat-inp" id="chat-inp" placeholder="Message au livreur…"
-                    maxlength="500" onkeydown="if(event.key==='Enter')sendMsg()">
-                <button class="chat-send" onclick="sendMsg()">Envoyer</button>
+                <input type="text" class="chat-inp" id="chat-inp" placeholder="Message au livreur…" maxlength="500">
+                <button class="chat-send" id="chat-send-btn">Envoyer</button>
             </div>
         </div>
     </div>
@@ -175,15 +190,21 @@
 <script>
 'use strict';
 
-let db=null, map=null, order=null, chatChannel=null, trackingChannel=null;
-let driverMarker=null, clientMarker=null, routeLine=null;
+/* ══════════════════════════════════════════════════════════
+   ÉTAT GLOBAL
+══════════════════════════════════════════════════════════ */
+let db=null,map=null,order=null;
+let chatChannel=null,trackingChannel=null;
+let driverMarker=null,clientMarker=null,routeLine=null;
+let historyPolyline=null; /* #10 — trace grise */
+let _driverPositionReceived=false; /* #4 */
 
 const STEPS=[
-    {key:'confirmé',      icon:'✅',label:'Commande confirmée',  sub:'Votre commande a été reçue.'},
-    {key:'en_préparation',icon:'👨‍🍳',label:'En préparation',      sub:'Le chef est en cuisine.'},
-    {key:'prêt',          icon:'🍽️', label:'Prêt à partir',       sub:'Votre commande est prête.'},
-    {key:'en_route',      icon:'🛵',label:'En route',             sub:'Le livreur est en chemin.'},
-    {key:'livré',         icon:'🎉',label:'Livré',                sub:'Commande livrée. Bon appétit !'},
+    {key:'confirmé',      icon:'✅',label:'Commande confirmée',   sub:'Votre commande a été reçue.'},
+    {key:'en_préparation',icon:'👨‍🍳',label:'En préparation',       sub:'Le chef est en cuisine.'},
+    {key:'prêt',          icon:'🍽️', label:'Prêt à partir',        sub:'Votre commande est prête.'},
+    {key:'en_route',      icon:'🛵', label:'En route',              sub:'Le livreur est en chemin.'},
+    {key:'livré',         icon:'🎉',label:'Livré',                 sub:'Commande livrée. Bon appétit !'},
 ];
 const STATUS_ORDER=STEPS.map(s=>s.key);
 
@@ -192,14 +213,17 @@ function esc(s){const d=document.createElement('div');d.textContent=String(s||''
 function qs(id){return document.getElementById(id)}
 
 function toast(msg,dur=3500){
-    const w=qs('toast-wrap');w.innerHTML=`<div class="toast">${msg}</div>`;
-    setTimeout(()=>w.innerHTML='',dur);
+    const w=qs('toast-wrap');
+    const el=document.createElement('div');
+    el.className='toast';el.innerHTML=msg;
+    w.appendChild(el);setTimeout(()=>el.remove(),dur);
 }
 
-function switchTab(id,btn){
-    document.querySelectorAll('.p-tab').forEach(b=>b.classList.remove('on'));
-    document.querySelectorAll('.p-sec').forEach(s=>s.classList.remove('on'));
-    btn.classList.add('on');qs('tab-'+id).classList.add('on');
+function switchTab(id){
+    ['status','info','chat'].forEach(t=>{
+        qs('tab-'+t).classList.toggle('on',t===id);
+        qs('tab-btn-'+t).classList.toggle('on',t===id);
+    });
     if(id==='chat')loadChat();
 }
 
@@ -211,69 +235,145 @@ function showState(id){
     qs('eta-bar').style.display=isMain?'flex':'none';
 }
 
-/* ═══ INIT ═══ */
-(async()=>{
+/* ══════════════════════════════════════════════════════════
+   #7 — VALIDATION TOKEN DE TRACKING
+   Le token est un hash court généré à la confirmation de
+   commande et stocké dans orders.tracking_token.
+   Format URL attendu : tracking.html?token=XXXX
+   L'UUID interne n'est jamais exposé dans l'URL.
+══════════════════════════════════════════════════════════ */
+async function _resolveOrder(db){
     const params=new URLSearchParams(location.search);
-    const orderId=params.get('id');
-    if(!orderId||!/^[0-9a-f-]{36}$/i.test(orderId)){
-        qs('err-txt').textContent='Lien de suivi invalide.';showState('state-error');return;
-    }
-    try{
-        await CONFIG.load();
-        db=supabase.createClient(CONFIG.supabaseUrl,CONFIG.supabaseKey);
-    }catch(e){qs('err-txt').textContent='Service indisponible.';showState('state-error');return;}
 
-    try{
+    /* Nouveau format sécurisé : ?token=XXXX */
+    const token=params.get('token');
+    if(token){
         const{data,error}=await db.from('orders')
             .select(`id,customer_name,customer_phone,customer_address,customer_lat,customer_lng,
                      total,status,payment_method,delivery_type,delivery_person_id,
                      restaurants(name,lat,lng,logo_url,whatsapp),
                      order_items(item_name,quantity,item_price)`)
-            .eq('id',orderId).single();
-
-        if(error||!data){qs('err-txt').textContent='Commande introuvable.';showState('state-error');return;}
-        order=data;
-        showState('main');
-        initMap();
-        // Forcer Leaflet à recalculer après rendu du conteneur
-        setTimeout(() => { if (map) map.invalidateSize(); }, 150);
-        renderTimeline(order.status);
-        renderOrderInfo();
-        updateETA(order.status,null);
-        loadDriverPosition();
-        startRealtime();
-    }catch(e){
-        qs('err-txt').textContent='Impossible de charger la commande.';showState('state-error');
+            .eq('tracking_token',token)
+            .single();
+        if(!error&&data)return data;
     }
+
+    /* Rétrocompatibilité : ?id=UUID (ancien format) */
+    const orderId=params.get('id');
+    if(orderId&&/^[0-9a-f-]{36}$/i.test(orderId)){
+        const{data,error}=await db.from('orders')
+            .select(`id,customer_name,customer_phone,customer_address,customer_lat,customer_lng,
+                     total,status,payment_method,delivery_type,delivery_person_id,
+                     restaurants(name,lat,lng,logo_url,whatsapp),
+                     order_items(item_name,quantity,item_price)`)
+            .eq('id',orderId)
+            .single();
+        if(!error&&data)return data;
+    }
+
+    return null;
+}
+
+/* ══════════════════════════════════════════════════════════
+   INIT
+══════════════════════════════════════════════════════════ */
+(async()=>{
+    try{
+        await CONFIG.load();
+        db=supabase.createClient(CONFIG.supabaseUrl,CONFIG.supabaseKey);
+    }catch(e){qs('err-txt').textContent='Service indisponible.';showState('state-error');return;}
+
+    const data=await _resolveOrder(db);
+    if(!data){
+        qs('err-txt').textContent='Commande introuvable ou lien expiré.';
+        showState('state-error');return;
+    }
+    order=data;
+    showState('main');
+
+    /* Tabs */
+    qs('tab-btn-status').addEventListener('click',()=>switchTab('status'));
+    qs('tab-btn-info').addEventListener('click',()=>switchTab('info'));
+    qs('tab-btn-chat').addEventListener('click',()=>switchTab('chat'));
+    qs('back-btn').addEventListener('click',()=>history.back());
+
+    /* Chat */
+    qs('chat-send-btn').addEventListener('click',sendMsg);
+    qs('chat-inp').addEventListener('keydown',e=>{if(e.key==='Enter')sendMsg();});
+
+    /* #5 — Demander permission notifications push */
+    _requestPushPermission();
+
+    requestAnimationFrame(()=>{
+        initMap();
+        setTimeout(()=>map&&map.invalidateSize(),150);
+    });
+
+    renderTimeline(order.status);
+    renderOrderInfo();
+    updateETA(order.status,null);
+    await loadDriverPosition();
+    startRealtime();
 })();
 
-/* ═══ CARTE ═══ */
+/* ══════════════════════════════════════════════════════════
+   #5 — NOTIFICATIONS PUSH (Web Notifications API)
+   Demande la permission une seule fois.
+   Déclenche une notification quand le livreur est à < 300m.
+══════════════════════════════════════════════════════════ */
+function _requestPushPermission(){
+    if(!('Notification' in window))return;
+    if(Notification.permission==='default'){
+        Notification.requestPermission();
+    }
+}
+
+function _notifyNearby(){
+    if(!('Notification' in window)||Notification.permission!=='granted')return;
+    /* Ne notifier qu'une seule fois */
+    if(window._nearbyNotifSent)return;
+    window._nearbyNotifSent=true;
+
+    const n=new Notification('🛵 Votre livreur approche !',{
+        body:'Il est à moins de 300m — préparez-vous !',
+        icon:'/icon-192.png',
+        tag:'driver-nearby',
+        requireInteraction:false,
+    });
+    setTimeout(()=>n.close(),8000);
+    toast('🛵 Votre livreur est tout proche !');
+    if('vibrate' in navigator)navigator.vibrate([100,50,100,50,200]);
+}
+
+/* ══════════════════════════════════════════════════════════
+   CARTE
+══════════════════════════════════════════════════════════ */
 function initMap(){
     map=L.map('map',{zoomControl:false,attributionControl:false});
     L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19}).addTo(map);
 
     const bounds=[];
+    const resto=order.restaurants;
 
     /* Marqueur restaurant */
-    const resto=order.restaurants;
     if(resto?.lat&&resto?.lng){
         const rIcon=L.divIcon({
-            html:`<div style="background:#e74c3c;width:14px;height:14px;border-radius:50%;border:3px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.4);"></div>`,
+            html:'<div style="background:#e74c3c;width:14px;height:14px;border-radius:50%;border:3px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.4);"></div>',
             iconSize:[14,14],iconAnchor:[7,7],className:''
         });
         L.marker([resto.lat,resto.lng],{icon:rIcon}).addTo(map)
-            .bindPopup(`<b>🍽️ ${esc(resto.name)}</b>`,{className:'dark-popup'});
+            .bindPopup(`<b>🍽️ ${esc(resto.name)}</b><br><small>Votre restaurant</small>`);
         bounds.push([resto.lat,resto.lng]);
     }
 
-    /* Marqueur client */
+    /* Marqueur client — position exacte indiquée au checkout */
     if(order.customer_lat&&order.customer_lng){
         const cIcon=L.divIcon({
-            html:'<div style="background:var(--gold,#c5a059);width:14px;height:14px;border-radius:50%;border:3px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.4);"></div>',
-            iconSize:[14,14],iconAnchor:[7,7],className:''
+            html:'<div style="background:#c5a059;width:20px;height:20px;border-radius:50%;border:3px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;font-size:10px;">📍</div>',
+            iconSize:[20,20],iconAnchor:[10,10],className:''
         });
         clientMarker=L.marker([order.customer_lat,order.customer_lng],{icon:cIcon}).addTo(map)
-            .bindPopup('<b>📍 Votre adresse</b>',{className:'dark-popup'});
+            .bindPopup(`<b>📍 Votre position</b><br><small>${esc(order.customer_address||'Position GPS exacte')}</small>`);
         bounds.push([order.customer_lat,order.customer_lng]);
     }
 
@@ -281,28 +381,93 @@ function initMap(){
     else map.setView([6.1375,1.2123],13);
 }
 
+/* ══════════════════════════════════════════════════════════
+   MISE À JOUR POSITION LIVREUR
+══════════════════════════════════════════════════════════ */
 function _updateDriverOnMap(lat,lng){
     if(!map)return;
+
+    /* #4 — Masquer la bannière GPS inactif dès la première position */
+    if(!_driverPositionReceived){
+        _driverPositionReceived=true;
+        qs('gps-inactive-bar').style.display='none';
+    }
+
     const icon=L.divIcon({
-        html:'<div style="background:#3498db;width:18px;height:18px;border-radius:50%;border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;font-size:9px;">🛵</div>',
-        iconSize:[18,18],iconAnchor:[9,9],className:''
+        html:'<div style="background:#3498db;width:22px;height:22px;border-radius:50%;border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;font-size:11px;">🛵</div>',
+        iconSize:[22,22],iconAnchor:[11,11],className:''
     });
     if(driverMarker){driverMarker.setLatLng([lat,lng]);}
     else{
         driverMarker=L.marker([lat,lng],{icon}).addTo(map)
-            .bindPopup('<b>🛵 Votre livreur</b>',{className:'dark-popup'});
+            .bindPopup('<b>🛵 Votre livreur</b>');
     }
 
-    /* Ligne livreur → client */
+    /* #5 — Vérifier proximité (< 300 m) */
     if(order.customer_lat&&order.customer_lng){
-        if(routeLine)map.removeLayer(routeLine);
-        routeLine=L.polyline([[lat,lng],[order.customer_lat,order.customer_lng]],
-            {color:'#3498db',weight:2,dashArray:'5,4',opacity:.5}).addTo(map);
-
-        /* Calculer ETA en temps réel */
         const dist=_haversine(lat,lng,order.customer_lat,order.customer_lng);
-        const mins=Math.max(1,Math.round(dist/25*60));
-        updateETA('en_route',mins);
+        if(dist<0.3)_notifyNearby();
+    }
+
+    /* Itinéraire OSRM livreur → client */
+    if(order.customer_lat&&order.customer_lng){
+        fetch(`https://router.project-osrm.org/route/v1/driving/${lng},${lat};${order.customer_lng},${order.customer_lat}?overview=full&geometries=geojson`)
+            .then(r=>r.json())
+            .then(data=>{
+                if(routeLine)map.removeLayer(routeLine);
+                const geo=data.routes?.[0]?.geometry?.coordinates;
+                if(geo){
+                    routeLine=L.polyline(geo.map(c=>[c[1],c[0]]),{color:'#3498db',weight:4,opacity:.8}).addTo(map);
+                    const mins=Math.max(1,Math.round(data.routes[0].duration/60));
+                    updateETA('en_route',mins);
+                }
+            })
+            .catch(()=>{
+                if(routeLine)map.removeLayer(routeLine);
+                routeLine=L.polyline([[lat,lng],[order.customer_lat,order.customer_lng]],
+                    {color:'#3498db',weight:2,dashArray:'5,4',opacity:.5}).addTo(map);
+                const dist=_haversine(lat,lng,order.customer_lat,order.customer_lng);
+                updateETA('en_route',Math.max(1,Math.round(dist/25*60)));
+            });
+    }
+}
+
+/* ══════════════════════════════════════════════════════════
+   #10 — TRACE HISTORIQUE (chemin parcouru)
+   Charge delivery_tracking_history pour cette commande
+   et affiche une polyline grise derrière le marqueur.
+══════════════════════════════════════════════════════════ */
+async function _loadAndDrawHistory(){
+    if(!order.delivery_person_id||!map)return;
+    try{
+        const{data}=await db.from('delivery_tracking_history')
+            .select('lat,lng,recorded_at')
+            .eq('delivery_person_id',order.delivery_person_id)
+            .eq('order_id',order.id)
+            .order('recorded_at',{ascending:true})
+            .limit(500);
+
+        if(!data||data.length<2)return;
+
+        if(historyPolyline)map.removeLayer(historyPolyline);
+        historyPolyline=L.polyline(
+            data.map(p=>[p.lat,p.lng]),
+            {color:'#888',weight:2,opacity:.45,dashArray:'3,5'}
+        ).addTo(map);
+
+        /* Afficher la légende */
+        qs('trace-legend').style.display='flex';
+    }catch(_){}
+}
+
+/* Ajouter un point à la trace en temps réel */
+function _appendToHistory(lat,lng){
+    if(!map)return;
+    if(!historyPolyline){
+        historyPolyline=L.polyline([[lat,lng]],{color:'#888',weight:2,opacity:.45,dashArray:'3,5'}).addTo(map);
+        qs('trace-legend').style.display='flex';
+    }else{
+        historyPolyline.addLatLng([lat,lng]);
     }
 }
 
@@ -312,7 +477,9 @@ function _haversine(lat1,lng1,lat2,lng2){
     return R*2*Math.asin(Math.sqrt(a));
 }
 
-/* ═══ POSITION LIVREUR (chargement initial) ═══ */
+/* ══════════════════════════════════════════════════════════
+   POSITION INITIALE DU LIVREUR (au chargement)
+══════════════════════════════════════════════════════════ */
 async function loadDriverPosition(){
     if(!order.delivery_person_id)return;
     try{
@@ -322,11 +489,24 @@ async function loadDriverPosition(){
             .eq('order_id',order.id)
             .order('updated_at',{ascending:false})
             .limit(1);
-        const row = data?.[0];
-        if(row?.lat&&row?.lng)_updateDriverOnMap(row.lat,row.lng);
-    }catch(_){}
+        const row=data?.[0];
+        if(row?.lat&&row?.lng){
+            _updateDriverOnMap(row.lat,row.lng);
+        }else{
+            /* #4 — Aucune position encore : afficher le bandeau */
+            qs('gps-inactive-bar').style.display='block';
+        }
+    }catch(_){
+        qs('gps-inactive-bar').style.display='block';
+    }
+
+    /* #10 — Charger l'historique existant */
+    await _loadAndDrawHistory();
 }
-/* ═══ TIMELINE ═══ */
+
+/* ══════════════════════════════════════════════════════════
+   TIMELINE
+══════════════════════════════════════════════════════════ */
 function renderTimeline(currentStatus){
     const idx=STATUS_ORDER.indexOf(currentStatus);
     qs('timeline').innerHTML=STEPS.map((step,i)=>{
@@ -342,34 +522,33 @@ function renderTimeline(currentStatus){
     }).join('');
 }
 
-/* ═══ ETA BANNER ═══ */
+/* ══════════════════════════════════════════════════════════
+   ETA BANNER
+══════════════════════════════════════════════════════════ */
 function updateETA(status,minsLeft){
     const mainEl=qs('eta-main'),subEl=qs('eta-sub');
     if(!mainEl)return;
-    if(status==='livré'){
-        mainEl.textContent='🎉 Commande livrée !';
-        subEl.textContent='Bon appétit !';
-        return;
-    }
+    if(status==='livré'){mainEl.textContent='🎉 Commande livrée !';subEl.textContent='Bon appétit !';return;}
     if(status==='en_route'&&minsLeft!==null){
         mainEl.textContent=`~${minsLeft} min`;
-        subEl.textContent='Estimation d\'arrivée';
+        subEl.textContent='Estimation d\'arrivée (trafic Lomé)';
         return;
     }
     const labels={
         confirmé:'En attente du restaurant…',
         en_préparation:'En préparation',
-        prêt:'Prêt — livreur en route bientôt',
+        prêt:'Prêt — le livreur va partir',
         en_route:'Livreur en chemin',
     };
     mainEl.textContent=labels[status]||status;
     subEl.textContent='Mise à jour automatique';
 }
 
-/* ═══ INFOS COMMANDE ═══ */
+/* ══════════════════════════════════════════════════════════
+   INFOS COMMANDE
+══════════════════════════════════════════════════════════ */
 function renderOrderInfo(){
-    const o=order;
-    const resto=o.restaurants||{};
+    const o=order,resto=o.restaurants||{};
     const payLabels={especes:'💵 Espèces',tmoney:'📱 TMoney',flooz:'📱 Flooz'};
     const typeLabels={sur_place:'🏪 Sur place',livraison:'🛵 Livraison'};
 
@@ -390,18 +569,16 @@ function renderOrderInfo(){
             <span class="info-val${r.mono?' mono':''}">${esc(String(r.val))}</span>
         </div>`).join('');
 
-    /* Boutons de contact */
     const contacts=[];
     if(resto.whatsapp){
-        const phone=String(resto.whatsapp).replace(/[^0-9+]/g,'');
-        contacts.push(`<a class="btn-contact btn-wa" href="https://wa.me/${phone}" target="_blank" rel="noopener">📲 Restaurant</a>`);
+        const ph=String(resto.whatsapp).replace(/[^0-9+]/g,'');
+        contacts.push(`<a class="btn-contact btn-wa" href="https://wa.me/${ph}" target="_blank" rel="noopener">📲 Restaurant</a>`);
     }
     if(o.customer_lat&&o.customer_lng){
         contacts.push(`<a class="btn-contact btn-maps" href="https://maps.google.com/?q=${o.customer_lat},${o.customer_lng}" target="_blank" rel="noopener">🗺️ Ma position</a>`);
     }
     qs('contact-row').innerHTML=contacts.join('');
 
-    /* Items */
     const items=o.order_items||[];
     if(items.length){
         qs('order-info-rows').insertAdjacentHTML('beforeend',`
@@ -409,18 +586,19 @@ function renderOrderInfo(){
                 <div style="font-size:.72rem;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--dim);margin-bottom:8px;">Plats commandés</div>
                 ${items.map(i=>`<div class="info-row">
                     <span class="info-icon">🍽️</span>
-                    <span class="info-val">${esc(i.item_name)} <span style="color:var(--dim);">×${i.quantity}</span></span>
-                    <span class="info-val mono" style="text-align:right;">${fmt(i.item_price*i.quantity)}</span>
+                    <span class="info-val">${esc(i.item_name)} <span style="color:var(--dim)">×${i.quantity}</span></span>
+                    <span class="info-val mono" style="text-align:right">${fmt(i.item_price*i.quantity)}</span>
                 </div>`).join('')}
             </div>`);
     }
 }
 
-/* ═══ CHAT ═══ */
+/* ══════════════════════════════════════════════════════════
+   CHAT
+══════════════════════════════════════════════════════════ */
 async function loadChat(){
     const el=qs('chat-msgs');
     el.innerHTML='<div style="text-align:center;color:var(--dim);font-size:.78rem;padding:10px;">Chargement…</div>';
-
     try{
         const{data}=await db.from('delivery_chats')
             .select('id,sender_role,sender_name,message,created_at')
@@ -428,9 +606,7 @@ async function loadChat(){
             .in('sender_role',['livreur','client'])
             .order('created_at',{ascending:true})
             .limit(60);
-
         _renderMsgs(data||[]);
-
         if(chatChannel)db.removeChannel(chatChannel);
         chatChannel=db.channel(`tracking-chat-${order.id}`)
             .on('postgres_changes',{event:'INSERT',schema:'public',table:'delivery_chats',filter:`order_id=eq.${order.id}`},
@@ -441,14 +617,17 @@ async function loadChat(){
                     if('vibrate' in navigator)navigator.vibrate([50]);
                 })
             .subscribe();
-    }catch(e){
-        el.innerHTML=`<div style="text-align:center;color:var(--dim);font-size:.78rem;padding:10px;">Chat indisponible.</div>`;
+    }catch(_){
+        el.innerHTML='<div style="text-align:center;color:var(--dim);font-size:.78rem;padding:10px;">Chat indisponible.</div>';
     }
 }
 
 function _renderMsgs(msgs){
     const el=qs('chat-msgs');el.innerHTML='';
-    if(!msgs.length){el.innerHTML='<div style="text-align:center;color:var(--dim);font-size:.78rem;padding:10px;">Aucun message. Écrivez au livreur !</div>';return;}
+    if(!msgs.length){
+        el.innerHTML='<div style="text-align:center;color:var(--dim);font-size:.78rem;padding:10px;">Aucun message. Écrivez au livreur !</div>';
+        return;
+    }
     msgs.forEach(m=>el.appendChild(_msgEl(m)));
     el.scrollTop=el.scrollHeight;
 }
@@ -462,7 +641,7 @@ function _msgEl(m){
     return div;
 }
 
-window.sendMsg=async function(){
+async function sendMsg(){
     const inp=qs('chat-inp');
     const msg=inp.value.trim();
     if(!msg||!order)return;
@@ -475,9 +654,11 @@ window.sendMsg=async function(){
             message:msg,
         });
     }catch(e){toast('Erreur: '+e.message);}
-};
+}
 
-/* ═══ REALTIME ═══ */
+/* ══════════════════════════════════════════════════════════
+   REALTIME
+══════════════════════════════════════════════════════════ */
 function startRealtime(){
     /* Statut commande */
     db.channel(`tracking-order-${order.id}`)
@@ -487,19 +668,22 @@ function startRealtime(){
                 order.status=s;
                 renderTimeline(s);
                 updateETA(s,null);
-                toast(s==='livré'?'🎉 Commande livrée !':'📦 Statut mis à jour : '+s);
+                toast(s==='livré'?'🎉 Commande livrée !':'📦 Statut : '+s);
                 if('vibrate' in navigator)navigator.vibrate([80,40,80]);
             })
         .subscribe();
 
-    /* Position GPS livreur */
+    /* Position GPS livreur via Broadcast */
     if(order.delivery_person_id){
-        trackingChannel=db.channel(`tracking-gps-${order.delivery_person_id}`)
-            .on('postgres_changes',{event:'*',schema:'public',table:'delivery_tracking',
-                filter:`delivery_person_id=eq.${order.delivery_person_id}`},
-                p=>{
-                    if(p.new?.lat&&p.new?.lng)_updateDriverOnMap(p.new.lat,p.new.lng);
-                })
+        trackingChannel=db.channel(`gps-broadcast-${order.delivery_person_id}`)
+            .on('broadcast',{event:'gps'},payload=>{
+                const{lat,lng}=payload.payload||{};
+                if(lat&&lng){
+                    _updateDriverOnMap(lat,lng);
+                    /* #10 — Ajouter le point à la trace en temps réel */
+                    _appendToHistory(lat,lng);
+                }
+            })
             .subscribe();
     }
 }

@@ -5,11 +5,19 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Mes courses — Livreur</title>
     <meta name="robots" content="noindex, nofollow">
-	<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net 'unsafe-inline'; style-src 'self' https://fonts.googleapis.com 'unsafe-inline' https://cdn.jsdelivr.net; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https: blob:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://cdn.jsdelivr.net https://tile.openstreetmap.org;">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net 'unsafe-inline'; style-src 'self' https://fonts.googleapis.com 'unsafe-inline' https://cdn.jsdelivr.net; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https: blob:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://cdn.jsdelivr.net https://tile.openstreetmap.org https://router.project-osrm.org https://nominatim.openstreetmap.org;">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.min.css">
     <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
     <script src="config.js"></script>
+
+    <!-- #9 — Service Worker registration (mode hors-ligne) -->
+    <script>
+    if('serviceWorker' in navigator){
+        navigator.serviceWorker.register('/livreur-sw.js').catch(()=>{});
+    }
+    </script>
+
     <style>
         :root{--gold:#c5a059;--gold-d:rgba(197,160,89,.12);--gold-b:rgba(197,160,89,.28);--bg:#070706;--s:#111110;--s2:#1a1918;--s3:#232220;--line:rgba(255,255,255,.07);--line2:rgba(255,255,255,.13);--ivory:#f0ece4;--dim:#7a7570;--ok:#2ecc71;--warn:#f39c12;--err:#e74c3c;--r:12px}
         *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
@@ -17,41 +25,56 @@
         body{display:flex;flex-direction:column;overflow:hidden}
 
         /* ── Header ── */
-        .top{position:relative;z-index:200;background:rgba(7,7,6,.95);border-bottom:.5px solid var(--line2);padding:0 16px;height:54px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+        .top{position:relative;z-index:200;background:rgba(7,7,6,.95);border-bottom:.5px solid var(--line2);padding:0 16px;height:54px;display:flex;align-items:center;justify-content:space-between;gap:8px;flex-shrink:0}
         .top-brand{font-family:'Syne',sans-serif;font-size:.88rem;font-weight:800;color:var(--gold)}
-        .top-name{font-size:.8rem;color:var(--dim)}
-        .gps-pill{display:flex;align-items:center;gap:5px;background:rgba(46,204,113,.1);border:1px solid rgba(46,204,113,.2);border-radius:20px;padding:3px 10px;font-size:.68rem;font-weight:600;color:var(--ok);cursor:pointer;transition:all .15s}
+        .top-name{font-size:.8rem;color:var(--dim);flex:1;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+        /* GPS pill */
+        .gps-pill{display:flex;align-items:center;gap:5px;background:rgba(46,204,113,.1);border:1px solid rgba(46,204,113,.2);border-radius:20px;padding:3px 10px;font-size:.68rem;font-weight:600;color:var(--ok);cursor:pointer;transition:all .15s;flex-shrink:0}
         .gps-pill.off{background:rgba(255,255,255,.05);border-color:rgba(255,255,255,.1);color:var(--dim)}
-        .gps-dot{width:6px;height:6px;border-radius:50%;background:currentColor}
+        .gps-pill.warn{background:rgba(243,156,18,.1);border-color:rgba(243,156,18,.3);color:var(--warn)}
+        .gps-dot{width:6px;height:6px;border-radius:50%;background:currentColor;flex-shrink:0}
         .gps-pill.on .gps-dot{animation:gpsPulse 1.4s ease-in-out infinite}
         @keyframes gpsPulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(.7)}}
+
+        /* #2 — Bannière heartbeat GPS silencieux */
+        #gps-warn-banner{display:none;position:sticky;top:0;z-index:150;background:rgba(243,156,18,.15);border-bottom:1px solid rgba(243,156,18,.3);padding:8px 16px;font-size:.78rem;color:var(--warn);text-align:center;font-weight:600;}
+
+        /* #3 — Bannière hors-ligne */
+        #offline-banner{display:none;position:sticky;top:0;z-index:160;background:rgba(231,76,60,.15);border-bottom:1px solid rgba(231,76,60,.3);padding:8px 16px;font-size:.78rem;color:var(--err);text-align:center;font-weight:600;}
 
         /* ── Layout principal ── */
         .main{flex:1;display:grid;grid-template-rows:1fr auto;overflow:hidden}
         #map{width:100%;height:100%;z-index:1}
 
-        /* ── Panneau bas (courses + chat) ── */
+        /* ── Panneau bas ── */
         .bottom-panel{position:relative;z-index:100;background:var(--s);border-top:.5px solid var(--line2);max-height:55vh;overflow-y:auto;flex-shrink:0}
         .bottom-panel::-webkit-scrollbar{width:3px}
         .bottom-panel::-webkit-scrollbar-thumb{background:var(--line2);border-radius:2px}
 
-        /* Tabs */
         .panel-tabs{display:flex;gap:0;border-bottom:.5px solid var(--line2);flex-shrink:0;position:sticky;top:0;background:var(--s);z-index:10}
         .p-tab{flex:1;padding:10px;font-size:.78rem;font-weight:600;color:var(--dim);background:none;border:none;cursor:pointer;font-family:inherit;transition:color .15s;border-bottom:2px solid transparent}
         .p-tab.on{color:var(--gold);border-bottom-color:var(--gold)}
 
-        /* ── Contenu panneau ── */
         .panel-content{padding:12px 14px}
         .p-section{display:none}.p-section.on{display:block}
 
-        /* ── Carte commande mini ── */
+        /* ── Carte course ── */
         .course-card{background:var(--s2);border:.5px solid var(--line2);border-radius:var(--r);padding:12px 14px;margin-bottom:10px;position:relative}
         .course-card.active{border-color:var(--gold-b)}
-        .course-head{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:8px}
-        .course-num{width:22px;height:22px;border-radius:50%;background:var(--gold);color:#000;font-size:.72rem;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+        .course-head{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:6px}
+        .course-num{width:22px;height:22px;border-radius:50%;background:var(--gold);color:#000;font-size:.72rem;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:2px}
         .course-name{font-size:.88rem;font-weight:600}
         .course-addr{font-size:.75rem;color:var(--dim);margin-top:2px}
         .course-amount{font-family:'IBM Plex Mono',monospace;font-size:.82rem;color:var(--gold);flex-shrink:0}
+
+        /* #6 — Instructions de livraison */
+        .course-notes{background:rgba(197,160,89,.06);border:1px solid rgba(197,160,89,.18);border-radius:8px;padding:7px 10px;margin-top:6px;font-size:.75rem;color:rgba(240,236,228,.7);display:flex;gap:6px;align-items:flex-start;line-height:1.5}
+        .course-notes-icon{flex-shrink:0;margin-top:1px}
+
+        /* #1 — Badge adresse approximative */
+        .approx-badge{display:inline-flex;align-items:center;gap:4px;background:rgba(243,156,18,.1);border:1px solid rgba(243,156,18,.25);border-radius:6px;padding:2px 7px;font-size:.68rem;color:var(--warn);font-weight:600;margin-top:4px}
+
         .course-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
         .btn-sm{padding:7px 12px;border-radius:8px;font-size:.72rem;font-weight:700;border:none;cursor:pointer;font-family:inherit;transition:all .15s;display:inline-flex;align-items:center;gap:4px}
         .btn-route{background:var(--gold);color:#000}
@@ -82,15 +105,31 @@
         .chat-send{background:var(--gold);color:#000;border:none;padding:9px 14px;border-radius:8px;font-weight:700;font-size:.8rem;cursor:pointer;font-family:inherit}
 
         /* ── Toast ── */
-        #toast-wrap{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);z-index:999;pointer-events:none}
+        #toast-wrap{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);z-index:999;pointer-events:none;display:flex;flex-direction:column;gap:6px;align-items:center}
         .toast{background:var(--s2);border:.5px solid var(--line2);border-radius:50px;padding:8px 18px;font-size:.78rem;font-weight:600;white-space:nowrap;animation:tIn .3s ease;box-shadow:0 4px 16px rgba(0,0,0,.4)}
+        .toast.warn{border-color:rgba(243,156,18,.4);color:var(--warn)}
+        .toast.err{border-color:rgba(231,76,60,.4);color:var(--err)}
         @keyframes tIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+
+        /* ── #8 — Modal PIN ── */
+        #pin-overlay{position:fixed;inset:0;z-index:900;background:rgba(0,0,0,.85);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;padding:20px}
+        .pin-box{background:var(--s);border:.5px solid var(--line2);border-radius:16px;padding:28px 24px;max-width:340px;width:100%;text-align:center}
+        .pin-title{font-family:'Syne',sans-serif;font-size:1.1rem;font-weight:800;margin-bottom:6px}
+        .pin-sub{font-size:.82rem;color:var(--dim);margin-bottom:20px;line-height:1.6}
+        .pin-input{width:100%;background:var(--s2);border:1.5px solid var(--line2);color:var(--ivory);padding:13px;border-radius:10px;font-size:1.4rem;text-align:center;font-family:'IBM Plex Mono',monospace;letter-spacing:.3em;outline:none;margin-bottom:12px;transition:border-color .2s}
+        .pin-input:focus{border-color:var(--gold)}
+        .pin-btn{width:100%;background:var(--gold);color:#000;border:none;padding:13px;border-radius:10px;font-size:.92rem;font-weight:700;cursor:pointer;font-family:inherit}
+        .pin-err{color:var(--err);font-size:.78rem;margin-top:8px;min-height:18px}
 
         /* ── Loading / Error ── */
         #state-loading,#state-error{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;z-index:500;background:var(--bg);text-align:center;padding:20px}
         #state-error{display:none}
         .spin{width:36px;height:36px;border-radius:50%;border:2px solid var(--gold-b);border-top-color:var(--gold);animation:spin .8s linear infinite}
         @keyframes spin{to{transform:rotate(360deg)}}
+
+        /* Leaflet dark popups */
+        .leaflet-popup-content-wrapper{background:var(--s2)!important;color:var(--ivory)!important;border:.5px solid var(--line2)!important;border-radius:10px!important;box-shadow:0 4px 16px rgba(0,0,0,.5)!important}
+        .leaflet-popup-tip{background:var(--s2)!important}
     </style>
 </head>
 <body>
@@ -98,10 +137,27 @@
 <div id="state-loading"><div class="spin"></div><p style="color:var(--dim);font-size:.88rem;">Chargement…</p></div>
 <div id="state-error"><span style="font-size:2rem;">⚠️</span><p id="err-msg" style="font-size:.85rem;color:var(--dim);"></p></div>
 
+<!-- #8 — Vérification PIN avant accès -->
+<div id="pin-overlay">
+    <div class="pin-box">
+        <div class="pin-title">🔒 Vérification</div>
+        <div class="pin-sub" id="pin-sub">Entrez votre code PIN livreur pour accéder à vos courses.</div>
+        <input class="pin-input" id="pin-input" type="tel" maxlength="4" placeholder="••••" autocomplete="off">
+        <button class="pin-btn" id="pin-btn">Accéder →</button>
+        <div class="pin-err" id="pin-err"></div>
+    </div>
+</div>
+
+<!-- #3 — Bannière hors-ligne -->
+<div id="offline-banner">📵 Hors-ligne — les actions seront rejouées à la reconnexion</div>
+
+<!-- #2 — Bannière GPS silencieux -->
+<div id="gps-warn-banner">⚠️ GPS silencieux depuis plus d'1 min — vérifiez votre connexion</div>
+
 <div class="top" id="main-top" style="display:none;">
-    <span class="top-brand">🛵 Livreur</span>
+    <span class="top-brand">🛵</span>
     <span class="top-name" id="drv-name">—</span>
-    <div class="gps-pill off" id="gps-pill" onclick="toggleGPS()">
+    <div class="gps-pill off" id="gps-pill">
         <div class="gps-dot"></div>
         <span id="gps-lbl">GPS off</span>
     </div>
@@ -112,8 +168,8 @@
 
     <div class="bottom-panel">
         <div class="panel-tabs">
-            <button class="p-tab on" onclick="switchTab('courses',this)">🛵 Courses</button>
-            <button class="p-tab"    onclick="switchTab('chat',this)">💬 Chat</button>
+            <button class="p-tab on" id="tab-btn-courses">🛵 Courses</button>
+            <button class="p-tab"    id="tab-btn-chat">💬 Chat</button>
         </div>
 
         <!-- COURSES -->
@@ -126,19 +182,16 @@
 
         <!-- CHAT -->
         <div class="p-section panel-content" id="tab-chat">
-            <select class="chat-order-select" id="chat-order-sel" onchange="loadChat()">
-                <option value="">— Sélectionnez une commande —</option>
-            </select>
+            <select class="chat-order-select" id="chat-order-sel"></select>
             <div class="chat-role-tabs">
-                <button class="role-tab on" onclick="setChatRole('staff',this)">👔 Staff</button>
-                <button class="role-tab"    onclick="setChatRole('client',this)">👤 Client</button>
+                <button class="role-tab on" id="role-staff">👔 Staff</button>
+                <button class="role-tab"    id="role-client">👤 Client</button>
             </div>
             <div class="chat-messages" id="chat-msgs"></div>
             <div class="chat-input-row">
                 <input type="text" class="chat-inp" id="chat-inp"
-                    placeholder="Votre message…" maxlength="500"
-                    onkeydown="if(event.key==='Enter')sendMsg()">
-                <button class="chat-send" onclick="sendMsg()">Envoyer</button>
+                    placeholder="Votre message…" maxlength="500">
+                <button class="chat-send" id="chat-send-btn">Envoyer</button>
             </div>
         </div>
     </div>
@@ -149,83 +202,310 @@
 <script>
 'use strict';
 
+/* ══════════════════════════════════════════════════════════
+   ÉTAT GLOBAL
+══════════════════════════════════════════════════════════ */
 let db=null, person=null, map=null;
 let gpsWatchId=null, gpsActive=false;
-let orders=[], markers={}, routeLayer=null, chatChannel=null;
+let gpsBroadcastChannel=null;
+let orders=[], markers={}, geocodeCache={};
+let routeLayer=null, chatChannel=null;
 let chatOrderId=null, chatRole='staff';
+let _driverMarker=null;
+let _lastBroadcastTime=0;
+let _lastSuccessfulBroadcast=0;  /* #2 heartbeat */
+let _heartbeatTimer=null;
 
+/* #3 — File d'attente hors-ligne */
+const QUEUE_KEY='livreur_offline_queue';
+let _isOnline=navigator.onLine;
+
+/* ── Helpers ── */
 const fmt=n=>Number(n).toLocaleString('fr-FR').replace(/\u202F/g,' ')+' FCFA';
 function esc(s){const d=document.createElement('div');d.textContent=String(s||'');return d.innerHTML}
 function qs(id){return document.getElementById(id)}
-function toast(msg,dur=3000){const w=qs('toast-wrap');w.innerHTML=`<div class="toast">${msg}</div>`;setTimeout(()=>w.innerHTML='',dur)}
+
+function toast(msg,type='',dur=3000){
+    const w=qs('toast-wrap');
+    const el=document.createElement('div');
+    el.className='toast'+(type?' '+type:'');
+    el.innerHTML=msg;
+    w.appendChild(el);
+    setTimeout(()=>el.remove(),dur);
+}
 
 function showState(id){
     ['state-loading','state-error'].forEach(s=>qs(s).style.display=s===id?'flex':'none');
-    const mainTop=qs('main-top'),mainLayout=qs('main-layout');
-    if(id==='main'){
-        mainTop.style.display='flex';
-        mainLayout.style.display='grid';
-    } else {
-        mainTop.style.display='none';
-        mainLayout.style.display='none';
-    }
-}
-/* ── Tabs ── */
-function switchTab(id,btn){
-    document.querySelectorAll('.p-tab').forEach(b=>b.classList.remove('on'));
-    document.querySelectorAll('.p-section').forEach(s=>s.classList.remove('on'));
-    btn.classList.add('on');
-    qs('tab-'+id).classList.add('on');
+    const isMain=id==='main';
+    qs('main-top').style.display=isMain?'flex':'none';
+    qs('main-layout').style.display=isMain?'grid':'none';
 }
 
-/* ══ INIT ══ */
+function switchTab(id){
+    ['courses','chat'].forEach(t=>{
+        qs('tab-'+t).classList.toggle('on',t===id);
+        qs('tab-btn-'+t).classList.toggle('on',t===id);
+    });
+}
+
+/* ══════════════════════════════════════════════════════════
+   #8 — AUTHENTIFICATION PIN
+   Le PIN est le hash (simple) des 4 derniers chiffres du
+   téléphone du livreur, stocké dans delivery_persons.pin_hash.
+   Si pin_hash est null en base → PIN désactivé, accès direct.
+══════════════════════════════════════════════════════════ */
+function _simpleHash(s){
+    let h=0;
+    for(let i=0;i<s.length;i++){h=(Math.imul(31,h)+s.charCodeAt(i))|0;}
+    return Math.abs(h).toString(36);
+}
+
+async function _checkPin(p){
+    /* Si pas de pin_hash en base → accès direct */
+    if(!p.pin_hash){qs('pin-overlay').remove();return true;}
+
+    return new Promise(resolve=>{
+        qs('pin-sub').textContent=`Bonjour ${p.name} — entrez votre code PIN (4 chiffres)`;
+
+        const tryPin=()=>{
+            const val=qs('pin-input').value.trim();
+            if(val.length!==4){qs('pin-err').textContent='Saisissez 4 chiffres.';return;}
+            if(_simpleHash(val)===p.pin_hash){
+                qs('pin-overlay').remove();
+                resolve(true);
+            }else{
+                qs('pin-err').textContent='Code incorrect. Réessayez.';
+                qs('pin-input').value='';
+                qs('pin-input').focus();
+            }
+        };
+
+        qs('pin-btn').addEventListener('click',tryPin);
+        qs('pin-input').addEventListener('keydown',e=>{if(e.key==='Enter')tryPin();});
+        qs('pin-input').focus();
+    });
+}
+
+/* ══════════════════════════════════════════════════════════
+   #7 — TOKEN DE SESSION (expiration)
+   On génère un token signé côté client à la connexion,
+   valide 8h. Au rechargement on vérifie la durée.
+══════════════════════════════════════════════════════════ */
+const SESSION_KEY='livreur_session';
+const SESSION_TTL=8*60*60*1000; /* 8 heures */
+
+function _createSession(pid){
+    const session={pid,exp:Date.now()+SESSION_TTL};
+    sessionStorage.setItem(SESSION_KEY,JSON.stringify(session));
+}
+
+function _sessionValid(pid){
+    try{
+        const raw=sessionStorage.getItem(SESSION_KEY);
+        if(!raw)return false;
+        const s=JSON.parse(raw);
+        return s.pid===pid&&s.exp>Date.now();
+    }catch(_){return false;}
+}
+
+/* ══════════════════════════════════════════════════════════
+   #3 — GESTION HORS-LIGNE
+══════════════════════════════════════════════════════════ */
+function _loadQueue(){
+    try{return JSON.parse(localStorage.getItem(QUEUE_KEY)||'[]');}catch(_){return[];}
+}
+function _saveQueue(q){
+    try{localStorage.setItem(QUEUE_KEY,JSON.stringify(q));}catch(_){}
+}
+function _enqueue(action){
+    const q=_loadQueue();
+    q.push({...action,ts:Date.now()});
+    _saveQueue(q);
+    toast('⏳ Action mise en attente (hors-ligne)','warn');
+}
+
+async function _flushQueue(){
+    if(!db)return;
+    const q=_loadQueue();
+    if(!q.length)return;
+    const failed=[];
+    for(const action of q){
+        try{
+            if(action.type==='markDelivered'){
+                await db.from('orders').update({status:'livré'}).eq('id',action.orderId);
+            }else if(action.type==='sendMsg'){
+                await db.from('delivery_chats').insert(action.payload);
+            }
+        }catch(_){failed.push(action);}
+    }
+    _saveQueue(failed);
+    if(q.length-failed.length>0){
+        toast(`✅ ${q.length-failed.length} action(s) synchronisée(s)`);
+        await loadOrders();
+    }
+}
+
+window.addEventListener('online',()=>{
+    _isOnline=true;
+    qs('offline-banner').style.display='none';
+    toast('✅ Connexion rétablie');
+    _flushQueue();
+});
+window.addEventListener('offline',()=>{
+    _isOnline=false;
+    qs('offline-banner').style.display='block';
+});
+
+/* ══════════════════════════════════════════════════════════
+   INIT
+══════════════════════════════════════════════════════════ */
 (async()=>{
     const params=new URLSearchParams(location.search);
     const pid=params.get('id');
     if(!pid||!/^[0-9a-f-]{36}$/i.test(pid)){
         qs('err-msg').textContent='Lien invalide.';showState('state-error');return;
     }
+
     try{
         await CONFIG.load();
         db=supabase.createClient(CONFIG.supabaseUrl,CONFIG.supabaseKey);
     }catch(e){qs('err-msg').textContent='Connexion impossible.';showState('state-error');return;}
 
-    const{data:p,error}=await db.from('delivery_persons').select('id,name,phone').eq('id',pid).single();
-    if(error||!p){qs('err-msg').textContent='Livreur introuvable.';showState('state-error');return;}
+    /* #8 — Charger le profil livreur
+       Tentative avec pin_hash (apres migration SQL).
+       Fallback automatique si la colonne n'existe pas encore. */
+    let p=null;
+    {
+        const r=await db.from('delivery_persons')
+            .select('id,name,phone,pin_hash').eq('id',pid).single();
+        if(r.error&&r.error.message&&r.error.message.toLowerCase().includes('column')){
+            const r2=await db.from('delivery_persons')
+                .select('id,name,phone').eq('id',pid).single();
+            if(r2.error||!r2.data){
+                qs('err-msg').textContent='Livreur introuvable.';showState('state-error');return;
+            }
+            p=r2.data;
+        }else if(r.error||!r.data){
+            qs('err-msg').textContent='Livreur introuvable.';showState('state-error');return;
+        }else{
+            p=r.data;
+        }
+    }
     person=p;
+
+    /* #8 — Vérifier PIN (skip si session valide) */
+    if(!_sessionValid(pid)){
+        const ok=await _checkPin(p);
+        if(!ok)return;
+        _createSession(pid);
+    }else{
+        qs('pin-overlay').remove();
+    }
+
     qs('drv-name').textContent=p.name;
     document.title=`${p.name} — Courses`;
+
     showState('main');
-    initMap();
+    requestAnimationFrame(()=>{
+        initMap();
+        setTimeout(()=>map&&map.invalidateSize(),150);
+    });
+
+    /* Tabs */
+    qs('tab-btn-courses').addEventListener('click',()=>switchTab('courses'));
+    qs('tab-btn-chat').addEventListener('click',()=>switchTab('chat'));
+
+    /* Chat */
+    qs('chat-send-btn').addEventListener('click',sendMsg);
+    qs('chat-inp').addEventListener('keydown',e=>{if(e.key==='Enter')sendMsg();});
+    qs('chat-order-sel').addEventListener('change',loadChat);
+    qs('role-staff').addEventListener('click',()=>setChatRole('staff',qs('role-staff')));
+    qs('role-client').addEventListener('click',()=>setChatRole('client',qs('role-client')));
+
+    /* GPS pill */
+    qs('gps-pill').addEventListener('click',toggleGPS);
+
+    /* #3 — rejouer la file au démarrage si en ligne */
+    if(_isOnline)_flushQueue();
+
     await loadOrders();
     startRealtime();
 })();
 
-/* ══ CARTE ══ */
+/* ══════════════════════════════════════════════════════════
+   CARTE
+══════════════════════════════════════════════════════════ */
 function initMap(){
     map=L.map('map',{zoomControl:false,attributionControl:false});
     L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19}).addTo(map);
     L.control.zoom({position:'topright'}).addTo(map);
-    map.setView([6.1375,1.2123],13); /* Lomé centre */
+    map.setView([6.1375,1.2123],13);
 }
 
-/* ══ COMMANDES ══ */
+/* ══════════════════════════════════════════════════════════
+   COMMANDES
+══════════════════════════════════════════════════════════ */
 async function loadOrders(){
     const today=new Date().toISOString().split('T')[0];
     const{data,error}=await db
         .from('orders')
-        .select('id,customer_name,customer_phone,customer_address,customer_lat,customer_lng,total,status,restaurant_id,restaurants(name,lat,lng)')
+        /* #6 — on récupère notes et delivery_instructions */
+        .select('id,customer_name,customer_phone,customer_address,customer_lat,customer_lng,total,status,restaurant_id,notes,delivery_instructions,restaurants(name,lat,lng)')
         .eq('delivery_person_id',person.id)
         .gte('created_at',today)
         .neq('status','livré')
         .order('created_at',{ascending:true});
 
     orders=data||[];
+
+    /* #1 — Géocoder les commandes sans GPS */
+    await _geocodeMissingPositions();
+
     renderCourses();
     updateMapMarkers();
     populateChatSelect();
 }
 
+/* ══════════════════════════════════════════════════════════
+   #1 — GÉOCODAGE AUTOMATIQUE VIA NOMINATIM
+   Pour chaque commande sans customer_lat/lng mais avec
+   une adresse texte, on interroge Nominatim et on stocke
+   le résultat dans geocodeCache (pas en base — approx. seulement)
+══════════════════════════════════════════════════════════ */
+async function _geocodeMissingPositions(){
+    const missing=orders.filter(o=>!o.customer_lat&&o.customer_address);
+    for(const o of missing){
+        if(geocodeCache[o.id])continue;
+        try{
+            const q=encodeURIComponent(o.customer_address+', Lomé, Togo');
+            const r=await fetch(
+                `https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=1&accept-language=fr`,
+                {headers:{'User-Agent':'RestosLome/1.0 (contact@restos-lome.tg)'}}
+            );
+            const data=await r.json();
+            if(data?.[0]){
+                geocodeCache[o.id]={
+                    lat:parseFloat(data[0].lat),
+                    lng:parseFloat(data[0].lon),
+                    approx:true
+                };
+            }
+        }catch(_){}
+        /* Respecter le rate-limit Nominatim : 1 req/s */
+        await new Promise(res=>setTimeout(res,1100));
+    }
+}
+
+function _getPos(o){
+    /* Retourne la position la plus précise disponible */
+    if(o.customer_lat&&o.customer_lng)return{lat:o.customer_lat,lng:o.customer_lng,approx:false};
+    if(geocodeCache[o.id])return geocodeCache[o.id];
+    return null;
+}
+
+/* ══════════════════════════════════════════════════════════
+   AFFICHAGE DES COURSES
+══════════════════════════════════════════════════════════ */
 function renderCourses(){
     const list=qs('courses-list');
     if(!orders.length){
@@ -234,154 +514,323 @@ function renderCourses(){
         return;
     }
 
-    /* Optimiser l'ordre si > 1 commande */
     let sorted=orders;
-    if(orders.length>1 && orders[0]?.restaurants?.lat){
+    if(orders.length>1&&orders[0]?.restaurants?.lat){
         sorted=_optimizeRoute(orders);
         qs('multi-banner').style.display='flex';
+    }else{
+        qs('multi-banner').style.display='none';
     }
 
-    list.innerHTML=sorted.map((o,i)=>{
+    list.innerHTML='';
+    sorted.forEach((o,i)=>{
         const phone=String(o.customer_phone||'').replace(/[^0-9+]/g,'');
+        const pos=_getPos(o);
         const addr=o.customer_address||'Adresse non renseignée';
-        const hasGPS=o.customer_lat&&o.customer_lng;
-        return`<div class="course-card${i===0?' active':''}" id="course-${o.id}">
+
+        /* #6 — instructions de livraison */
+        const notes=o.delivery_instructions||o.notes||'';
+
+        /* #1 — badge si position approximative */
+        const approxBadge=pos?.approx
+            ?'<div class="approx-badge">⚠️ Position approximative</div>'
+            :((!pos)?'<div class="approx-badge">❌ Aucune position GPS</div>':'');
+
+        const card=document.createElement('div');
+        card.className=`course-card${i===0?' active':''}`;
+        card.id=`course-${o.id}`;
+        card.innerHTML=`
             <div class="course-head">
                 <div class="course-num">${i+1}</div>
                 <div style="flex:1">
                     <div class="course-name">${esc(o.customer_name||'Client')}</div>
                     <div class="course-addr">📍 ${esc(addr.substring(0,60))}</div>
+                    ${approxBadge}
                 </div>
                 <span class="course-amount">${fmt(o.total||0)}</span>
             </div>
-            <div class="course-actions">
-                ${hasGPS?`<button class="btn-sm btn-route" onclick="goToOrder('${o.id}')">🗺️ Y aller</button>`:''}
-                ${phone?`<button class="btn-sm btn-wa" onclick="window.open('https://wa.me/${phone}','_blank','noopener')">📲 WA</button>`:''}
-                <button class="btn-sm btn-chat" onclick="openChatFor('${o.id}')">💬 Chat</button>
-                <button class="btn-sm btn-status" onclick="markDelivered('${o.id}')">✅ Livré</button>
-            </div>
-        </div>`;
-    }).join('');
+            ${notes?`<div class="course-notes"><span class="course-notes-icon">📝</span><span>${esc(notes)}</span></div>`:''}
+            <div class="course-actions" id="actions-${o.id}"></div>
+        `;
+        list.appendChild(card);
+
+        const actions=card.querySelector(`#actions-${o.id}`);
+
+        if(pos){
+            const routeBtn=document.createElement('button');
+            routeBtn.className='btn-sm btn-route';
+            routeBtn.innerHTML='🗺️ Y aller';
+            routeBtn.addEventListener('click',()=>goToOrder(o.id));
+            actions.appendChild(routeBtn);
+        }
+        if(phone){
+            const waBtn=document.createElement('button');
+            waBtn.className='btn-sm btn-wa';
+            waBtn.innerHTML='📲 WA';
+            waBtn.addEventListener('click',()=>window.open(`https://wa.me/${phone}`,'_blank','noopener'));
+            actions.appendChild(waBtn);
+        }
+        const chatBtn=document.createElement('button');
+        chatBtn.className='btn-sm btn-chat';
+        chatBtn.innerHTML='💬 Chat';
+        chatBtn.addEventListener('click',()=>openChatFor(o.id));
+        actions.appendChild(chatBtn);
+
+        const doneBtn=document.createElement('button');
+        doneBtn.className='btn-sm btn-status';
+        doneBtn.innerHTML='✅ Livré';
+        doneBtn.addEventListener('click',()=>markDelivered(o.id));
+        actions.appendChild(doneBtn);
+    });
 }
 
+/* ══════════════════════════════════════════════════════════
+   MARQUEURS CARTE
+══════════════════════════════════════════════════════════ */
 function updateMapMarkers(){
     if(!map)return;
-    /* Nettoyer les anciens marqueurs */
     Object.values(markers).forEach(m=>map.removeLayer(m));
     markers={};
 
     const bounds=[];
-    orders.forEach((o,i)=>{
-        if(!o.customer_lat||!o.customer_lng)return;
-        const icon=L.divIcon({
-            html:`<div style="background:var(--gold,#c5a059);color:#000;width:22px;height:22px;border-radius:50%;border:3px solid #fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:11px;box-shadow:0 2px 6px rgba(0,0,0,.4);">${i+1}</div>`,
-            iconSize:[22,22],iconAnchor:[11,11],className:''
+
+    const firstResto=orders.find(o=>o.restaurants?.lat)?.restaurants;
+    if(firstResto?.lat&&firstResto?.lng){
+        const rIcon=L.divIcon({
+            html:'<div style="background:#e74c3c;width:14px;height:14px;border-radius:50%;border:3px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.4);"></div>',
+            iconSize:[14,14],iconAnchor:[7,7],className:''
         });
-        const m=L.marker([o.customer_lat,o.customer_lng],{icon}).addTo(map);
-        m.bindPopup(`<b>${esc(o.customer_name||'Client')}</b><br>${esc(o.customer_address||'')}`,{className:'dark-popup'});
+        L.marker([firstResto.lat,firstResto.lng],{icon:rIcon}).addTo(map)
+            .bindPopup(`<b>🍽️ ${esc(firstResto.name||'Restaurant')}</b><br><small>Point de départ</small>`);
+        bounds.push([firstResto.lat,firstResto.lng]);
+    }
+
+    orders.forEach((o,i)=>{
+        const pos=_getPos(o);
+        if(!pos)return;
+
+        const pinColor=pos.approx?'#f39c12':(i===0?'#c5a059':'#e67e22');
+        const icon=L.divIcon({
+            html:`<div style="background:${pinColor};color:#000;width:26px;height:26px;border-radius:50%;border:3px solid #fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:11px;box-shadow:0 2px 8px rgba(0,0,0,.5);">${i+1}</div>`,
+            iconSize:[26,26],iconAnchor:[13,13],className:''
+        });
+
+        const gpsLabel=pos.approx
+            ?'<span style="color:#f39c12;font-size:.7rem;">⚠️ Position approximative (adresse texte)</span>'
+            :'<span style="color:#2ecc71;font-size:.7rem;">✅ Position GPS exacte</span>';
+
+        const notes=o.delivery_instructions||o.notes||'';
+
+        const m=L.marker([pos.lat,pos.lng],{icon}).addTo(map);
+        m.bindPopup(`
+            <b>📍 ${esc(o.customer_name||'Client')}</b><br>
+            <small style="color:#aaa">${esc(o.customer_address||'')}</small><br>
+            ${gpsLabel}
+            ${notes?`<br><small style="color:#c5a059">📝 ${esc(notes)}</small>`:''}
+            <br><a href="https://maps.google.com/?q=${pos.lat},${pos.lng}" target="_blank" style="color:#3498db;font-size:.75rem;">Ouvrir Maps</a>
+        `,{maxWidth:230});
         markers[o.id]=m;
-        bounds.push([o.customer_lat,o.customer_lng]);
+        bounds.push([pos.lat,pos.lng]);
     });
 
-    if(bounds.length){map.fitBounds(bounds,{padding:[30,30]});}
-    drawRoute(orders);
+    if(bounds.length)map.fitBounds(bounds,{padding:[40,40]});
+    const ordersWithPos=orders.filter(o=>_getPos(o));
+    if(ordersWithPos.length)drawRoute(ordersWithPos.length>1?_optimizeRoute(ordersWithPos):ordersWithPos);
 }
 
+/* ══════════════════════════════════════════════════════════
+   ITINÉRAIRE OSRM (tournée complète)
+══════════════════════════════════════════════════════════ */
 function drawRoute(sortedOrders){
-    if(routeLayer)map.removeLayer(routeLayer);
-    const pts=sortedOrders
-        .filter(o=>o.customer_lat&&o.customer_lng)
-        .map(o=>[o.customer_lat,o.customer_lng]);
-    if(pts.length<2)return;
-    routeLayer=L.polyline(pts,{color:'#c5a059',weight:2,dashArray:'6,4',opacity:.6}).addTo(map);
+    if(routeLayer){
+        Array.isArray(routeLayer)?routeLayer.forEach(l=>map.removeLayer(l)):map.removeLayer(routeLayer);
+        routeLayer=null;
+    }
+    const pts=sortedOrders.filter(o=>_getPos(o));
+    if(!pts.length)return;
+
+    const start=_driverMarker
+        ?_driverMarker.getLatLng()
+        :(pts[0].restaurants?.lat?{lat:pts[0].restaurants.lat,lng:pts[0].restaurants.lng}:null);
+
+    const coords=[];
+    if(start)coords.push(`${start.lng},${start.lat}`);
+    pts.forEach(o=>{const pos=_getPos(o);if(pos)coords.push(`${pos.lng},${pos.lat}`);});
+    if(coords.length<2)return;
+
+    fetch(`https://router.project-osrm.org/route/v1/driving/${coords.join(';')}?overview=full&geometries=geojson`)
+        .then(r=>r.json())
+        .then(data=>{
+            const geo=data.routes?.[0]?.geometry?.coordinates;
+            if(!geo)return;
+            routeLayer=L.polyline(geo.map(c=>[c[1],c[0]]),{color:'#c5a059',weight:3,opacity:.75}).addTo(map);
+        })
+        .catch(()=>{
+            const fallback=coords.map(c=>{const[lng,lat]=c.split(',').map(Number);return[lat,lng];});
+            routeLayer=L.polyline(fallback,{color:'#c5a059',weight:2,dashArray:'6,4',opacity:.5}).addTo(map);
+        });
 }
 
-/* ── Optimisation de la tournée (algorithme du plus proche voisin) ── */
+/* ══════════════════════════════════════════════════════════
+   NAVIGATION VERS UNE COMMANDE
+══════════════════════════════════════════════════════════ */
+function goToOrder(orderId){
+    const o=orders.find(x=>x.id===orderId);
+    const pos=_getPos(o);
+    if(!pos)return;
+
+    map.setView([pos.lat,pos.lng],17,{animate:true});
+    markers[orderId]?.openPopup();
+
+    const driverPos=_driverMarker?_driverMarker.getLatLng():null;
+    if(driverPos){
+        fetch(`https://router.project-osrm.org/route/v1/driving/${driverPos.lng},${driverPos.lat};${pos.lng},${pos.lat}?overview=full&geometries=geojson`)
+            .then(r=>r.json())
+            .then(data=>{
+                if(window._navRoute)map.removeLayer(window._navRoute);
+                const geo=data.routes?.[0]?.geometry?.coordinates;
+                if(geo){
+                    window._navRoute=L.polyline(geo.map(c=>[c[1],c[0]]),{color:'#3498db',weight:4,opacity:.85}).addTo(map);
+                    map.fitBounds(window._navRoute.getBounds(),{padding:[40,40]});
+                    toast(`🛵 ~${Math.max(1,Math.round(data.routes[0].duration/60))} min`);
+                }
+            })
+            .catch(()=>{
+                if(window._navRoute)map.removeLayer(window._navRoute);
+                window._navRoute=L.polyline([[driverPos.lat,driverPos.lng],[pos.lat,pos.lng]],{color:'#3498db',weight:3,dashArray:'5,4',opacity:.7}).addTo(map);
+            });
+    }
+    window.open(`https://maps.google.com/?q=${pos.lat},${pos.lng}`,'_blank','noopener');
+}
+
+/* ══════════════════════════════════════════════════════════
+   OPTIMISATION TOURNÉE
+══════════════════════════════════════════════════════════ */
 function _haversine(lat1,lng1,lat2,lng2){
     const R=6371,toR=d=>d*Math.PI/180;
-    const dLat=toR(lat2-lat1),dLng=toR(lng2-lng1);
-    const a=Math.sin(dLat/2)**2+Math.cos(toR(lat1))*Math.cos(toR(lat2))*Math.sin(dLng/2)**2;
+    const a=Math.sin(toR(lat2-lat1)/2)**2+Math.cos(toR(lat1))*Math.cos(toR(lat2))*Math.sin(toR(lng2-lng1)/2)**2;
     return R*2*Math.asin(Math.sqrt(a));
 }
 
-function _optimizeRoute(orders){
-    if(orders.length<=1)return orders;
-    /* Point de départ : position GPS livreur ou premier restaurant */
-    let cur={lat:orders[0].restaurants?.lat,lng:orders[0].restaurants?.lng};
-    if(!cur.lat)return orders;
-    const remaining=[...orders];
-    const result=[];
+function _optimizeRoute(list){
+    if(list.length<=1)return list;
+    let cur={lat:list[0].restaurants?.lat||6.1375,lng:list[0].restaurants?.lng||1.2123};
+    const remaining=[...list];const result=[];
     while(remaining.length){
         let nearestIdx=0,nearestDist=Infinity;
         remaining.forEach((o,i)=>{
-            if(!o.customer_lat)return;
-            const d=_haversine(cur.lat,cur.lng,o.customer_lat,o.customer_lng);
+            const pos=_getPos(o);
+            if(!pos)return;
+            const d=_haversine(cur.lat,cur.lng,pos.lat,pos.lng);
             if(d<nearestDist){nearestDist=d;nearestIdx=i;}
         });
         const next=remaining.splice(nearestIdx,1)[0];
         result.push(next);
-        if(next.customer_lat)cur={lat:next.customer_lat,lng:next.customer_lng};
+        const pos=_getPos(next);
+        if(pos)cur={lat:pos.lat,lng:pos.lng};
     }
     return result;
 }
 
-window.goToOrder=function(orderId){
-    const o=orders.find(x=>x.id===orderId);
-    if(!o?.customer_lat)return;
-    map.setView([o.customer_lat,o.customer_lng],17,{animate:true});
-    markers[orderId]?.openPopup();
-    const mapsUrl=`https://maps.google.com/?q=${o.customer_lat},${o.customer_lng}`;
-    window.open(mapsUrl,'_blank','noopener');
-};
-
-window.markDelivered=async function(orderId){
+/* ══════════════════════════════════════════════════════════
+   MARQUER LIVRÉ — #3 file d'attente hors-ligne
+══════════════════════════════════════════════════════════ */
+async function markDelivered(orderId){
     const btn=document.querySelector(`#course-${orderId} .btn-status`);
-    if(btn){btn.disabled=true;btn.textContent='⏳…';}
+    if(btn){btn.disabled=true;btn.innerHTML='⏳…';}
+
+    if(!_isOnline){
+        _enqueue({type:'markDelivered',orderId});
+        orders=orders.filter(o=>o.id!==orderId);
+        if(markers[orderId])map.removeLayer(markers[orderId]);
+        renderCourses();updateMapMarkers();
+        return;
+    }
+
     try{
         await db.from('orders').update({status:'livré'}).eq('id',orderId);
         orders=orders.filter(o=>o.id!==orderId);
         if(markers[orderId])map.removeLayer(markers[orderId]);
         toast('✅ Commande marquée livrée !');
         renderCourses();updateMapMarkers();
-    }catch(e){toast('❌ Erreur: '+e.message);if(btn){btn.disabled=false;btn.textContent='✅ Livré';}}
-};
+    }catch(e){
+        toast('❌ Erreur: '+e.message,'err');
+        if(btn){btn.disabled=false;btn.innerHTML='✅ Livré';}
+    }
+}
 
-/* ══ GPS BROADCAST ══ */
-window.toggleGPS=function(){
+/* ══════════════════════════════════════════════════════════
+   GPS BROADCAST
+══════════════════════════════════════════════════════════ */
+function toggleGPS(){
     if(gpsActive){_stopGPS();}else{_startGPS();}
-};
+}
 
 function _startGPS(){
-    if(!navigator.geolocation){toast('GPS non disponible.');return;}
+    if(!navigator.geolocation){toast('GPS non disponible.','err');return;}
+
+    if(!gpsBroadcastChannel){
+        gpsBroadcastChannel=db.channel(`gps-broadcast-${person.id}`);
+        gpsBroadcastChannel.subscribe();
+    }
+
     gpsWatchId=navigator.geolocation.watchPosition(
         pos=>{
             const{latitude:lat,longitude:lng,heading,speed}=pos.coords;
             _broadcastPosition(lat,lng,heading,speed);
-            /* Marqueur livreur */
             _updateDriverMarker(lat,lng);
+            if(orders.length)drawRoute(_optimizeRoute(orders.filter(o=>_getPos(o))));
         },
-        err=>{toast('GPS: '+err.message);_stopGPS();},
+        err=>{toast('GPS: '+err.message,'err');_stopGPS();},
         {enableHighAccuracy:true,timeout:15000,maximumAge:5000}
     );
     gpsActive=true;
-    qs('gps-pill').classList.remove('off');qs('gps-pill').classList.add('on');
+    qs('gps-pill').classList.remove('off','warn');
+    qs('gps-pill').classList.add('on');
     qs('gps-lbl').textContent='GPS on';
-    toast('📍 GPS activé — position diffusée');
+    toast('📍 GPS activé');
+
+    /* #2 — Démarrer le heartbeat */
+    _lastSuccessfulBroadcast=Date.now();
+    _startHeartbeat();
 }
 
 function _stopGPS(){
     if(gpsWatchId!==null)navigator.geolocation.clearWatch(gpsWatchId);
+    if(gpsBroadcastChannel){db.removeChannel(gpsBroadcastChannel);gpsBroadcastChannel=null;}
     gpsActive=false;
-    qs('gps-pill').classList.add('off');qs('gps-pill').classList.remove('on');
+    qs('gps-pill').classList.add('off');
+    qs('gps-pill').classList.remove('on','warn');
     qs('gps-lbl').textContent='GPS off';
+    _stopHeartbeat();
+    qs('gps-warn-banner').style.display='none';
 }
 
-let _driverMarker=null;
+/* #2 — Heartbeat GPS : vérifier toutes les 30s si le GPS diffuse encore */
+function _startHeartbeat(){
+    _stopHeartbeat();
+    _heartbeatTimer=setInterval(()=>{
+        if(!gpsActive)return;
+        const elapsed=Date.now()-_lastSuccessfulBroadcast;
+        const silent=elapsed>60000; /* silencieux depuis > 1 min */
+        qs('gps-warn-banner').style.display=silent?'block':'none';
+        qs('gps-pill').classList.toggle('warn',silent);
+        qs('gps-pill').classList.toggle('on',!silent);
+        if(silent){
+            qs('gps-lbl').textContent='GPS ?';
+            toast('⚠️ GPS silencieux — bougez ou vérifiez la connexion','warn',5000);
+        }
+    },30000);
+}
+function _stopHeartbeat(){
+    if(_heartbeatTimer){clearInterval(_heartbeatTimer);_heartbeatTimer=null;}
+}
+
 function _updateDriverMarker(lat,lng){
     if(!map)return;
     const icon=L.divIcon({
-        html:'<div style="background:#3498db;width:16px;height:16px;border-radius:50%;border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.5);"></div>',
-        iconSize:[16,16],iconAnchor:[8,8],className:''
+        html:'<div style="background:#3498db;width:18px;height:18px;border-radius:50%;border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;font-size:9px;">🛵</div>',
+        iconSize:[18,18],iconAnchor:[9,9],className:''
     });
     if(_driverMarker){_driverMarker.setLatLng([lat,lng]);}
     else{_driverMarker=L.marker([lat,lng],{icon}).addTo(map).bindTooltip('Moi',{permanent:false});}
@@ -390,9 +839,26 @@ function _updateDriverMarker(lat,lng){
 let _lastBroadcast=0;
 async function _broadcastPosition(lat,lng,heading,speed){
     const now=Date.now();
-    if(now-_lastBroadcast<12000)return; /* max 1 update / 12 secondes */
+    if(now-_lastBroadcast<5000)return;
     _lastBroadcast=now;
     if(!orders.length)return;
+
+    /* Broadcast temps réel */
+    if(gpsBroadcastChannel){
+        gpsBroadcastChannel.send({
+            type:'broadcast',event:'gps',
+            payload:{lat,lng,heading:heading||null,speed:speed?Math.round(speed*3.6):null}
+        });
+    }
+
+    /* #2 — Mettre à jour le timestamp du dernier broadcast réussi */
+    _lastSuccessfulBroadcast=Date.now();
+    qs('gps-warn-banner').style.display='none';
+    qs('gps-pill').classList.remove('warn');
+    qs('gps-pill').classList.add('on');
+    qs('gps-lbl').textContent='GPS on';
+
+    /* #10 — INSERT historique (pas upsert) → trace complète */
     try{
         const rows=orders.map(o=>({
             delivery_person_id:person.id,
@@ -400,37 +866,45 @@ async function _broadcastPosition(lat,lng,heading,speed){
             lat,lng,
             heading:heading||null,
             speed:speed?Math.round(speed*3.6):null,
-            updated_at:new Date().toISOString()
+            recorded_at:new Date().toISOString()
         }));
-        /* Upsert pour éviter les doublons par (delivery_person_id,order_id) */
-        await db.from('delivery_tracking').upsert(rows,{onConflict:'delivery_person_id,order_id'});
+        /* delivery_tracking_history est la nouvelle table sans contrainte unique */
+        await db.from('delivery_tracking_history').insert(rows);
+        /* Garder aussi l'upsert sur delivery_tracking pour loadDriverPosition */
+        await db.from('delivery_tracking').upsert(
+            rows.map(r=>({...r,updated_at:r.recorded_at})),
+            {onConflict:'delivery_person_id,order_id'}
+        );
     }catch(_){}
 }
 
-/* ══ CHAT ══ */
+/* ══════════════════════════════════════════════════════════
+   CHAT
+══════════════════════════════════════════════════════════ */
 function populateChatSelect(){
     const sel=qs('chat-order-sel');
     sel.innerHTML='<option value="">— Sélectionnez —</option>';
     orders.forEach(o=>{
         const opt=document.createElement('option');
-        opt.value=o.id;opt.textContent=`#${o.id.substring(0,8).toUpperCase()} — ${o.customer_name||'Client'}`;
+        opt.value=o.id;
+        opt.textContent=`#${o.id.substring(0,8).toUpperCase()} — ${o.customer_name||'Client'}`;
         sel.appendChild(opt);
     });
 }
 
-window.openChatFor=function(orderId){
+function openChatFor(orderId){
     qs('chat-order-sel').value=orderId;
-    switchTab('chat',document.querySelectorAll('.p-tab')[1]);
+    switchTab('chat');
     loadChat();
-};
+}
 
-window.setChatRole=function(role,btn){
+function setChatRole(role,btn){
     chatRole=role;
-    document.querySelectorAll('.role-tab').forEach(b=>b.classList.remove('on'));
+    [qs('role-staff'),qs('role-client')].forEach(b=>b.classList.remove('on'));
     btn.classList.add('on');
-};
+}
 
-window.loadChat=async function(){
+async function loadChat(){
     chatOrderId=qs('chat-order-sel').value;
     if(!chatOrderId){qs('chat-msgs').innerHTML='';return;}
 
@@ -439,10 +913,8 @@ window.loadChat=async function(){
         .eq('order_id',chatOrderId)
         .order('created_at',{ascending:true})
         .limit(50);
-
     _renderMessages(data||[]);
 
-    /* Realtime chat */
     if(chatChannel)db.removeChannel(chatChannel);
     chatChannel=db.channel(`chat-${chatOrderId}`)
         .on('postgres_changes',{event:'INSERT',schema:'public',table:'delivery_chats',filter:`order_id=eq.${chatOrderId}`},
@@ -453,7 +925,7 @@ window.loadChat=async function(){
                 if('vibrate' in navigator)navigator.vibrate([50]);
             })
         .subscribe();
-};
+}
 
 function _renderMessages(msgs){
     const el=qs('chat-msgs');
@@ -472,26 +944,34 @@ function _msgEl(m){
     return div;
 }
 
-window.sendMsg=async function(){
+/* #3 — sendMsg avec file d'attente hors-ligne */
+async function sendMsg(){
     const inp=qs('chat-inp');
     const msg=inp.value.trim();
     if(!msg||!chatOrderId)return;
     inp.value='';
-    try{
-        await db.from('delivery_chats').insert({
-            order_id:chatOrderId,
-            sender_role:'livreur',
-            sender_name:person.name,
-            message:msg,
-        });
-    }catch(e){toast('Erreur envoi: '+e.message);}
-};
+    const payload={order_id:chatOrderId,sender_role:'livreur',sender_name:person.name,message:msg};
 
-/* ══ REALTIME ══ */
+    if(!_isOnline){
+        _enqueue({type:'sendMsg',payload});
+        const fakeMsg={...payload,created_at:new Date().toISOString()};
+        const msgs=qs('chat-msgs');
+        msgs.appendChild(_msgEl(fakeMsg));
+        msgs.scrollTop=msgs.scrollHeight;
+        return;
+    }
+    try{
+        await db.from('delivery_chats').insert(payload);
+    }catch(e){toast('Erreur envoi: '+e.message,'err');}
+}
+
+/* ══════════════════════════════════════════════════════════
+   REALTIME
+══════════════════════════════════════════════════════════ */
 function startRealtime(){
     db.channel(`livreur-orders-${person.id}`)
         .on('postgres_changes',{event:'*',schema:'public',table:'orders',filter:`delivery_person_id=eq.${person.id}`},
-            ()=>{loadOrders();toast('🔔 Mise à jour des courses !')})
+            ()=>{loadOrders();toast('🔔 Mise à jour des courses !');})
         .subscribe();
 }
 
