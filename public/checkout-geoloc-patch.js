@@ -230,6 +230,8 @@ function _showMap(lat, lng) {
     const wrap = document.getElementById('geo-map-wrap');
     if (!wrap) return;
     wrap.classList.add('show');
+    /* invalidateSize APRES show — sinon tuiles sur zone 0x0 */
+    requestAnimationFrame(() => { if (_geoMap) _geoMap.invalidateSize(); });
 
     if (!window.L) { console.warn('checkout-geoloc: Leaflet non chargé'); return; }
 
@@ -238,10 +240,9 @@ function _showMap(lat, lng) {
         L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
             maxZoom: 19,
         }).addTo(_geoMap);
+        /* Premier affichage : invalider apres creation */
+        setTimeout(() => _geoMap && _geoMap.invalidateSize(), 100);
     }
-
-    // Forcer Leaflet à recalculer après affichage du conteneur
-    if (_geoMap) setTimeout(() => _geoMap.invalidateSize(), 50);
 
     _geoMap.setView([lat, lng], 17);
 
@@ -295,25 +296,45 @@ async function _reverseGeocode(lat, lng) {
     const addrRow = document.getElementById('geo-addr-row');
     const addrInp = document.getElementById('geo-addr-inp');
 
+    /* 1. Essayer le Worker proxy (evite le CSP) */
     try {
         const res = await fetch(
             `${location.origin}/api/reverse-geocode?lat=${lat}&lng=${lng}`
         );
-        if (!res.ok) throw new Error('geocode failed');
+        if (!res.ok) throw new Error('worker unavailable');
         const { address } = await res.json();
-
         if (addrInp) addrInp.value = address || `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
         if (addrRow) addrRow.style.display = 'flex';
-
-        /* Synchroniser avec le champ original */
         _syncGeoAddress(addrInp?.value || '');
-    } catch (_) {
-        /* Fallback : coordonnées brutes */
-        const fallback = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
-        if (addrInp) addrInp.value = fallback;
+        return;
+    } catch (_) {}
+
+    /* 2. Fallback direct Nominatim (si Worker non deploye) */
+    try {
+        const r = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&accept-language=fr`,
+            { headers: { 'User-Agent': 'RestosLome/1.0 (contact@restos-lome.tg)' } }
+        );
+        if (!r.ok) throw new Error('nominatim failed');
+        const data = await r.json();
+        const a = data.address || {};
+        const parts = [
+            a.house_number && a.road ? `${a.house_number} ${a.road}` : a.road || a.pedestrian,
+            a.neighbourhood || a.suburb || a.quarter,
+            a.city || a.town || a.village || 'Lomé',
+        ].filter(Boolean);
+        const address = parts.join(', ') || data.display_name || `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+        if (addrInp) addrInp.value = address;
         if (addrRow) addrRow.style.display = 'flex';
-        _syncGeoAddress(fallback);
-    }
+        _syncGeoAddress(address);
+        return;
+    } catch (_) {}
+
+    /* 3. Dernier recours : coordonnees brutes */
+    const fallback = `${lat.toFixed(5)}°N, ${Math.abs(lng).toFixed(5)}°E (Lomé)`;
+    if (addrInp) addrInp.value = fallback;
+    if (addrRow) addrRow.style.display = 'flex';
+    _syncGeoAddress(fallback);
 }
 
 

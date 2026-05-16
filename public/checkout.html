@@ -6,7 +6,7 @@
     <title>Commander — Restos Lomé</title>
 
     <!-- CSP — BUG-FIX: suppression frame-ancestors (ignoré en meta), ajout cdn.jsdelivr.net dans connect-src -->
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com 'unsafe-inline'; style-src 'self' https://fonts.googleapis.com https://cdn.jsdelivr.net 'unsafe-inline'; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https: blob:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://tile.openstreetmap.org;">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com 'unsafe-inline'; style-src 'self' https://fonts.googleapis.com https://cdn.jsdelivr.net 'unsafe-inline'; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https: blob:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://tile.openstreetmap.org https://nominatim.openstreetmap.org https://router.project-osrm.org;">
     <link rel="manifest" href="/manifest.json">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -324,6 +324,8 @@ $('submit-order-btn').addEventListener('click', async () => {
         }).select().single();
 
         orderId = order.id;
+        /* #7 — Stocker le tracking_token pour URL securisee */
+        window._trackingToken = order.tracking_token || null;
 
         const orderItems = items.map(i => ({ 
             order_id: order.id, 
@@ -364,14 +366,32 @@ $('submit-order-btn').addEventListener('click', async () => {
         waMsg += `\n💰 *TOTAL : ${fmt(total)}*`;
         if (notes) waMsg += `\n📝 Note : ${escapeHTML(notes)}`;
         
+        /* #7 Lien de tracking dans le message WA */
+        const _trackLink = window._trackingToken
+            ? `${location.origin}/tracking.html?token=${window._trackingToken}`
+            : `${location.origin}/tracking.html?id=${orderId}`;
+        waMsg += `\n\n📦 *Suivre la commande en temps réel :*\n${_trackLink}`;
+
         if (restaurantData.whatsapp) {
             window.open(sanitizeURL(`https://wa.me/${sanitizePhone(restaurantData.whatsapp)}?text=${encodeURIComponent(waMsg)}`), '_blank', 'noopener,noreferrer');
+        }
+
+        /* Envoyer le lien de tracking au client aussi */
+        if (phone) {
+            const clientMsg = `📦 *Votre commande est confirmée !*\n\n`
+                + `Bonjour ${escapeHTML(name)}, votre commande chez *${escapeHTML(restaurantData.name)}* est bien reçue.\n\n`
+                + `🔍 Suivez votre livraison :\n${_trackLink}\n\n`
+                + `💰 Total : ${fmt(total)} — ${paymentMethod === 'tmoney' ? 'TMoney' : paymentMethod === 'flooz' ? 'Flooz' : 'Espèces'}`;
+            window.open(sanitizeURL(`https://wa.me/${phone}?text=${encodeURIComponent(clientMsg)}`), '_blank', 'noopener,noreferrer');
         }
 
         localStorage.removeItem(`c_${restaurantData.slug}`);
         $('checkout-form').style.display = 'none';
         $('success-state').style.display = 'block';
-        $('success-msg').innerHTML = `Votre commande <strong>#${escapeHTML(order.id?.substring(0, 8) || 'N/A')}</strong> a été envoyée.<br>Le restaurant vous contactera via WhatsApp.`;
+        const _tLink = window._trackingToken
+            ? `${location.origin}/tracking.html?token=${window._trackingToken}`
+            : `${location.origin}/tracking.html?id=${orderId}`;
+        $('success-msg').innerHTML = `Votre commande <strong>#${escapeHTML(order.id?.substring(0, 8) || 'N/A')}</strong> a été envoyée.<br>Le restaurant vous contactera via WhatsApp.<br><a href="${_tLink}" style="color:var(--gold);text-decoration:underline;font-size:.85rem;">📦 Suivre ma livraison →</a>`;
     } catch(e) { 
         console.error('Erreur commande:', e);
         showError('Erreur lors de la commande : ' + escapeHTML(e.message)); 
@@ -409,8 +429,13 @@ function downloadInvoice() {
     doc.save(`facture-${orderId?.substring(0, 8) || 'commande'}.pdf`);
 }
 
-function trackOrder() { 
-    if (orderId) window.location.href = `/tracking.html?id=${encodeURIComponent(orderId)}`; 
+function trackOrder() {
+    if (!orderId) return;
+    if (window._trackingToken) {
+        window.location.href = `/tracking.html?token=${encodeURIComponent(window._trackingToken)}`;
+    } else {
+        window.location.href = `/tracking.html?id=${encodeURIComponent(orderId)}`;
+    }
 }
 
 init();
