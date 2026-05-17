@@ -7,7 +7,7 @@
 // ⚠️ NOTE : chaque instance Worker a son propre Map — le rate limit
 //    est donc par-instance, pas global. Pour un rate limit réel,
 //    migrer vers Cloudflare KV ou Durable Objects.
-const rateLimitMap = new Map();
+// Rate limiting via Cloudflare KV (distribue entre toutes les instances Worker)
 // Sitemap & robots.txt
 import { handleSitemap, handleRobots } from './worker-sitemap-snippet.js';
 import { handleReverseGeocode, handleDistance } from './worker-geoloc-snippet.js';
@@ -302,39 +302,51 @@ function validateImageFile(arrayBuffer, mimeType, fileSize) {
 }
 
 // ----------------------------------------------------------------
-// Rate limiting
+// Rate limiting — Cloudflare KV (global entre toutes les instances)
 // ----------------------------------------------------------------
 
-function checkRateLimit(ip, action, maxAttempts = 5, windowMs = 15 * 60 * 1000) {
-    const key    = `${action}:${ip}`;
-    const now    = Date.now();
-    const record = rateLimitMap.get(key);
-
-    if (!record || (now - record.timestamp > windowMs)) {
+async function checkRateLimit(ip, action, maxAttempts = 5, windowMs = 15 * 60 * 1000, env) {
+    const key = `rl:${action}:${ip}`;
+    const now = Date.now();
+    try {
+        const raw = await env.RATE_LIMIT_KV.get(key);
+        if (!raw) return { allowed: true, remaining: maxAttempts };
+        const record = JSON.parse(raw);
+        if (now - record.timestamp > windowMs) return { allowed: true, remaining: maxAttempts };
+        if (record.count >= maxAttempts) {
+            const retryAfter = Math.ceil((record.timestamp + windowMs - now) / 1000);
+            return { allowed: false, remaining: 0, retryAfter };
+        }
+        return { allowed: true, remaining: maxAttempts - record.count };
+    } catch {
+        // Si KV indisponible, on laisse passer plutôt que de bloquer
         return { allowed: true, remaining: maxAttempts };
     }
-    if (record.count >= maxAttempts) {
-        const retryAfter = Math.ceil((record.timestamp + windowMs - now) / 1000);
-        return { allowed: false, remaining: 0, retryAfter };
-    }
-    return { allowed: true, remaining: maxAttempts - record.count };
 }
 
-function incrementRateLimit(ip, action, windowMs = 15 * 60 * 1000) {
-    const key    = `${action}:${ip}`;
-    const now    = Date.now();
-    const record = rateLimitMap.get(key);
-
-    if (!record || (now - record.timestamp > windowMs)) {
-        rateLimitMap.set(key, { count: 1, timestamp: now });
-    } else {
-        record.count++;
-        rateLimitMap.set(key, record);
+async function incrementRateLimit(ip, action, windowMs = 15 * 60 * 1000, env) {
+    const key = `rl:${action}:${ip}`;
+    const now = Date.now();
+    try {
+        const raw    = await env.RATE_LIMIT_KV.get(key);
+        const record = raw ? JSON.parse(raw) : null;
+        const next   = (!record || now - record.timestamp > windowMs)
+            ? { count: 1, timestamp: now }
+            : { count: record.count + 1, timestamp: record.timestamp };
+        await env.RATE_LIMIT_KV.put(key, JSON.stringify(next), {
+            expirationTtl: Math.ceil(windowMs / 1000),
+        });
+    } catch {
+        // Silencieux — le rate limit est best-effort
     }
 }
 
-function resetRateLimit(ip, action) {
-    rateLimitMap.delete(`${action}:${ip}`);
+async function resetRateLimit(ip, action, env) {
+    try {
+        await env.RATE_LIMIT_KV.delete(`rl:${action}:${ip}`);
+    } catch {
+        // Silencieux
+    }
 }
 
 // ----------------------------------------------------------------
@@ -496,7 +508,7 @@ async function handlePasswordCheck(request, env, clientIP) {
         }
 
         const action    = `pwd-${type}`;
-        const rateCheck = checkRateLimit(clientIP, action);
+        const rateCheck = await checkRateLimit(clientIP, action, 5, 15 * 60 * 1000, env);
         if (!rateCheck.allowed) {
             return jsonResponse({
                 error:      `Trop de tentatives. Réessayez dans ${rateCheck.retryAfter} secondes.`,
@@ -504,7 +516,7 @@ async function handlePasswordCheck(request, env, clientIP) {
             }, 429, { 'Retry-After': String(rateCheck.retryAfter) });
         }
 
-        incrementRateLimit(clientIP, action);
+        await incrementRateLimit(clientIP, action, 15 * 60 * 1000, env);
 
         // Délai artificiel anti-timing attack
         await new Promise(resolve => setTimeout(resolve, 200 + Math.random() * 300));
@@ -513,7 +525,7 @@ async function handlePasswordCheck(request, env, clientIP) {
         if (type === 'onboarding') valid = (password === env.ONBOARDING_MASTER_PASSWORD);
         else if (type === 'blog')  valid = (password === env.BLOG_ADMIN_PASSWORD);
 
-        if (valid) resetRateLimit(clientIP, action);
+        if (valid) await resetRateLimit(clientIP, action, env);
 
         return jsonResponse({ valid });
 
