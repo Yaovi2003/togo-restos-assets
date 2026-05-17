@@ -377,10 +377,6 @@ function arrayBufferToBase64(buffer) {
 
 async function handleImageUpload(request, env) {
     try {
-        console.log('📸 Upload démarré');
-        console.log('Repo configuré:', env.GITHUB_REPO);
-        console.log('Token présent:', !!env.GITHUB_TOKEN);
-
         const formData = await request.formData();
         const file     = formData.get('image');
         const filename = formData.get('filename') || 'image';
@@ -390,16 +386,12 @@ async function handleImageUpload(request, env) {
             return jsonResponse({ error: 'Aucune image fournie' }, 400);
         }
 
-        console.log('📁 Fichier reçu:', file.name, file.type, file.size);
-
         const arrayBuffer  = await file.arrayBuffer();
         const validation   = validateImageFile(arrayBuffer, file.type, file.size);
         if (!validation.valid) {
             console.error('❌ Validation échouée:', validation.error);
             return jsonResponse({ error: validation.error }, 400);
         }
-        console.log('✅ Validation réussie');
-
         if (typeof filename !== 'string' || !/^[a-zA-Z0-9_-]{1,60}$/.test(filename)) {
             return jsonResponse({ error: 'Nom de fichier invalide. Utilisez uniquement lettres, chiffres, - et _' }, 400);
         }
@@ -409,8 +401,6 @@ async function handleImageUpload(request, env) {
         const timestamp = Date.now();
         const randomId  = Math.random().toString(36).substring(2, 8);
         const filePath  = `assets/uploads/${cleanName}-${timestamp}-${randomId}.webp`;
-
-        console.log('📤 Upload vers GitHub:', filePath);
 
         const githubResponse = await fetch(
             `https://api.github.com/repos/${env.GITHUB_REPO}/contents/${filePath}`,
@@ -438,8 +428,6 @@ async function handleImageUpload(request, env) {
         }
 
         const result    = await githubResponse.json();
-        console.log('✅ Upload réussi:', result.content?.name);
-
         const publicUrl = `https://raw.githubusercontent.com/${env.GITHUB_REPO}/main/${filePath}`;
         return jsonResponse({ success: true, url: publicUrl, path: filePath });
 
