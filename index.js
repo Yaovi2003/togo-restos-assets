@@ -712,6 +712,9 @@ async function handleGitHubCallback(request, env, url) {
         // La chaîne complète postMessageée, sérialisée comme littéral JS propre
         const safePostMessage = JSON.stringify(`authorization:github:success:${messagePayload}`);
 
+        // Origin exact du Worker - seul destinataire autorise
+        const workerOrigin = url.origin;
+
         const html = `<!DOCTYPE html>
 <html>
 <head><meta charset="utf-8"><title>Connexion en cours...</title></head>
@@ -719,14 +722,16 @@ async function handleGitHubCallback(request, env, url) {
     <p style="font-family:sans-serif;text-align:center;padding:40px;">Connexion réussie. Fermeture...</p>
     <script>
         (function() {
+            var ALLOWED_ORIGIN = ${JSON.stringify(workerOrigin)};
             function receiveMessage(e) {
+                if (e.origin !== ALLOWED_ORIGIN) return;
                 window.opener.postMessage(
                     ${safePostMessage},
-                    e.origin
+                    ALLOWED_ORIGIN
                 );
             }
             window.addEventListener('message', receiveMessage, false);
-            window.opener.postMessage('authorizing:github', '*');
+            window.opener.postMessage('authorizing:github', ALLOWED_ORIGIN);
         })();
     </script>
 </body>
