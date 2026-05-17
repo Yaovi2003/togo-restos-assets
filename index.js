@@ -18,6 +18,22 @@ export default {
         const clientIP = request.headers.get('cf-connecting-ip') || 'unknown';
 
         // ═══════════════════════════════════════════════════════
+        // PREFLIGHT CORS — répondre aux requêtes OPTIONS
+        // Nécessaire pour les appels avec header Authorization
+        // ═══════════════════════════════════════════════════════
+        if (request.method === 'OPTIONS') {
+            return new Response(null, {
+                status: 204,
+                headers: {
+                    'Access-Control-Allow-Origin':  '*',
+                    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+                    'Access-Control-Allow-Headers': 'Content-Type, X-CSRF-Token, Authorization',
+                    'Access-Control-Max-Age':       '86400',
+                },
+            });
+        }
+
+        // ═══════════════════════════════════════════════════════
         // ROUTE : /api/config → Fournit la config Supabase
         // ═══════════════════════════════════════════════════════
         if (url.pathname === '/api/config') {
@@ -339,6 +355,30 @@ function escapeXML(str) {
 // Réponse JSON standardisée
 // ----------------------------------------------------------------
 
+// ----------------------------------------------------------------
+// Verification JWT Supabase
+// ----------------------------------------------------------------
+
+/**
+ * Verifie un token JWT Supabase aupres de l'API Auth.
+ * Retourne { valid: true, userId } si le token est valide.
+ */
+async function verifySupabaseJWT(token, env) {
+    try {
+        const res = await fetch(`${env.SUPABASE_URL}/auth/v1/user`, {
+            headers: {
+                'apikey':        env.SUPABASE_ANON_KEY,
+                'Authorization': `Bearer ${token}`,
+            },
+        });
+        if (!res.ok) return { valid: false };
+        const user = await res.json();
+        return { valid: true, userId: user.id };
+    } catch {
+        return { valid: false };
+    }
+}
+
 function jsonResponse(data, status = 200, extraHeaders = {}) {
     return new Response(JSON.stringify(data), {
         status,
@@ -346,7 +386,7 @@ function jsonResponse(data, status = 200, extraHeaders = {}) {
             'Content-Type': 'application/json',
             'Access-Control-Allow-Origin': '*',
             'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-            'Access-Control-Allow-Headers': 'Content-Type, X-CSRF-Token',
+            'Access-Control-Allow-Headers': 'Content-Type, X-CSRF-Token, Authorization',
             'X-Content-Type-Options': 'nosniff',
             'X-Frame-Options': 'DENY',
             'Strict-Transport-Security': 'max-age=31536000; includeSubDomains',
@@ -510,6 +550,20 @@ async function handleDatabaseProxy(request, env, clientIP) {
         const ALLOWED_METHODS = ['select', 'insert', 'update', 'delete'];
         if (!ALLOWED_METHODS.includes(method)) {
             return jsonResponse({ error: 'Méthode non autorisée' }, 403);
+        }
+
+        // ✅ SECURITE : les ecritures exigent un token JWT Supabase valide
+        const WRITE_METHODS = ['insert', 'update', 'delete'];
+        if (WRITE_METHODS.includes(method)) {
+            const authHeader = request.headers.get('Authorization');
+            if (!authHeader || !authHeader.startsWith('Bearer ')) {
+                return jsonResponse({ error: 'Authentification requise' }, 401);
+            }
+            const token = authHeader.slice(7);
+            const auth  = await verifySupabaseJWT(token, env);
+            if (!auth.valid) {
+                return jsonResponse({ error: 'Token invalide ou expiré' }, 401);
+            }
         }
 
         const ALLOWED_FILTER_COLUMNS = [

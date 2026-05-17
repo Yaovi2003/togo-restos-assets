@@ -48,16 +48,12 @@ const CONFIG = {
         formData.append('image', file);
         formData.append('filename', filename || 'image');
 
-        console.log('📤 Upload vers:', `${location.origin}/api/upload-image`);
-        console.log('📁 Fichier:', filename, file.type, file.size);
-
         const response = await fetch(`${location.origin}/api/upload-image`, {
             method: 'POST',
             body: formData,
         });
 
         const result = await response.json();
-        console.log('📥 Réponse:', response.status, result);
 
         if (!response.ok) {
             throw new Error(result.error || 'Erreur lors de l\'upload');
@@ -192,4 +188,102 @@ const CONFIG = {
 // Compatibilité navigateur
 if (typeof window !== 'undefined') {
     window.CONFIG = CONFIG;
+}
+
+// ================================================================
+// AUTH HELPERS
+// Fonctions utilitaires pour authentifier les appels /api/db
+// A utiliser dans toutes les pages qui font des ecritures en BD
+// ================================================================
+
+/**
+ * Recupere le token JWT de la session Supabase active.
+ * Retourne null si l'utilisateur n'est pas connecte.
+ */
+async function getAuthToken() {
+    try {
+        const client = await CONFIG.createClient();
+        const { data: { session } } = await client.auth.getSession();
+        return session?.access_token || null;
+    } catch (err) {
+        console.error('getAuthToken error:', err);
+        return null;
+    }
+}
+
+/**
+ * Token CSRF - recupere et met en cache le token pour la session.
+ */
+let _csrfToken = null;
+async function getCsrfToken() {
+    if (_csrfToken) return _csrfToken;
+    try {
+        const res = await fetch(`${location.origin}/api/csrf-token`);
+        if (!res.ok) throw new Error('CSRF fetch failed');
+        const { token } = await res.json();
+        _csrfToken = token;
+        return token;
+    } catch (err) {
+        console.error('getCsrfToken error:', err);
+        return null;
+    }
+}
+
+/**
+ * Wrapper pour tous les appels d'ECRITURE vers /api/db.
+ * Ajoute automatiquement le token JWT et le header CSRF.
+ *
+ * @param {string} method  - 'insert' | 'update' | 'delete'
+ * @param {string} table   - nom de la table Supabase
+ * @param {object} data    - donnees a ecrire
+ * @param {object} filter  - filtre WHERE (requis pour update/delete)
+ */
+async function apiWrite(method, table, data = {}, filter = {}) {
+    const [token, csrf] = await Promise.all([getAuthToken(), getCsrfToken()]);
+
+    const headers = { 'Content-Type': 'application/json' };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    if (csrf)  headers['X-CSRF-Token']  = csrf;
+
+    const res = await fetch(`${location.origin}/api/db`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ method, table, data, filter }),
+    });
+
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `apiWrite error ${res.status}`);
+    }
+    return res.json();
+}
+
+/**
+ * Wrapper pour les LECTURES publiques vers /api/db.
+ * Pas besoin de token - les selects restent publics.
+ *
+ * @param {string} method  - 'select'
+ * @param {string} table   - nom de la table
+ * @param {object} filter  - filtre WHERE optionnel
+ * @param {object} options - options supplementaires
+ */
+async function apiRead(method = 'select', table, filter = {}, options = {}) {
+    const res = await fetch(`${location.origin}/api/db`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ method, table, filter, ...options }),
+    });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `apiRead error ${res.status}`);
+    }
+    return res.json();
+}
+
+// Exposer les helpers globalement
+if (typeof window !== 'undefined') {
+    window.getAuthToken = getAuthToken;
+    window.getCsrfToken = getCsrfToken;
+    window.apiWrite     = apiWrite;
+    window.apiRead      = apiRead;
 }
