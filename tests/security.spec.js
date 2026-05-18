@@ -103,8 +103,8 @@ test.describe('Rate limiting', () => {
 
     test('6 mauvais mots de passe déclenchent le rate limit', async ({ request }) => {
         const payload = {
-            action:   'blog_admin',
-            password: 'mauvais_mot_de_passe_test',
+            type:     'blog',
+            password: 'mauvais_mot_de_passe_test_12345',
         };
 
         let lastStatus = 200;
