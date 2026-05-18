@@ -1,0 +1,16 @@
+{
+    "name": "togo-restos-assets",
+    "version": "1.0.0",
+    "description": "Plateforme menus digitaux restaurants Lomé - Togo",
+    "scripts": {
+        "test":           "playwright test",
+        "test:security":  "playwright test tests/security.spec.js",
+        "test:order":     "playwright test tests/order.spec.js",
+        "test:admin":     "playwright test tests/admin.spec.js",
+        "test:ui":        "playwright test --ui",
+        "test:report":    "playwright show-report"
+    },
+    "devDependencies": {
+        "@playwright/test": "^1.44.0"
+    }
+}
