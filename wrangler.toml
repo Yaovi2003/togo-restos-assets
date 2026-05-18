@@ -11,3 +11,7 @@ not_found_handling = "single-page-application"
 [[kv_namespaces]]
 binding = "RATE_LIMIT_KV"
 id      = "64a2ed08ec71466caa418f274ca4402c"
+
+[[r2_buckets]]
+binding    = "IMAGES_BUCKET"
+bucket_name = "togo-restos-images"

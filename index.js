@@ -147,6 +147,7 @@ export default {
                 'raw.githubusercontent.com',
                 'user-images.githubusercontent.com',
                 'objects.githubusercontent.com',
+                'pub-1641f4af0ec14506b5fd5d80771cc5c7.r2.dev',
             ];
             if (!ALLOWED_DOMAINS.some(d => parsed.hostname === d || parsed.hostname.endsWith('.' + d))) {
                 return new Response('Domain not allowed', { status: 403 });
@@ -448,39 +449,21 @@ async function handleImageUpload(request, env) {
             return jsonResponse({ error: 'Nom de fichier invalide. Utilisez uniquement lettres, chiffres, - et _' }, 400);
         }
 
-        const base64    = arrayBufferToBase64(arrayBuffer);
         const cleanName = filename.replace(/[^a-z0-9\-_]/gi, '-').toLowerCase();
         const timestamp = Date.now();
         const randomId  = Math.random().toString(36).substring(2, 8);
-        const filePath  = `assets/uploads/${cleanName}-${timestamp}-${randomId}.webp`;
+        const filePath  = `uploads/${cleanName}-${timestamp}-${randomId}.webp`;
 
-        const githubResponse = await fetch(
-            `https://api.github.com/repos/${env.GITHUB_REPO}/contents/${filePath}`,
-            {
-                method: 'PUT',
-                headers: {
-                    'Authorization': `token ${env.GITHUB_TOKEN}`,
-                    'Content-Type':  'application/json',
-                    'Accept':        'application/vnd.github.v3+json',
-                    'User-Agent':    'Cloudflare-Worker',
-                },
-                body: JSON.stringify({
-                    message: `feat: upload image ${cleanName}`,
-                    content: base64,
-                    branch:  'main',
-                }),
-            }
-        );
+        // ✅ Upload vers Cloudflare R2 (remplace GitHub API)
+        await env.IMAGES_BUCKET.put(filePath, arrayBuffer, {
+            httpMetadata: {
+                contentType:  file.type || 'image/webp',
+                cacheControl: 'public, max-age=31536000',
+            },
+        });
 
-        if (!githubResponse.ok) {
-            const err = await githubResponse.json();
-            console.error('❌ GitHub Error:', err.status, err.message);
-            console.error('Détails:', JSON.stringify(err));
-            throw new Error(err.message || 'Erreur GitHub API');
-        }
-
-        const result    = await githubResponse.json();
-        const publicUrl = `https://raw.githubusercontent.com/${env.GITHUB_REPO}/main/${filePath}`;
+        const R2_PUBLIC_URL = 'https://pub-1641f4af0ec14506b5fd5d80771cc5c7.r2.dev';
+        const publicUrl     = `${R2_PUBLIC_URL}/${filePath}`;
         return jsonResponse({ success: true, url: publicUrl, path: filePath });
 
     } catch (err) {
