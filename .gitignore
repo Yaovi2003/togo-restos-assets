@@ -1,0 +1,4 @@
+﻿node_modules/
+assets/uploads/
+playwright-report/
+test-results/
