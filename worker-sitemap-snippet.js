@@ -181,4 +181,4 @@ function _xmlEsc(str) {
 ══════════════════════════════════════════════════════════════════ */
 
 // Export pour le Worker
-// export { handleSitemap, handleRobots };
+ export { handleSitemap, handleRobots };
